@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas-bg: oklch(0.99 0 0);
+  --color-canvas-fg: oklch(0.20 0.01 250);
+  --color-canvas-muted: oklch(0.55 0.02 250);
+  --color-canvas-border: oklch(0.92 0.005 250);
+  --color-canvas-accent: oklch(0.55 0.20 255);
+  --color-canvas-accent-fg: oklch(0.99 0 0);
+  --color-canvas-surface: oklch(0.98 0.005 250);
+  --color-canvas-surface-elevated: oklch(1 0 0);
+  --color-canvas-success: oklch(0.55 0.15 145);
+  --color-canvas-warning: oklch(0.70 0.15 65);
+  --color-canvas-error: oklch(0.55 0.20 25);
+
+  --font-canvas-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-canvas-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Menlo", monospace;
+
+  --radius-canvas: 0.5rem;
+}
+
+@layer base {
+  html, body { height: 100%; }
+  body { font-family: var(--font-canvas-sans); }
+  pre, code, .canvas-mono { font-family: var(--font-canvas-mono); }
+}
+
+.canvas-card {
+  background: var(--color-canvas-surface-elevated);
+  border: 1px solid var(--color-canvas-border);
+  border-radius: var(--radius-canvas);
+}
+
+.canvas-tab-active {
+  background: var(--color-canvas-surface-elevated);
+  border-bottom: 2px solid var(--color-canvas-accent);
+}
