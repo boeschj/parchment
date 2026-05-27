@@ -1,0 +1,18 @@
+{
+  "name": "clawd-canvas",
+  "version": "0.2.0",
+  "description": "Generative-UI canvas for Claude Code. Claude calls canvas_* MCP tools, your browser tab renders json-render specs (full shadcn catalog plus PlanFile, DiffViewer, MermaidEditor, Chart, DataTable extensions), and edits flow back into Claude's next turn via UserPromptSubmit.",
+  "author": { "name": "Jordan Boesch" },
+  "license": "MIT",
+  "keywords": [
+    "canvas",
+    "generative-ui",
+    "mcp",
+    "json-render",
+    "shadcn",
+    "tiptap",
+    "mermaid",
+    "diff",
+    "dashboard"
+  ]
+}
