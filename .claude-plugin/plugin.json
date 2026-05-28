@@ -14,5 +14,14 @@
     "mermaid",
     "diff",
     "dashboard"
-  ]
+  ],
+  "mcpServers": {
+    "canvas": {
+      "command": "bun",
+      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/src/daemon/mcp-stdio.ts"],
+      "env": {
+        "CANVAS_MCP_DEBUG": "1"
+      }
+    }
+  }
 }
