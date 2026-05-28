@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Renderer, type Spec } from "@json-render/react";
+import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
 import type { Slot } from "../shared/types.ts";
 import { SlotKind, SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
@@ -106,7 +106,12 @@ export function App() {
             {activeSlot ? (
               <SlotErrorBoundary slotId={activeSlot.id}>
                 <SlotContextProvider sessionId={sessionId} slotId={activeSlot.id}>
-                  <Renderer spec={activeSlot.spec as Spec} registry={registry} />
+                  <JSONUIProvider
+                    registry={registry}
+                    initialState={(activeSlot.state ?? {}) as Record<string, unknown>}
+                  >
+                    <Renderer spec={activeSlot.spec as Spec} registry={registry} />
+                  </JSONUIProvider>
                 </SlotContextProvider>
               </SlotErrorBoundary>
             ) : null}
