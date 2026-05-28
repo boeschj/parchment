@@ -16,16 +16,30 @@ import {
   DataTablePropsSchema,
 } from "../shared/catalog/extensions/DataTable.ts";
 import { SlotKind, SlotOrigin, type JsonRenderSpec } from "../shared/types.ts";
-import { canvasSessionUrl, closeSlot, CanvasDaemonError, pushSlot } from "./canvas-client.ts";
+import {
+  canvasSessionUrl,
+  closeSlot,
+  pushSlot,
+  resolveActiveSessionId,
+} from "./canvas-client.ts";
 
-// CANVAS_SESSION_ID is the override (set by install or for testing); fall
-// back to CLAUDE_CODE_SESSION_ID which Claude Code exports in every MCP
-// subprocess env (verified in spike).
-const sessionId =
+const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+const envSessionId =
   process.env.CANVAS_SESSION_ID ??
   process.env.CLAUDE_CODE_SESSION_ID ??
-  "default";
-const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  null;
+
+// Resolved each tool call (NOT cached at startup):
+// - If env hint exists, use it.
+// - Otherwise ask the daemon for the active session — the one with the highest
+//   recent statusline heartbeat, biased by matching cwd. This is what makes
+//   plugin-spawned MCP servers work even when Claude Code doesn't export
+//   CLAUDE_CODE_SESSION_ID into the plugin's MCP env.
+async function resolveSessionId(): Promise<string> {
+  if (envSessionId) return envSessionId;
+  const active = await resolveActiveSessionId(cwd);
+  return active ?? "default";
+}
 
 function debugLog(line: string): void {
   if (process.env.CANVAS_MCP_DEBUG !== "1") return;
@@ -48,13 +62,13 @@ function singleElementSpec(type: string, props: Record<string, unknown>): JsonRe
   };
 }
 
-function okText(slotId: string): { content: [{ type: "text"; text: string }] } {
-  debugLog(`OK slot=${slotId} session=${sessionId}`);
+function okText(slotId: string, resolvedSessionId: string): { content: [{ type: "text"; text: string }] } {
+  debugLog(`OK slot=${slotId} session=${resolvedSessionId}`);
   return {
     content: [
       {
         type: "text",
-        text: `Rendered to canvas slot ${slotId}. View: ${canvasSessionUrl(sessionId)}`,
+        text: `Rendered to canvas slot ${slotId}. View: ${canvasSessionUrl(resolvedSessionId)}`,
       },
     ],
   };
@@ -85,8 +99,9 @@ server.registerTool(
   },
   async ({ title, props, slotId }) => {
     try {
+      const resolvedSessionId = await resolveSessionId();
       const slot = await pushSlot({
-        sessionId,
+        sessionId: resolvedSessionId,
         cwd,
         kind: SlotKind.Plan,
         title: title ?? props.title ?? "Plan",
@@ -94,7 +109,7 @@ server.registerTool(
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
-      return okText(slot.id);
+      return okText(slot.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
@@ -115,8 +130,9 @@ server.registerTool(
   },
   async ({ title, props, slotId }) => {
     try {
+      const resolvedSessionId = await resolveSessionId();
       const slot = await pushSlot({
-        sessionId,
+        sessionId: resolvedSessionId,
         cwd,
         kind: SlotKind.Diagram,
         title: title ?? props.title ?? "Diagram",
@@ -124,7 +140,7 @@ server.registerTool(
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
-      return okText(slot.id);
+      return okText(slot.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
@@ -145,8 +161,9 @@ server.registerTool(
   },
   async ({ title, props, slotId }) => {
     try {
+      const resolvedSessionId = await resolveSessionId();
       const slot = await pushSlot({
-        sessionId,
+        sessionId: resolvedSessionId,
         cwd,
         kind: SlotKind.Diff,
         title: title ?? `Diff: ${props.file}`,
@@ -154,7 +171,7 @@ server.registerTool(
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
-      return okText(slot.id);
+      return okText(slot.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
@@ -175,8 +192,9 @@ server.registerTool(
   },
   async ({ title, props, slotId }) => {
     try {
+      const resolvedSessionId = await resolveSessionId();
       const slot = await pushSlot({
-        sessionId,
+        sessionId: resolvedSessionId,
         cwd,
         kind: SlotKind.Table,
         title: title ?? props.caption ?? "Table",
@@ -184,7 +202,7 @@ server.registerTool(
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
-      return okText(slot.id);
+      return okText(slot.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
@@ -218,10 +236,11 @@ server.registerTool(
   },
   async ({ title, kind, spec, slotId }) => {
     try {
+      const resolvedSessionId = await resolveSessionId();
       const validated = canvasCatalog.validate(spec);
       const finalSpec = validated.success ? (validated.data as JsonRenderSpec) : (spec as JsonRenderSpec);
       const slot = await pushSlot({
-        sessionId,
+        sessionId: resolvedSessionId,
         cwd,
         kind: kind ?? SlotKind.Render,
         title,
@@ -229,7 +248,7 @@ server.registerTool(
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
-      return okText(slot.id);
+      return okText(slot.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
@@ -248,7 +267,8 @@ server.registerTool(
   },
   async ({ slotId }) => {
     try {
-      await closeSlot(sessionId, slotId);
+      const resolvedSessionId = await resolveSessionId();
+      await closeSlot(resolvedSessionId, slotId);
       return {
         content: [{ type: "text", text: `Closed canvas slot ${slotId}.` }],
       };
@@ -258,7 +278,18 @@ server.registerTool(
   },
 );
 
-debugLog(`startup sessionId=${sessionId} cwd=${cwd} catalogSize=${canvasCatalog.componentNames.length} envCanvas=${process.env.CANVAS_SESSION_ID ?? "(unset)"} envClaude=${process.env.CLAUDE_CODE_SESSION_ID ?? "(unset)"}`);
+debugLog(`startup envSessionId=${envSessionId ?? "(none, will resolve per-call)"} cwd=${cwd} catalogSize=${canvasCatalog.componentNames.length} envCanvas=${process.env.CANVAS_SESSION_ID ?? "(unset)"} envClaude=${process.env.CLAUDE_CODE_SESSION_ID ?? "(unset)"}`);
+// One-time probe: dump every env var whose name hints at "session", "claude",
+// "canvas", "plugin", or "cc_". This is how we learn whether plugin-spawned
+// MCP subprocesses get CLAUDE_CODE_SESSION_ID (and under what name).
+const relevantEnvKeys = Object.keys(process.env)
+  .filter((key) => /^(CLAUDE|CC_|CANVAS|PLUGIN|SESSION)/i.test(key))
+  .sort();
+debugLog(
+  `env-probe ${relevantEnvKeys
+    .map((key) => `${key}=${(process.env[key] ?? "").slice(0, 80)}`)
+    .join(" | ")}`,
+);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

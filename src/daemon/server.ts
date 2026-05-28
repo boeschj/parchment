@@ -126,6 +126,31 @@ async function handleFetch(
     });
   }
 
+  // /api/sessions/active returns the session with the highest recent heartbeat.
+  // The statusline pings ~1Hz so this is the "active claude session" with high
+  // confidence. Optional ?cwd=... filter biases the pick to the session whose
+  // hook stdin reported a matching working directory — useful when multiple
+  // claude sessions are open simultaneously.
+  if (path === "/api/sessions/active") {
+    const filterCwd = url.searchParams.get("cwd");
+    const sessions = listSessions().filter((session) => session.sessionId !== "default");
+    const candidates = filterCwd
+      ? sessions.filter((session) => session.cwd === filterCwd)
+      : sessions;
+    const pool = candidates.length > 0 ? candidates : sessions;
+    if (pool.length === 0) {
+      return jsonResponse({ sessionId: null });
+    }
+    const active = pool.reduce((best, current) =>
+      current.lastPing > best.lastPing ? current : best,
+    );
+    return jsonResponse({
+      sessionId: active.sessionId,
+      cwd: active.cwd,
+      lastPing: active.lastPing,
+    });
+  }
+
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(\/.*)?$/);
   if (sessionMatch) {
     const sessionId = decodeURIComponent(sessionMatch[1]!);

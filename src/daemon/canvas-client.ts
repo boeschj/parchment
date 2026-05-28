@@ -121,3 +121,19 @@ export async function pingDaemon(): Promise<boolean> {
     return false;
   }
 }
+
+// Resolve the daemon's "active" session — the one with the highest recent
+// heartbeat. The statusline pings ~1Hz so this is the user's current claude
+// session with high confidence. Optional cwd filter biases the pick when
+// multiple claude sessions are open.
+export async function resolveActiveSessionId(cwd?: string): Promise<string | null> {
+  try {
+    const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+    const response = await fetch(`${canvasBaseUrl()}/api/sessions/active${params}`);
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { sessionId: string | null };
+    return payload.sessionId;
+  } catch {
+    return null;
+  }
+}
