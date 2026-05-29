@@ -122,10 +122,27 @@ These are AUTHORITATIVE current state. Read them as the user's intent. For `diff
 
 ---
 
+## Mermaid quoting (easy to get wrong)
+
+When embedding mermaid in a `canvas_diagram` source or a `MermaidEditor` element inside `canvas_render`, **the source is a single string** (not a multi-line YAML/code-fence). Two things break diagrams:
+
+1. **Line breaks inside node labels.** Use `<br/>` (mermaid 11 supports this) — NOT `\n`. A JSON `"\n"` becomes a literal newline character which mermaid parses as a statement separator and crashes.
+   ```
+   ✅ MCP["src/daemon/mcp-stdio.ts<br/>6 canvas_* tools"]
+   ❌ MCP["src/daemon/mcp-stdio.ts\n6 canvas_* tools"]    ← parse error on line 2
+   ```
+2. **No fences.** Do NOT wrap the source in ` ```mermaid ` — emit raw mermaid syntax. `MermaidEditor` parses the prop directly.
+
+Statement separators between nodes/edges should be actual newlines in the JSON string (encoded as `\n` in the JSON, which IS what you want at the statement level). Just not inside `["..."]` labels.
+
+---
+
 ## Anti-patterns (don't do these)
 
 - ❌ `canvas_plan` for analyses, reports, architecture writeups, or "render this markdown" — use `canvas_render`
+- ❌ `\n` inside mermaid node labels — use `<br/>` instead
 - ❌ Wrapping mermaid source in ` ```mermaid ` fences — the `MermaidEditor` component expects raw source
 - ❌ Mirroring every assistant message to the canvas — the terminal is the chat; only push the rich stuff
+- ❌ Sparse Cards (just title + description) when the content has real structure — use Card with `children` to nest Text/Badge/Heading/etc. for richer layouts
 - ❌ Pushing the same content twice — pass the prior `slotId` to replace in place
 - ❌ Ignoring `<canvas-edit>` blocks in the user's message — those ARE the edits, not metadata
