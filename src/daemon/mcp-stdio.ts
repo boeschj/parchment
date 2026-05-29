@@ -88,9 +88,9 @@ const server = new McpServer({ name: "clawd-canvas", version: "0.2.0" });
 server.registerTool(
   "canvas_plan",
   {
-    title: "Render a Plan",
+    title: "Render an Editable Plan",
     description:
-      "Render an editable plan as a PlanFile component. The user can edit the markdown in a WYSIWYG Tiptap editor; their edits flow back to your next turn as a <canvas-edit kind=\"plan-edit\"> block. Use for any multi-step plan, design doc, or rationale the user should be able to refine in place.",
+      "Render a SHORT, EDITABLE plan (≤300 words of markdown) the user will iterate on. This is a Tiptap WYSIWYG textarea — it is NOT a layout primitive. ONLY use this when the user asked for a plan they will refine; their wording matters and they will rewrite it. DO NOT use for analyses, reports, code architecture writeups, summaries, investigation results, or 'render this markdown' requests — those belong in canvas_render with composed shadcn components (Stack + Heading + Text + Card + MermaidEditor + DataTable + Chart). If you find yourself dumping >300 words of markdown into this tool, you're using the wrong tool — switch to canvas_render.",
     inputSchema: z.object({
       title: z.string().optional().describe("Optional slot title shown in the tab strip."),
       props: PlanFilePropsSchema,
@@ -217,9 +217,9 @@ const FullCanvasSpecSchema = canvasCatalog.zodSchema();
 server.registerTool(
   "canvas_render",
   {
-    title: "Render a Composed UI Spec",
+    title: "Compose a Generative UI",
     description:
-      "Render an arbitrary json-render spec composed from the full catalog (36 shadcn components: Card, Stack, Grid, Tabs, Heading, Text, Badge, Button, Input, Select, Table, Alert, Dialog, ... — plus 5 canvas extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable). The spec must conform to the catalog schema; props for each element are validated. Use this for dashboards, reports, mixed-content compositions, or anything that doesn't fit the canvas_plan / canvas_diagram / canvas_diff / canvas_table shortcuts.",
+      "DEFAULT TOOL for rich content. Render a COMPOSED UI from the 41-component catalog (Stack, Grid, Card, Heading, Text, Badge, Button, Tabs, Alert, Table, Separator, Accordion, Avatar, Progress, Tooltip, Input, Select, Switch, ... + the 5 canvas extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable). Use this WHENEVER you have something to show that isn't a one-liner — analyses, reports, dashboards, investigations, architecture writeups, multi-section explanations. COMPOSE the layout: outer Stack, Heading for the title, MermaidEditor for any diagram, Card sections for major chunks, DataTable for tabular data, Chart for metrics, Text for prose. Do NOT fall back to canvas_plan for long markdown — that's a single editable textarea, not a layout. The spec is validated against the catalog (props for each element are Zod-checked).",
     inputSchema: z.object({
       title: z.string().describe("Slot title shown in the tab strip."),
       kind: z
