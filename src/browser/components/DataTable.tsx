@@ -115,12 +115,12 @@ export function DataTable({ props }: RenderProps) {
   };
 
   return (
-    <div className="canvas-card overflow-hidden">
-      <header className="px-4 py-2 border-b border-canvas-border flex items-center justify-between bg-canvas-surface">
+    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
+      <header className="px-4 py-2 border-b flex items-center justify-between bg-muted">
         {props.caption ? (
-          <h2 className="text-sm font-medium text-canvas-fg">{props.caption}</h2>
+          <h2 className="text-sm font-medium">{props.caption}</h2>
         ) : (
-          <span className="text-xs text-canvas-muted">{props.rows.length} rows</span>
+          <span className="text-xs text-muted-foreground">{props.rows.length} rows</span>
         )}
         {exportable ? (
           <button
@@ -129,7 +129,7 @@ export function DataTable({ props }: RenderProps) {
               const csv = rowsToCsv(props.columns, props.rows);
               triggerCsvDownload(`${props.caption ?? "table"}.csv`, csv);
             }}
-            className="text-xs px-2 py-1 rounded-md text-canvas-accent hover:bg-canvas-accent/5"
+            className="text-xs px-2 py-1 rounded-md text-primary hover:bg-background"
           >
             Export CSV
           </button>
@@ -138,14 +138,14 @@ export function DataTable({ props }: RenderProps) {
       <div className="overflow-auto max-h-[600px]">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-canvas-surface">
+            <tr className="bg-muted">
               {props.columns.map((column) => {
                 const direction = sort?.key === column.key ? sort.direction : null;
                 return (
                   <th
                     key={column.key}
                     onClick={() => toggleSort(column.key)}
-                    className="px-3 py-2 text-left text-xs font-medium text-canvas-muted uppercase tracking-wide cursor-pointer select-none border-b border-canvas-border"
+                    className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer select-none border-b"
                     style={{ textAlign: column.align ?? "left", width: column.width ?? "auto" }}
                   >
                     {column.header}
@@ -158,7 +158,7 @@ export function DataTable({ props }: RenderProps) {
           </thead>
           <tbody>
             {sortedRows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="border-b border-canvas-border last:border-b-0 hover:bg-canvas-surface/50">
+              <tr key={rowIndex} className="border-b last:border-b-0 hover:bg-muted/40">
                 {props.columns.map((column) => (
                   <td
                     key={column.key}
@@ -175,7 +175,7 @@ export function DataTable({ props }: RenderProps) {
                             handleCellEdit(rowIndex, column, next);
                           }
                         }}
-                        className="w-full bg-transparent border border-transparent hover:border-canvas-border focus:border-canvas-accent rounded px-1 py-0.5 text-sm focus:outline-none"
+                        className="w-full bg-transparent border border-transparent hover:border-border focus:border-primary rounded px-1 py-0.5 text-sm focus:outline-none"
                       />
                     ) : (
                       <span>{formatCell(row[column.key])}</span>

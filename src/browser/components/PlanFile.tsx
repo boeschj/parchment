@@ -55,17 +55,17 @@ export function PlanFile({ props }: RenderProps) {
 
   if (!editor) {
     return (
-      <div className="canvas-card p-6">
-        <div className="text-canvas-muted text-sm">Loading editor…</div>
+      <div className="bg-card border rounded-xl shadow-sm p-6">
+        <div className="text-muted-foreground text-sm">Loading editor…</div>
       </div>
     );
   }
 
   return (
-    <div className="canvas-card">
+    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
       {props.title ? (
-        <header className="px-4 py-3 border-b border-canvas-border">
-          <h2 className="text-sm font-medium text-canvas-fg">{props.title}</h2>
+        <header className="px-4 py-3 border-b">
+          <h2 className="text-sm font-medium">{props.title}</h2>
         </header>
       ) : null}
       <div className="p-4">
@@ -75,12 +75,12 @@ export function PlanFile({ props }: RenderProps) {
         />
       </div>
       {editable ? (
-        <footer className="px-4 py-2 border-t border-canvas-border text-xs text-canvas-muted flex items-center justify-between">
+        <footer className="px-4 py-2 border-t text-xs text-muted-foreground flex items-center justify-between">
           <span>Edits auto-save and flow to Claude on your next prompt.</span>
           <button
             type="button"
             onClick={() => debouncedPost.flush()}
-            className="px-2 py-1 rounded-md text-canvas-accent hover:bg-canvas-accent/5"
+            className="px-2 py-1 rounded-md text-primary hover:bg-muted"
           >
             Send now
           </button>

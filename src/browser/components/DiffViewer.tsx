@@ -97,10 +97,10 @@ export function DiffViewer({ props }: RenderProps) {
   const originalEditable = editableSide === DiffEditableSide.Both;
 
   return (
-    <div className="canvas-card overflow-hidden">
-      <header className="px-4 py-2 border-b border-canvas-border flex items-center justify-between bg-canvas-surface">
-        <code className="text-xs canvas-mono text-canvas-fg">{props.file}</code>
-        <span className="text-xs text-canvas-muted">
+    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
+      <header className="px-4 py-2 border-b flex items-center justify-between bg-muted">
+        <code className="text-xs font-mono">{props.file}</code>
+        <span className="text-xs text-muted-foreground">
           {language} • {editableSide === DiffEditableSide.None ? "read-only" : `${editableSide} editable`}
         </span>
       </header>
@@ -120,7 +120,7 @@ export function DiffViewer({ props }: RenderProps) {
           automaticLayout: true,
         }}
         onMount={handleMount}
-        loading={<div className="p-4 text-canvas-muted text-sm">Loading diff editor…</div>}
+        loading={<div className="p-4 text-muted-foreground text-sm">Loading diff editor…</div>}
       />
     </div>
   );

@@ -45,10 +45,10 @@ export function Chart({ props }: RenderProps) {
   const seriesKeys = toSeriesKeys(props.y);
 
   return (
-    <div className="canvas-card p-4">
+    <div className="bg-card text-card-foreground border rounded-xl shadow-sm p-4">
       {props.title ? (
         <header className="mb-3">
-          <h2 className="text-sm font-medium text-canvas-fg">{props.title}</h2>
+          <h2 className="text-sm font-medium">{props.title}</h2>
         </header>
       ) : null}
       <div style={{ width: "100%", height }}>
@@ -149,7 +149,7 @@ function renderChart(
       );
     default: {
       const kindLabel = (props as { kind: string }).kind;
-      return <div className="text-canvas-error text-sm">Unsupported chart kind: {kindLabel}</div>;
+      return <div className="text-destructive text-sm">Unsupported chart kind: {kindLabel}</div>;
     }
   }
 }

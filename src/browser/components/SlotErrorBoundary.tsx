@@ -23,14 +23,14 @@ export class SlotErrorBoundary extends Component<Props, State> {
   override render() {
     if (this.state.error) {
       return (
-        <div className="canvas-card p-4 border-canvas-error/40 border-2 border-dashed">
-          <div className="text-canvas-error text-sm font-medium">
+        <div className="bg-card text-card-foreground rounded-xl p-4 border-destructive/40 border-2 border-dashed">
+          <div className="text-destructive text-sm font-medium">
             ⚠ Slot rendering crashed
           </div>
-          <p className="text-canvas-muted text-xs mt-1">
-            slot id: <code className="canvas-mono">{this.props.slotId}</code>
+          <p className="text-muted-foreground text-xs mt-1">
+            slot id: <code className="font-mono">{this.props.slotId}</code>
           </p>
-          <pre className="text-canvas-muted text-xs mt-2 overflow-auto max-h-40">
+          <pre className="text-muted-foreground text-xs mt-2 overflow-auto max-h-40">
             {this.state.error.message}
           </pre>
         </div>

@@ -91,17 +91,17 @@ export function MermaidEditor({ props }: RenderProps) {
   };
 
   return (
-    <div className="canvas-card overflow-hidden">
+    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
       {props.title ? (
-        <header className="px-4 py-2 border-b border-canvas-border bg-canvas-surface">
+        <header className="px-4 py-2 border-b bg-muted">
           <h2 className="text-sm font-medium">{props.title}</h2>
         </header>
       ) : null}
-      <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-canvas-border">
+      <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
         <section className="p-3">
           {editable ? (
             <textarea
-              className="w-full h-[480px] canvas-mono text-xs border border-canvas-border rounded-md p-2 bg-canvas-surface focus:outline-none focus:ring-2 focus:ring-canvas-accent/40"
+              className="w-full h-[480px] font-mono text-xs border rounded-md p-2 bg-muted focus:outline-none focus:ring-2 focus:ring-ring/40"
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -110,7 +110,7 @@ export function MermaidEditor({ props }: RenderProps) {
               spellCheck={false}
             />
           ) : (
-            <pre className="canvas-mono text-xs whitespace-pre-wrap">{draft}</pre>
+            <pre className="font-mono text-xs whitespace-pre-wrap">{draft}</pre>
           )}
         </section>
         <section
@@ -125,20 +125,20 @@ export function MermaidEditor({ props }: RenderProps) {
             />
           ) : null}
           {renderState.status === "rendering" ? (
-            <div className="text-canvas-muted text-sm">rendering…</div>
+            <div className="text-muted-foreground text-sm">rendering…</div>
           ) : null}
           {renderState.status === "error" ? (
-            <pre className="text-canvas-error text-xs whitespace-pre-wrap">{renderState.message}</pre>
+            <pre className="text-destructive text-xs whitespace-pre-wrap">{renderState.message}</pre>
           ) : null}
         </section>
       </div>
       {editable && props.comments && props.comments.length > 0 ? (
-        <footer className="border-t border-canvas-border px-4 py-2 text-xs text-canvas-muted">
+        <footer className="border-t px-4 py-2 text-xs text-muted-foreground">
           <strong>Comments:</strong>
           <ul className="mt-1 space-y-1">
             {props.comments.map((comment, idx) => (
               <li key={`${comment.nodeId}-${idx}`}>
-                <code className="canvas-mono">{comment.nodeId}</code>: {comment.body}
+                <code className="font-mono">{comment.nodeId}</code>: {comment.body}
               </li>
             ))}
           </ul>

@@ -24,9 +24,9 @@ function kindGlyph(kind: string): string {
 }
 
 function statusBadge(status: string): { text: string; className: string } {
-  if (status === SlotStatus.Error) return { text: "error", className: "text-canvas-error" };
-  if (status === SlotStatus.Rendering) return { text: "rendering", className: "text-canvas-warning" };
-  return { text: "ready", className: "text-canvas-success" };
+  if (status === SlotStatus.Error) return { text: "error", className: "text-destructive" };
+  if (status === SlotStatus.Rendering) return { text: "rendering", className: "text-amber-600" };
+  return { text: "ready", className: "text-emerald-600" };
 }
 
 export function App() {
@@ -38,17 +38,17 @@ export function App() {
     slots.find((slot) => slot.id === activeSlotId) ?? slots[slots.length - 1] ?? null;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-canvas-border bg-canvas-surface px-4 py-2 flex items-center justify-between">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <header className="border-b bg-card px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-canvas-fg">clawd-canvas</h1>
-          <span className="text-xs text-canvas-muted canvas-mono">
+          <h1 className="text-sm font-semibold">clawd-canvas</h1>
+          <span className="text-xs text-muted-foreground font-mono">
             session {shortSessionLabel(sessionId)}
           </span>
         </div>
         <div className="flex items-center gap-3">
           <span
-            className={`text-xs canvas-mono ${connected ? "text-canvas-success" : "text-canvas-warning"}`}
+            className={`text-xs font-mono ${connected ? "text-emerald-600" : "text-amber-600"}`}
           >
             ● {connected ? "live" : "reconnecting…"}
           </span>
@@ -60,7 +60,7 @@ export function App() {
                   void resetSession(sessionId);
                 }
               }}
-              className="text-xs px-2 py-1 rounded-md text-canvas-muted hover:bg-canvas-accent/5"
+              className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted"
             >
               Clear canvas
             </button>
@@ -72,7 +72,7 @@ export function App() {
         <EmptyState sessionId={sessionId} />
       ) : (
         <main className="flex-1 flex flex-col">
-          <nav className="flex gap-1 border-b border-canvas-border bg-canvas-surface px-2 overflow-x-auto">
+          <nav className="flex gap-1 border-b bg-card px-2 overflow-x-auto">
             {slots.map((slot) => {
               const badge = statusBadge(slot.status);
               const isActive = (activeSlot?.id ?? null) === slot.id;
@@ -80,17 +80,19 @@ export function App() {
                 <button
                   key={slot.id}
                   onClick={() => setActiveSlotId(slot.id)}
-                  className={`px-3 py-2 text-sm flex items-center gap-2 whitespace-nowrap ${
-                    isActive ? "canvas-tab-active" : "hover:bg-canvas-bg"
+                  className={`px-3 py-2 text-sm flex items-center gap-2 whitespace-nowrap transition-colors ${
+                    isActive
+                      ? "bg-background border-b-2 border-primary -mb-px"
+                      : "hover:bg-muted"
                   }`}
                 >
-                  <span className="canvas-mono">{kindGlyph(slot.kind)}</span>
+                  <span className="font-mono">{kindGlyph(slot.kind)}</span>
                   <span className="font-medium">{slot.title}</span>
                   <span className={`text-[10px] ${badge.className}`}>{badge.text}</span>
                   <span
                     role="button"
                     aria-label={`Close ${slot.title}`}
-                    className="ml-2 text-canvas-muted hover:text-canvas-error"
+                    className="ml-2 text-muted-foreground hover:text-destructive"
                     onClick={(event) => {
                       event.stopPropagation();
                       void deleteSlot(sessionId, slot.id);
@@ -102,7 +104,7 @@ export function App() {
               );
             })}
           </nav>
-          <section className="flex-1 p-4 overflow-auto">
+          <section className="flex-1 p-6 overflow-auto bg-background">
             {activeSlot ? (
               <SlotErrorBoundary slotId={activeSlot.id}>
                 <SlotContextProvider sessionId={sessionId} slotId={activeSlot.id}>
@@ -110,7 +112,11 @@ export function App() {
                     registry={registry}
                     initialState={(activeSlot.state ?? {}) as Record<string, unknown>}
                   >
-                    <Renderer spec={activeSlot.spec as Spec} registry={registry} />
+                    <Renderer
+                      spec={activeSlot.spec as Spec}
+                      registry={registry}
+                      loading={activeSlot.status === SlotStatus.Rendering}
+                    />
                   </JSONUIProvider>
                 </SlotContextProvider>
               </SlotErrorBoundary>
@@ -124,24 +130,24 @@ export function App() {
 
 function EmptyState({ sessionId }: { sessionId: string }) {
   return (
-    <section className="flex-1 flex items-center justify-center">
-      <div className="canvas-card max-w-lg p-8 text-center">
-        <h2 className="text-base font-semibold text-canvas-fg">
+    <section className="flex-1 flex items-center justify-center p-8">
+      <div className="bg-card border rounded-xl shadow-sm max-w-lg p-8 text-center">
+        <h2 className="text-base font-semibold">
           👋 clawd-canvas is connected
         </h2>
-        <p className="text-sm text-canvas-muted mt-2">
-          session <code className="canvas-mono">{shortSessionLabel(sessionId)}</code> — waiting for Claude to push something here.
+        <p className="text-sm text-muted-foreground mt-2">
+          session <code className="font-mono">{shortSessionLabel(sessionId)}</code> — waiting for Claude to push something here.
         </p>
-        <p className="text-xs text-canvas-muted mt-4">
+        <p className="text-xs text-muted-foreground mt-4">
           Try in your Claude Code terminal:
         </p>
-        <pre className="canvas-mono text-xs bg-canvas-surface border border-canvas-border rounded-md p-3 mt-2 text-left">
+        <pre className="font-mono text-xs bg-muted border rounded-md p-3 mt-2 text-left">
 {`"Show me a quick plan for adding caching to my API.
 Render it to the canvas as an editable plan."`}
         </pre>
-        <p className="text-xs text-canvas-muted mt-3">
+        <p className="text-xs text-muted-foreground mt-3">
           Or whenever Claude has something rich to show (a diff, a diagram, a
-          dashboard) it'll call <code className="canvas-mono">canvas_*</code> tools and that slot will appear here.
+          dashboard) it'll call <code className="font-mono">canvas_*</code> tools and that slot will appear here.
         </p>
       </div>
     </section>
