@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
 import type { Slot } from "../shared/types.ts";
 import { SlotKind, SlotStatus } from "../shared/types.ts";
@@ -8,6 +8,13 @@ import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { useCanvasWebSocket } from "./ws.ts";
 import { readSessionIdFromUrl, shortSessionLabel } from "./session.ts";
 import { deleteSlot, resetSession } from "./api.ts";
+import {
+  buildCanvasActionHandlers,
+  postStateChanges,
+  type StateChange,
+} from "./canvas-actions.ts";
+
+const STATE_CHANGE_DEBOUNCE_MS = 300;
 
 const SLOT_KIND_GLYPH: Record<string, string> = {
   [SlotKind.Plan]: "✎",
@@ -106,25 +113,57 @@ export function App() {
           </nav>
           <section className="flex-1 p-6 overflow-auto bg-background">
             {activeSlot ? (
-              <SlotErrorBoundary slotId={activeSlot.id}>
-                <SlotContextProvider sessionId={sessionId} slotId={activeSlot.id}>
-                  <JSONUIProvider
-                    registry={registry}
-                    initialState={(activeSlot.state ?? {}) as Record<string, unknown>}
-                  >
-                    <Renderer
-                      spec={activeSlot.spec as Spec}
-                      registry={registry}
-                      loading={activeSlot.status === SlotStatus.Rendering}
-                    />
-                  </JSONUIProvider>
-                </SlotContextProvider>
-              </SlotErrorBoundary>
+              <SlotRenderer sessionId={sessionId} slot={activeSlot} />
             ) : null}
           </section>
         </main>
       )}
     </div>
+  );
+}
+
+// Renderer for a single active slot — wraps its own JSONUIProvider so each
+// slot has an isolated state model + action handler closure (handlers close
+// over slot.id, which changes when the user switches tabs).
+function SlotRenderer({ sessionId, slot }: { sessionId: string; slot: Slot }) {
+  const handlers = useMemo(
+    () => buildCanvasActionHandlers(sessionId, slot),
+    [sessionId, slot],
+  );
+
+  // Debounce onStateChange so a stream of edits coalesces into a single POST.
+  // Single ref bucket per slot; flushes on the trailing edge.
+  const pendingRef = useRef<StateChange[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleStateChange = (changes: Array<{ path: string; value: unknown }>): void => {
+    pendingRef.current.push(...changes);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const drained = pendingRef.current;
+      pendingRef.current = [];
+      timerRef.current = null;
+      void postStateChanges(sessionId, slot, drained);
+    }, STATE_CHANGE_DEBOUNCE_MS);
+  };
+
+  return (
+    <SlotErrorBoundary slotId={slot.id}>
+      <SlotContextProvider sessionId={sessionId} slotId={slot.id}>
+        <JSONUIProvider
+          registry={registry}
+          initialState={(slot.state ?? {}) as Record<string, unknown>}
+          handlers={handlers}
+          onStateChange={handleStateChange}
+        >
+          <Renderer
+            spec={slot.spec as Spec}
+            registry={registry}
+            loading={slot.status === SlotStatus.Rendering}
+          />
+        </JSONUIProvider>
+      </SlotContextProvider>
+    </SlotErrorBoundary>
   );
 }
 
