@@ -1,18 +1,45 @@
 import * as z from "zod/v4";
 
 export const MermaidCommentSchema = z.object({
-  nodeId: z.string().describe("ID of the mermaid node the comment is anchored to (the bare id, e.g. 'auth-service' not 'flowchart-auth-service-1')."),
+  nodeId: z
+    .string()
+    .describe(
+      "ID of the mermaid node the comment is anchored to (the bare id, e.g. 'auth-service' not 'flowchart-auth-service-1').",
+    ),
   body: z.string().describe("Comment text. Markdown supported."),
 });
 
 export const MermaidEditorPropsSchema = z.object({
   title: z.string().optional(),
-  source: z.string().describe("Mermaid diagram source. Do NOT wrap in ```mermaid ``` fences — emit the raw source."),
-  editable: z.boolean().optional().describe("If true (default), source is editable in a CodeMirror pane next to the live render, and user comments on individual nodes flow back."),
-  comments: z.array(MermaidCommentSchema).optional().describe("Pre-existing comments to display on specific nodes."),
+  source: z
+    .string()
+    .describe(
+      "Mermaid diagram source. Do NOT wrap in ```mermaid fences — emit the raw source. For line breaks inside node labels use <br/> (NOT \\n which mermaid 11 parses as a statement separator and crashes).",
+    ),
+  editable: z
+    .boolean()
+    .optional()
+    .describe(
+      "Default true. When true, the source is editable in a textarea next to the live render, and clicking any node lets the user leave a comment.",
+    ),
+  comments: z
+    .array(MermaidCommentSchema)
+    .optional()
+    .describe(
+      "Pre-existing comments to display anchored to specific nodes. New comments the user adds flow back via the canvas.commentMermaid action.",
+    ),
 });
 
 export const MermaidEditorDefinition = {
   props: MermaidEditorPropsSchema,
-  description: "Editable mermaid diagram with side-by-side source pane and live render. The user can click any node to leave a comment, and edits to the source flow back via UserPromptSubmit. Use for architecture diagrams, sequence diagrams, state machines, ER diagrams, gantts.",
-} as const;
+  slots: [],
+  events: ["change", "comment"],
+  description:
+    "USE FOR: architecture diagrams, sequence diagrams, state machines, ER diagrams, gantt charts, flowcharts. Renders an editable mermaid diagram with side-by-side source + live render. The user can click any node to leave a comment, and source edits flow back to your next turn as a <canvas-edit kind=\"mermaid-edit\"> block; node comments arrive as <canvas-edit kind=\"mermaid-comment\">. DO NOT USE FOR: tabular data (use DataTable), code (use DiffViewer).",
+  example: {
+    title: "OAuth login flow",
+    source:
+      "sequenceDiagram\n  actor User\n  participant App\n  participant Auth\n  User->>App: click 'Login'\n  App->>Auth: redirect /authorize\n  Auth-->>User: consent screen\n  User->>Auth: approve\n  Auth-->>App: callback with code\n  App->>Auth: POST /token\n  Auth-->>App: JWT",
+    editable: true,
+  },
+};
