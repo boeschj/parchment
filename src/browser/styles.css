@@ -2,6 +2,17 @@
 @plugin "@tailwindcss/typography";
 
 /*
+ * Tailwind v4 only scans YOUR source files for class names by default. The
+ * shadcn class names (bg-card, rounded-xl, border, shadow-sm, ...) live
+ * inside @json-render/shadcn's pre-built JS — Tailwind would skip node_modules
+ * and never generate the CSS for them. @source pulls them in.
+ *
+ * Without this, the bundle ships CSS variables (--color-card etc.) but no
+ * .bg-card class consumes them, and every shadcn component renders unstyled.
+ */
+@source "../../node_modules/@json-render/shadcn/dist/**/*.{js,mjs}";
+
+/*
  * shadcn/ui design tokens — official Feb-2025 OKLCH defaults (new-york style).
  * Mapped twice: first as raw shadcn tokens (--background, --foreground, …)
  * for any component reading them via var(--*), and as Tailwind v4 color
@@ -87,6 +98,17 @@
 }
 
 @layer base {
+  /*
+   * Tailwind v4 dropped the legacy default border-color (gray-200), so the
+   * `border` utility now resolves to `currentColor` (= the text color). That
+   * makes every shadcn component with `border` look like a harsh dark
+   * outline. Official shadcn tailwind-v4 setup includes this preflight
+   * override — restore the subtle border-color token everywhere.
+   */
+  *, ::before, ::after {
+    border-color: var(--border);
+  }
+
   html, body { height: 100%; }
   body { font-family: var(--font-canvas-sans); background: var(--background); color: var(--foreground); }
   pre, code, .canvas-mono { font-family: var(--font-canvas-mono); }

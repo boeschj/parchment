@@ -38,6 +38,29 @@ Default to `canvas_render` for any content that has structure beyond "one short 
 
 **Rich widgets** (canvas extensions): `MermaidEditor` (for any diagram), `DiffViewer` (for code changes), `DataTable` (for tabular), `Chart` (for metrics), `PlanFile` (only as a child element inside a larger composition where one section happens to be an editable plan)
 
+### Layout rules of thumb (ALWAYS follow)
+
+- **Metric/stat tiles** (4–8 small cards, one stat each) → wrap in **`Grid` columns:3 or :4**, NEVER `Stack`. Vertical-stacked full-width cards for a row of stats looks terrible.
+- **Top-level page structure** → outer `Stack` (`gap: "lg"`), one Heading element first, then content sections.
+- **Section blocks of mixed content** (heading + paragraph + sub-Cards) → wrap each section in a `Card` with `title`/`description`, put the body in `children`.
+- **Comparing/grouping things** (subsystems, options, features) → **`Grid` columns:2 or :3** with each item as a `Card`. Not Stack.
+- **Status banners** (TL;DR, success, warning, error) → `Alert` with `variant: "default" | "destructive"` and a clear `title` + `description`.
+- **Badge clusters** (tags, status chips) → horizontal `Stack` (`direction: "horizontal"`, `gap: "sm"`) of `Badge`s.
+
+Bad pattern (looks like 1995 HTML):
+```
+Stack(vertical) → Card → Card → Card → Card  ← 4 full-width stacked metric cards
+```
+
+Good pattern:
+```
+Stack(vertical) →
+  Heading
+  Grid(columns: 4) → Card · Card · Card · Card    ← metric tiles, fit in one row
+  Chart
+  DataTable
+```
+
 ### Example: architecture report (NOT a canvas_plan dump)
 
 User: *"explain the architecture of this repo"*
