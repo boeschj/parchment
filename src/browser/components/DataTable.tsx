@@ -115,12 +115,15 @@ export function DataTable({ props }: RenderProps) {
   };
 
   return (
-    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
-      <header className="px-4 py-2 border-b flex items-center justify-between bg-muted">
+    <div
+      className="bg-card text-card-foreground overflow-hidden"
+      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+    >
+      <header className="px-6 py-3 border-b flex items-center justify-between">
         {props.caption ? (
-          <h2 className="text-sm font-medium">{props.caption}</h2>
+          <h2 className="text-base font-semibold tracking-tight">{props.caption}</h2>
         ) : (
-          <span className="text-xs text-muted-foreground">{props.rows.length} rows</span>
+          <span className="label">{props.rows.length} rows</span>
         )}
         {exportable ? (
           <button
@@ -129,7 +132,7 @@ export function DataTable({ props }: RenderProps) {
               const csv = rowsToCsv(props.columns, props.rows);
               triggerCsvDownload(`${props.caption ?? "table"}.csv`, csv);
             }}
-            className="text-xs px-2 py-1 rounded-md text-primary hover:bg-background"
+            className="h-8 px-3 rounded-full text-xs font-medium text-foreground hover:bg-accent transition-colors"
           >
             Export CSV
           </button>

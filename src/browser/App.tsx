@@ -46,18 +46,28 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="border-b bg-card px-4 py-2 flex items-center justify-between">
+      <header className="px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold">clawd-canvas</h1>
-          <span className="text-xs text-muted-foreground font-mono">
-            session {shortSessionLabel(sessionId)}
+          <Mark />
+          <span className="text-[20px] font-semibold tracking-tight leading-none">
+            clawd
           </span>
+          <span className="text-[20px] font-light text-muted-foreground tracking-tight leading-none">
+            canvas
+          </span>
+          <span className="label ml-3">session · {shortSessionLabel(sessionId)}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <span
-            className={`text-xs font-mono ${connected ? "text-emerald-600" : "text-amber-600"}`}
+            className={`label flex items-center gap-1.5 ${
+              connected ? "text-primary" : "text-muted-foreground"
+            }`}
           >
-            ● {connected ? "live" : "reconnecting…"}
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ background: "currentColor" }}
+            />
+            {connected ? "live" : "reconnecting"}
           </span>
           {slots.length > 0 ? (
             <button
@@ -67,7 +77,7 @@ export function App() {
                   void resetSession(sessionId);
                 }
               }}
-              className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted"
+              className="h-8 px-3 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               Clear canvas
             </button>
@@ -75,11 +85,13 @@ export function App() {
         </div>
       </header>
 
+      <hr className="hairline mx-6" />
+
       {slots.length === 0 ? (
         <EmptyState sessionId={sessionId} />
       ) : (
-        <main className="flex-1 flex flex-col">
-          <nav className="flex gap-1 border-b bg-card px-2 overflow-x-auto">
+        <main className="flex-1 flex flex-col min-h-0">
+          <nav className="flex gap-1 px-6 pt-4 pb-2 overflow-x-auto">
             {slots.map((slot) => {
               const badge = statusBadge(slot.status);
               const isActive = (activeSlot?.id ?? null) === slot.id;
@@ -87,19 +99,23 @@ export function App() {
                 <button
                   key={slot.id}
                   onClick={() => setActiveSlotId(slot.id)}
-                  className={`px-3 py-2 text-sm flex items-center gap-2 whitespace-nowrap transition-colors ${
+                  className={`h-9 pl-3 pr-2 rounded-full text-sm flex items-center gap-2 whitespace-nowrap transition-colors ${
                     isActive
-                      ? "bg-background border-b-2 border-primary -mb-px"
-                      : "hover:bg-muted"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-accent hover:text-accent-foreground"
                   }`}
                 >
-                  <span className="font-mono">{kindGlyph(slot.kind)}</span>
+                  <span className="font-mono text-[15px] leading-none">
+                    {kindGlyph(slot.kind)}
+                  </span>
                   <span className="font-medium">{slot.title}</span>
-                  <span className={`text-[10px] ${badge.className}`}>{badge.text}</span>
+                  <span className={`text-[10px] font-mono uppercase tracking-wider ${badge.className}`}>
+                    {badge.text}
+                  </span>
                   <span
                     role="button"
                     aria-label={`Close ${slot.title}`}
-                    className="ml-2 text-muted-foreground hover:text-destructive"
+                    className="ml-1 w-5 h-5 inline-flex items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                     onClick={(event) => {
                       event.stopPropagation();
                       void deleteSlot(sessionId, slot.id);
@@ -111,7 +127,7 @@ export function App() {
               );
             })}
           </nav>
-          <section className="flex-1 p-6 overflow-auto bg-background">
+          <section className="flex-1 px-6 pb-8 pt-2 overflow-auto">
             {activeSlot ? (
               <SlotRenderer sessionId={sessionId} slot={activeSlot} />
             ) : null}
@@ -119,6 +135,28 @@ export function App() {
         </main>
       )}
     </div>
+  );
+}
+
+// Logo mark — per Style Guide.html SVG, 28×28 rounded square outline + two
+// horizontal "lines" suggesting a doc/canvas.
+function Mark() {
+  return (
+    <span className="inline-flex items-center justify-center w-7 h-7 shrink-0">
+      <svg width="32" height="32" viewBox="0 0 28 28" fill="none" aria-hidden>
+        <rect
+          x="1.4"
+          y="1.4"
+          width="25.2"
+          height="25.2"
+          rx="6.4"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <rect x="7.5" y="11" width="13" height="1.6" rx="0.8" fill="currentColor" />
+        <rect x="7.5" y="15.4" width="9" height="1.6" rx="0.8" fill="currentColor" />
+      </svg>
+    </span>
   );
 }
 
@@ -169,25 +207,29 @@ function SlotRenderer({ sessionId, slot }: { sessionId: string; slot: Slot }) {
 
 function EmptyState({ sessionId }: { sessionId: string }) {
   return (
-    <section className="flex-1 flex items-center justify-center p-8">
-      <div className="bg-card border rounded-xl shadow-sm max-w-lg p-8 text-center">
-        <h2 className="text-base font-semibold">
-          👋 clawd-canvas is connected
+    <section className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="bg-card max-w-xl p-10 text-left" style={{ borderRadius: "var(--radius)" }}>
+        <span className="label">01 / Welcome</span>
+        <h2 className="h-display text-3xl mt-3 mb-3">
+          Ready when Claude is.
         </h2>
-        <p className="text-sm text-muted-foreground mt-2">
-          session <code className="font-mono">{shortSessionLabel(sessionId)}</code> — waiting for Claude to push something here.
+        <p className="text-base leading-relaxed text-muted-foreground">
+          Session{" "}
+          <code className="font-mono text-foreground/80">
+            {shortSessionLabel(sessionId)}
+          </code>{" "}
+          is live. Whenever Claude has something richer than terminal text —
+          a plan, a diff, a diagram, a dashboard — it'll surface here.
         </p>
-        <p className="text-xs text-muted-foreground mt-4">
-          Try in your Claude Code terminal:
-        </p>
-        <pre className="font-mono text-xs bg-muted border rounded-md p-3 mt-2 text-left">
-{`"Show me a quick plan for adding caching to my API.
-Render it to the canvas as an editable plan."`}
+
+        <hr className="hairline my-6" />
+
+        <span className="label">Try in your terminal</span>
+        <pre className="font-mono text-xs bg-muted p-4 mt-3 leading-relaxed" style={{ borderRadius: "var(--radius-md)" }}>
+{`Show me a quick plan for adding
+caching to my API. Render it to
+the canvas as an editable plan.`}
         </pre>
-        <p className="text-xs text-muted-foreground mt-3">
-          Or whenever Claude has something rich to show (a diff, a diagram, a
-          dashboard) it'll call <code className="font-mono">canvas_*</code> tools and that slot will appear here.
-        </p>
       </div>
     </section>
   );

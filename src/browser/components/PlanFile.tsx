@@ -62,25 +62,30 @@ export function PlanFile({ props }: RenderProps) {
   }
 
   return (
-    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
+    <div
+      className="bg-card text-card-foreground overflow-hidden"
+      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+    >
       {props.title ? (
-        <header className="px-4 py-3 border-b">
-          <h2 className="text-sm font-medium">{props.title}</h2>
+        <header className="px-6 py-4">
+          <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
         </header>
       ) : null}
-      <div className="p-4">
+      <div className="px-6 py-4">
         <EditorContent
           editor={editor}
           className="prose prose-sm max-w-none focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[120px]"
         />
       </div>
       {editable ? (
-        <footer className="px-4 py-2 border-t text-xs text-muted-foreground flex items-center justify-between">
-          <span>Edits auto-save and flow to Claude on your next prompt.</span>
+        <footer className="px-6 py-3 border-t flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            Edits auto-save and flow to Claude on your next prompt.
+          </span>
           <button
             type="button"
             onClick={() => debouncedPost.flush()}
-            className="px-2 py-1 rounded-md text-primary hover:bg-muted"
+            className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
           >
             Send now
           </button>

@@ -97,11 +97,14 @@ export function DiffViewer({ props }: RenderProps) {
   const originalEditable = editableSide === DiffEditableSide.Both;
 
   return (
-    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
-      <header className="px-4 py-2 border-b flex items-center justify-between bg-muted">
+    <div
+      className="bg-card text-card-foreground overflow-hidden"
+      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+    >
+      <header className="px-6 py-3 border-b flex items-center justify-between">
         <code className="text-xs font-mono">{props.file}</code>
-        <span className="text-xs text-muted-foreground">
-          {language} • {editableSide === DiffEditableSide.None ? "read-only" : `${editableSide} editable`}
+        <span className="label">
+          {language} · {editableSide === DiffEditableSide.None ? "read-only" : `${editableSide} editable`}
         </span>
       </header>
       <DiffEditor

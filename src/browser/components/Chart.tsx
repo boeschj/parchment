@@ -45,10 +45,13 @@ export function Chart({ props }: RenderProps) {
   const seriesKeys = toSeriesKeys(props.y);
 
   return (
-    <div className="bg-card text-card-foreground border rounded-xl shadow-sm p-4">
+    <div
+      className="bg-card text-card-foreground p-6"
+      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+    >
       {props.title ? (
-        <header className="mb-3">
-          <h2 className="text-sm font-medium">{props.title}</h2>
+        <header className="mb-4">
+          <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
         </header>
       ) : null}
       <div style={{ width: "100%", height }}>

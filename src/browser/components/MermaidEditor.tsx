@@ -91,10 +91,13 @@ export function MermaidEditor({ props }: RenderProps) {
   };
 
   return (
-    <div className="bg-card text-card-foreground border rounded-xl shadow-sm overflow-hidden">
+    <div
+      className="bg-card text-card-foreground overflow-hidden"
+      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+    >
       {props.title ? (
-        <header className="px-4 py-2 border-b bg-muted">
-          <h2 className="text-sm font-medium">{props.title}</h2>
+        <header className="px-6 py-4 border-b">
+          <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
         </header>
       ) : null}
       <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">

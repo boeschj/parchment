@@ -7,7 +7,6 @@
  * is skipped by default. Point @source at the bundled json-render packages
  * so Tailwind generates the utility CSS for class names declared inside
  * their pre-built JS (bg-card, rounded-xl, border, shadow-sm, etc.).
- * Pattern mirrored from json-render/examples/{chat,no-ai}/app/globals.css.
  */
 @source "../../node_modules/@json-render/shadcn";
 @source "../../node_modules/@json-render/react";
@@ -15,11 +14,18 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
+  /*
+   * Radius scale — literal values per the Style Guide (no calc-from-base
+   * formula). Default --radius is xl (24px) for soft, friendly surfaces;
+   * shadcn's `rounded-xl` resolves to 24px, `rounded-lg` to 16px, etc.
+   */
+  --radius-sm: var(--radius-sm-token);
+  --radius-md: var(--radius-md-token);
+  --radius-lg: var(--radius-lg-token);
+  --radius-xl: var(--radius-xl-token);
+  --radius-2xl: var(--radius-2xl-token);
+  --radius-3xl: var(--radius-3xl-token);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -35,6 +41,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -43,59 +50,116 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-hairline: var(--hairline);
+
+  /* Type system — Geist + Geist Mono loaded in index.html */
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+
+  --shadow-card: var(--shadow-card-token);
 }
 
+/* ============================================================
+ * Light theme — per Style Guide.html (Engineering as craft)
+ * ============================================================ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --radius-sm-token: 6px;
+  --radius-md-token: 10px;
+  --radius-lg-token: 16px;
+  --radius-xl-token: 24px;
+  --radius-2xl-token: 32px;
+  --radius-3xl-token: 40px;
+  --radius: 24px;
+
+  --background: #F3F3F3;
+  --foreground: #030204;
+  --card: #FBFBFB;
+  --card-foreground: #030204;
+  --popover: #FFFFFF;
+  --popover-foreground: #030204;
+  --primary: #CEA500;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F1F2;
+  --secondary-foreground: #030204;
+  --muted: #F1F1F2;
+  --muted-foreground: #6E6E70;
+  --accent: #F1F1F2;
+  --accent-foreground: #030204;
+  --destructive: #DC2626;
+  --success: #16A34A;
+  --border: rgba(3, 2, 4, 0.08);
+  --input: rgba(3, 2, 4, 0.08);
+  --ring: #CEA500;
+  --chart-1: #CEA500;
+  --chart-2: #6E6E70;
+  --chart-3: #B3B3B5;
+  --chart-4: #030204;
+  --chart-5: #D6D6D7;
+  --sidebar: transparent;
+  --sidebar-foreground: #6E6E70;
+  --sidebar-primary: #CEA500;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FFFFFF;
+  --sidebar-accent-foreground: #CEA500;
+  --sidebar-border: transparent;
+  --sidebar-ring: #CEA500;
+  --hairline: rgba(3, 2, 4, 0.06);
+  --shadow-card-token: 0 1px 0 rgba(3, 2, 4, 0.02),
+    0 1px 2px rgba(3, 2, 4, 0.04),
+    0 8px 24px -12px rgba(3, 2, 4, 0.08);
 }
 
+/* ============================================================
+ * Dark theme — same accent (#CEA500), inverted ramp, beige-warm
+ * neutrals. Per Style Guide.html "Same tokens. Inverted surfaces."
+ * ============================================================ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --background: #0B0A08;
+  --foreground: #F4F2EC;
+  --card: #141310;
+  --card-foreground: #F4F2EC;
+  --popover: #1C1A16;
+  --popover-foreground: #F4F2EC;
+  --primary: #CEA500;
+  --primary-foreground: #0B0A08;
+  --secondary: #1F1D18;
+  --secondary-foreground: #F4F2EC;
+  --muted: #1F1D18;
+  --muted-foreground: #A19D93;
+  --accent: #1F1D18;
+  --accent-foreground: #F4F2EC;
+  --destructive: #DC2626;
+  --success: #16A34A;
+  --border: rgba(255, 250, 230, 0.09);
+  --input: rgba(255, 250, 230, 0.09);
+  --ring: #CEA500;
+  --chart-1: #CEA500;
+  --chart-2: #A19D93;
+  --chart-3: #6F6B62;
+  --chart-4: #F4F2EC;
+  --chart-5: #46433C;
+  --sidebar: transparent;
+  --sidebar-foreground: #A19D93;
+  --sidebar-primary: #CEA500;
+  --sidebar-primary-foreground: #0B0A08;
+  --sidebar-accent: #1C1A16;
+  --sidebar-accent-foreground: #CEA500;
+  --sidebar-border: transparent;
+  --sidebar-ring: #CEA500;
+  --hairline: rgba(255, 250, 230, 0.07);
+  --shadow-card-token: 0 1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 8px 24px -12px rgba(0, 0, 0, 0.7);
 }
 
 @layer base {
@@ -104,6 +168,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01";
   }
 }
 
@@ -116,4 +183,39 @@ html, body, #root {
 
 button {
   cursor: pointer;
+}
+
+/*
+ * "Label" treatment — uppercase Geist Mono with extra tracking, muted.
+ * Used per Style Guide for section captions ("01 / Light mode", "Typography").
+ * Apply as: <span class="label">…</span>
+ */
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/*
+ * Display headings — tighter tracking, lighter line-height.
+ * Apply as: <h1 class="h-display">…</h1>
+ */
+.h-display {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+/*
+ * Subtle separator — softer than border, used between rows in a content card.
+ * Apply as: <hr class="hairline" />
+ */
+.hairline {
+  height: 1px;
+  background: var(--hairline);
+  border: 0;
+  margin: 0;
 }
