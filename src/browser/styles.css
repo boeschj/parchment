@@ -2,52 +2,27 @@
 @plugin "@tailwindcss/typography";
 
 /*
- * Tailwind v4 only scans YOUR source files for class names by default. The
- * shadcn class names (bg-card, rounded-xl, border, shadow-sm, ...) live
- * inside @json-render/shadcn's pre-built JS — Tailwind would skip node_modules
- * and never generate the CSS for them. @source pulls them in.
+ * Tailwind v4 only scans your own source files for class names; node_modules
+ * is skipped by default. @json-render/{shadcn,react} ship pre-built JS
+ * containing classNames like bg-card / rounded-xl / border / shadow-sm. Without
+ * @source pointing at those dist trees, Tailwind never sees the strings and
+ * never generates the matching utility rules — every shadcn component renders
+ * totally unstyled.
  *
- * Without this, the bundle ships CSS variables (--color-card etc.) but no
- * .bg-card class consumes them, and every shadcn component renders unstyled.
+ * Pattern mirrored from json-render/examples/mcp/src/globals.css (which
+ * sources from packages/{shadcn,react}/src inside the monorepo).
  */
 @source "../../node_modules/@json-render/shadcn/dist/**/*.{js,mjs}";
+@source "../../node_modules/@json-render/react/dist/**/*.{js,mjs}";
 
-/*
- * shadcn/ui design tokens — official Feb-2025 OKLCH defaults (new-york style).
- * Mapped twice: first as raw shadcn tokens (--background, --foreground, …)
- * for any component reading them via var(--*), and as Tailwind v4 color
- * tokens (--color-background, …) so utility classes like bg-background,
- * text-foreground, border-border, ring-ring all resolve.
- */
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-}
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -63,7 +38,6 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -72,57 +46,94 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
 
-@theme {
-  /* canvas-specific tokens (used by App.tsx chrome, not by shadcn) */
-  --color-canvas-bg: oklch(0.99 0 0);
-  --color-canvas-fg: oklch(0.20 0.01 250);
-  --color-canvas-muted: oklch(0.55 0.02 250);
-  --color-canvas-border: oklch(0.92 0.005 250);
-  --color-canvas-accent: oklch(0.55 0.20 255);
-  --color-canvas-accent-fg: oklch(0.99 0 0);
-  --color-canvas-surface: oklch(0.98 0.005 250);
-  --color-canvas-surface-elevated: oklch(1 0 0);
+  /* canvas-* tokens used by App.tsx chrome + extension component headers.
+     Aliases over shadcn tokens so the chrome stays consistent with shadcn
+     content. */
+  --color-canvas-bg: var(--background);
+  --color-canvas-fg: var(--foreground);
+  --color-canvas-muted: var(--muted-foreground);
+  --color-canvas-border: var(--border);
+  --color-canvas-accent: var(--primary);
+  --color-canvas-accent-fg: var(--primary-foreground);
+  --color-canvas-surface: var(--muted);
+  --color-canvas-surface-elevated: var(--card);
+  --color-canvas-error: var(--destructive);
   --color-canvas-success: oklch(0.55 0.15 145);
   --color-canvas-warning: oklch(0.70 0.15 65);
-  --color-canvas-error: oklch(0.55 0.20 25);
+}
 
-  --font-canvas-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-canvas-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Menlo", monospace;
-  --radius-canvas: 0.5rem;
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--color-border);
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @layer base {
-  /*
-   * Tailwind v4 dropped the legacy default border-color (gray-200), so the
-   * `border` utility now resolves to `currentColor` (= the text color). That
-   * makes every shadcn component with `border` look like a harsh dark
-   * outline. Official shadcn tailwind-v4 setup includes this preflight
-   * override — restore the subtle border-color token everywhere.
-   */
-  *, ::before, ::after {
-    border-color: var(--border);
+  * {
+    @apply border-border outline-ring/50;
   }
+  body {
+    @apply text-foreground;
+    background-color: var(--color-background) !important;
+  }
+}
 
-  html, body { height: 100%; }
-  body { font-family: var(--font-canvas-sans); background: var(--background); color: var(--foreground); }
-  pre, code, .canvas-mono { font-family: var(--font-canvas-mono); }
-  /* shadcn-style focus ring everywhere */
-  *:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+button {
+  cursor: pointer;
+}
+
+/* canvas-extension component helpers (App.tsx chrome — not used by shadcn) */
+.canvas-mono {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
 }
 
 .canvas-card {
-  background: var(--color-canvas-surface-elevated);
-  border: 1px solid var(--color-canvas-border);
-  border-radius: var(--radius-canvas);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 .canvas-tab-active {
-  background: var(--color-canvas-surface-elevated);
-  border-bottom: 2px solid var(--color-canvas-accent);
+  background: var(--color-card);
+  border-bottom: 2px solid var(--color-primary);
 }
