@@ -19,10 +19,11 @@
     "cli": "bun run src/cli/main.ts"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@json-render/core": "latest",
+    "@json-render/mcp": "latest",
     "@json-render/react": "latest",
     "@json-render/shadcn": "latest",
-    "@json-render/mcp": "latest",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "latest",
     "@tiptap/core": "^3.0.0",
@@ -34,7 +35,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.3.0",
+    "streamdown": "^2.5.0",
     "tiptap-markdown": "latest",
+    "use-stick-to-bottom": "^1.1.6",
     "zod": "^4.4.0"
   },
   "devDependencies": {

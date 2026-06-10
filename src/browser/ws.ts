@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Slot, WsEvent } from "../shared/types.ts";
+import { appendEntries, emptyTranscript, type TranscriptModel } from "./transcript/parse.ts";
 
 const CONNECT_BASE_DELAY_MS = 500;
 const CONNECT_MAX_DELAY_MS = 8000;
@@ -7,8 +8,14 @@ const CONNECT_MAX_DELAY_MS = 8000;
 export type CanvasState = {
   sessionId: string;
   slots: Slot[];
+  transcript: TranscriptModel;
   connected: boolean;
 };
+
+// Transient events (board ops/updates) are commands, not state — components
+// that act on them imperatively subscribe here instead of going through the
+// reducer.
+export type WsEventListener = (event: WsEvent) => void;
 
 function reduceEvent(state: CanvasState, event: WsEvent): CanvasState {
   switch (event.kind) {
@@ -27,13 +34,30 @@ function reduceEvent(state: CanvasState, event: WsEvent): CanvasState {
       return state;
     case "reset":
       return { ...state, slots: [] };
+    case "transcript-snapshot":
+      return { ...state, transcript: appendEntries(emptyTranscript, event.data.entries) };
+    case "transcript-append":
+      return { ...state, transcript: appendEntries(state.transcript, event.data.entries) };
     default:
       return state;
   }
 }
 
-export function useCanvasWebSocket(sessionId: string): CanvasState {
-  const [state, setState] = useState<CanvasState>({ sessionId, slots: [], connected: false });
+export function useCanvasWebSocket(
+  sessionId: string,
+): CanvasState & { subscribeToEvents: (listener: WsEventListener) => () => void } {
+  const [state, setState] = useState<CanvasState>({
+    sessionId,
+    slots: [],
+    transcript: emptyTranscript,
+    connected: false,
+  });
+  const listenersRef = useRef<Set<WsEventListener>>(new Set());
+
+  const subscribeToEvents = useCallback((listener: WsEventListener): (() => void) => {
+    listenersRef.current.add(listener);
+    return () => listenersRef.current.delete(listener);
+  }, []);
   const reconnectAttemptRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -55,6 +79,7 @@ export function useCanvasWebSocket(sessionId: string): CanvasState {
         try {
           const parsed = JSON.parse(messageEvent.data) as WsEvent;
           setState((prev) => reduceEvent(prev, parsed));
+          for (const listener of listenersRef.current) listener(parsed);
         } catch {
           // Ignore malformed frames; the server only emits valid JSON.
         }
@@ -83,5 +108,5 @@ export function useCanvasWebSocket(sessionId: string): CanvasState {
     };
   }, [sessionId]);
 
-  return state;
+  return { ...state, subscribeToEvents };
 }

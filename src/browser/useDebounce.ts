@@ -18,10 +18,11 @@ export function useDebouncedCallback<TArgs extends unknown[]>(
     callbackRef.current = callback;
   }, [callback]);
 
+  // Unmount FLUSHES rather than drops — views unmount mid-edit all the time
+  // (the canvas auto-follows new pushes), and a dropped trailing edit is
+  // silent data loss.
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    return () => flushRef.current();
   }, []);
 
   const schedule = (...args: TArgs): void => {
@@ -29,7 +30,9 @@ export function useDebouncedCallback<TArgs extends unknown[]>(
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      if (lastArgsRef.current) callbackRef.current(...lastArgsRef.current);
+      const pendingArgs = lastArgsRef.current;
+      lastArgsRef.current = null;
+      if (pendingArgs) callbackRef.current(...pendingArgs);
     }, delayMs);
   };
 
@@ -39,10 +42,13 @@ export function useDebouncedCallback<TArgs extends unknown[]>(
       timerRef.current = null;
     }
     if (lastArgsRef.current) {
-      callbackRef.current(...lastArgsRef.current);
+      const pendingArgs = lastArgsRef.current;
       lastArgsRef.current = null;
+      callbackRef.current(...pendingArgs);
     }
   };
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
 
   const cancel = (): void => {
     if (timerRef.current) clearTimeout(timerRef.current);
