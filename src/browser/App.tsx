@@ -1,13 +1,31 @@
 import { useMemo, useRef, useState } from "react";
 import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
 import type { Slot } from "../shared/types.ts";
-import { SlotKind, SlotStatus } from "../shared/types.ts";
+import { SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
 import { SlotContextProvider } from "./SlotContext.tsx";
+import { LeftRail } from "./components/LeftRail.tsx";
+import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
+import { TranscriptView } from "./components/TranscriptView.tsx";
+import { BoardView } from "./components/BoardView.tsx";
+import { createBoardOpsListener } from "./board/ops-listener.ts";
+import { useWsEventSubscription } from "./useWsEventSubscription.ts";
+import type { TranscriptModel } from "./transcript/parse.ts";
+import type { WsEventListener } from "./ws.ts";
 import { useCanvasWebSocket } from "./ws.ts";
 import { readSessionIdFromUrl, shortSessionLabel } from "./session.ts";
 import { deleteSlot, resetSession } from "./api.ts";
+import { ThemeProvider, useThemeToggle } from "./theme.ts";
+import {
+  Surface,
+  dynamicSlots,
+  latestPlanSlot,
+  newestSlotUpdatedAt,
+  resolveView,
+  type CanvasView,
+  type ViewChoice,
+} from "./view.ts";
 import {
   buildCanvasActionHandlers,
   postStateChanges,
@@ -16,134 +34,148 @@ import {
 
 const STATE_CHANGE_DEBOUNCE_MS = 300;
 
-const SLOT_KIND_GLYPH: Record<string, string> = {
-  [SlotKind.Plan]: "✎",
-  [SlotKind.Diagram]: "▱",
-  [SlotKind.Diff]: "⇄",
-  [SlotKind.Dashboard]: "▦",
-  [SlotKind.Table]: "⊞",
-  [SlotKind.Report]: "¶",
-  [SlotKind.Render]: "◇",
-};
-
-function kindGlyph(kind: string): string {
-  return SLOT_KIND_GLYPH[kind] ?? "◇";
-}
-
-function statusBadge(status: string): { text: string; className: string } {
-  if (status === SlotStatus.Error) return { text: "error", className: "text-destructive" };
-  if (status === SlotStatus.Rendering) return { text: "rendering", className: "text-amber-600" };
-  return { text: "ready", className: "text-emerald-600" };
-}
-
 export function App() {
   const sessionId = readSessionIdFromUrl();
-  const { slots, connected } = useCanvasWebSocket(sessionId);
-  const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
+  const { slots, transcript, connected, subscribeToEvents } = useCanvasWebSocket(sessionId);
+  const { theme, toggleTheme } = useThemeToggle();
+  const [viewChoice, setViewChoice] = useState<ViewChoice | null>(null);
 
-  const activeSlot: Slot | null =
-    slots.find((slot) => slot.id === activeSlotId) ?? slots[slots.length - 1] ?? null;
+  const view = resolveView(viewChoice, slots);
+  const railSlots = dynamicSlots(slots);
+  const planSlot = latestPlanSlot(slots);
+
+  // Claude's board ops execute at app level so drawing works no matter
+  // which surface is showing.
+  useWsEventSubscription(subscribeToEvents, createBoardOpsListener(sessionId));
+
+  const selectView = (next: CanvasView): void => {
+    setViewChoice({ view: next, newestSeenUpdatedAt: newestSlotUpdatedAt(slots) });
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Mark />
-          <span className="text-[20px] font-semibold tracking-tight leading-none">
-            clawd
-          </span>
-          <span className="text-[20px] font-light text-muted-foreground tracking-tight leading-none">
-            canvas
-          </span>
-          <span className="label ml-3">session · {shortSessionLabel(sessionId)}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span
-            className={`label flex items-center gap-1.5 ${
-              connected ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full"
-              style={{ background: "currentColor" }}
+    <ThemeProvider value={theme}>
+      <div className="h-screen flex flex-col bg-background text-foreground">
+        <TopBar />
+        <div className="flex-1 flex min-h-0">
+          <LeftRail
+            slots={railSlots}
+            view={view}
+            onSelectView={selectView}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          />
+          <div className="flex-1 min-w-0 flex flex-col">
+            <ViewContent
+              sessionId={sessionId}
+              view={view}
+              slots={slots}
+              planSlot={planSlot}
+              transcript={transcript}
+              connected={connected}
+              subscribeToEvents={subscribeToEvents}
             />
-            {connected ? "live" : "reconnecting"}
-          </span>
-          {slots.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm("Clear all canvas slots and pending edits?")) {
-                  void resetSession(sessionId);
-                }
-              }}
-              className="h-8 px-3 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              Clear canvas
-            </button>
-          ) : null}
+          </div>
         </div>
-      </header>
-
-      <hr className="hairline mx-6" />
-
-      {slots.length === 0 ? (
-        <EmptyState sessionId={sessionId} />
-      ) : (
-        <main className="flex-1 flex flex-col min-h-0">
-          <nav className="flex gap-1 px-6 pt-4 pb-2 overflow-x-auto">
-            {slots.map((slot) => {
-              const badge = statusBadge(slot.status);
-              const isActive = (activeSlot?.id ?? null) === slot.id;
-              return (
-                <button
-                  key={slot.id}
-                  onClick={() => setActiveSlotId(slot.id)}
-                  className={`h-9 pl-3 pr-2 rounded-full text-sm flex items-center gap-2 whitespace-nowrap transition-colors ${
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                >
-                  <span className="font-mono text-[15px] leading-none">
-                    {kindGlyph(slot.kind)}
-                  </span>
-                  <span className="font-medium">{slot.title}</span>
-                  <span className={`text-[10px] font-mono uppercase tracking-wider ${badge.className}`}>
-                    {badge.text}
-                  </span>
-                  <span
-                    role="button"
-                    aria-label={`Close ${slot.title}`}
-                    className="ml-1 w-5 h-5 inline-flex items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void deleteSlot(sessionId, slot.id);
-                    }}
-                  >
-                    ✕
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-          <section className="flex-1 px-6 pb-8 pt-2 overflow-auto">
-            {activeSlot ? (
-              <SlotRenderer sessionId={sessionId} slot={activeSlot} />
-            ) : null}
-          </section>
-        </main>
-      )}
-    </div>
+      </div>
+    </ThemeProvider>
   );
 }
 
-// Logo mark — per Style Guide.html SVG, 28×28 rounded square outline + two
+function ViewContent({
+  sessionId,
+  view,
+  slots,
+  planSlot,
+  transcript,
+  connected,
+  subscribeToEvents,
+}: {
+  sessionId: string;
+  view: CanvasView;
+  slots: Slot[];
+  planSlot: Slot | null;
+  transcript: TranscriptModel;
+  connected: boolean;
+  subscribeToEvents: (listener: WsEventListener) => () => void;
+}) {
+  if (view.type === "slot") {
+    const slot = slots.find((candidate) => candidate.id === view.slotId);
+    if (!slot) return <WelcomeCard sessionId={sessionId} connected={connected} />;
+    return <SlotView sessionId={sessionId} slot={slot} connected={connected} />;
+  }
+
+  if (view.surface === Surface.Plan) {
+    if (!planSlot) {
+      return (
+        <SurfacePlaceholder
+          title="No plan yet."
+          body="The moment Claude exits plan mode — or renders one with canvas_plan — it appears here, editable."
+        />
+      );
+    }
+    return <SlotView sessionId={sessionId} slot={planSlot} connected={connected} />;
+  }
+
+  if (view.surface === Surface.Board) {
+    return <BoardView sessionId={sessionId} subscribeToEvents={subscribeToEvents} />;
+  }
+
+  if (transcript.items.length === 0) {
+    return <WelcomeCard sessionId={sessionId} connected={connected} />;
+  }
+  return <TranscriptView transcript={transcript} />;
+}
+
+function SlotView({
+  sessionId,
+  slot,
+  connected,
+}: {
+  sessionId: string;
+  slot: Slot;
+  connected: boolean;
+}) {
+  return (
+    <>
+      <SlotHeader sessionId={sessionId} slot={slot} connected={connected} />
+      <section className="flex-1 px-7 pb-7 overflow-auto">
+        <SlotRenderer sessionId={sessionId} slot={slot} />
+      </section>
+    </>
+  );
+}
+
+function SurfacePlaceholder({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="bg-card max-w-xl p-10 text-left" style={{ borderRadius: "var(--radius)" }}>
+        <h2 className="h-display text-3xl mb-3">{title}</h2>
+        <p className="text-base leading-relaxed text-muted-foreground">{body}</p>
+      </div>
+    </section>
+  );
+}
+
+// Top bar per the mockups — 72px, transparent, wordmark only. The right
+// side stays intentionally empty.
+function TopBar() {
+  return (
+    <header className="h-[72px] shrink-0 px-8 flex items-center gap-3">
+      <Mark />
+      <span className="text-[19px] font-semibold tracking-tight leading-none">clawd</span>
+      <span className="text-[19px] font-light text-muted-foreground tracking-tight leading-none">
+        canvas
+      </span>
+    </header>
+  );
+}
+
+// Logo mark — per Style Guide.html SVG, rounded square outline + two
 // horizontal "lines" suggesting a doc/canvas.
 function Mark() {
   return (
     <span className="inline-flex items-center justify-center w-7 h-7 shrink-0">
-      <svg width="32" height="32" viewBox="0 0 28 28" fill="none" aria-hidden>
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden>
         <rect
           x="1.4"
           y="1.4"
@@ -156,6 +188,66 @@ function Mark() {
         <rect x="7.5" y="11" width="13" height="1.6" rx="0.8" fill="currentColor" />
         <rect x="7.5" y="15.4" width="9" height="1.6" rx="0.8" fill="currentColor" />
       </svg>
+    </span>
+  );
+}
+
+// Slot header row per the diagram mockup's file header — kind icon + title
+// on the left, status pills beside them, actions pushed right.
+function SlotHeader({
+  sessionId,
+  slot,
+  connected,
+}: {
+  sessionId: string;
+  slot: Slot;
+  connected: boolean;
+}) {
+  const status = slotStatusPill(slot.status);
+
+  return (
+    <div className="shrink-0 px-7 pb-4 pt-1 flex items-center gap-3">
+      <SlotKindIcon kind={slot.kind} width={16} height={16} className="text-muted-foreground" />
+      <span className="text-sm font-medium">{slot.title}</span>
+      <StatusPill text={status.text} dotClass={status.dotClass} />
+      {connected ? null : <StatusPill text="reconnecting" dotClass="bg-amber-500" />}
+      <div className="flex-1" />
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm("Clear all canvas slots and pending edits?")) {
+            void resetSession(sessionId);
+          }
+        }}
+        className="h-8 px-3.5 rounded-full bg-popover text-[12.5px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Clear canvas
+      </button>
+      <button
+        type="button"
+        aria-label={`Close ${slot.title}`}
+        onClick={() => void deleteSlot(sessionId, slot.id)}
+        className="w-8 h-8 rounded-full bg-popover flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function slotStatusPill(status: string): { text: string; dotClass: string } {
+  if (status === SlotStatus.Error) return { text: "error", dotClass: "bg-destructive" };
+  if (status === SlotStatus.Rendering) return { text: "rendering", dotClass: "bg-amber-500" };
+  return { text: "synced", dotClass: "bg-success" };
+}
+
+// Small mono status chip per the mockups' Pill — 11px Geist Mono on a card
+// surface with a leading state dot.
+function StatusPill({ text, dotClass }: { text: string; dotClass: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card font-mono text-[11px] leading-none text-muted-foreground whitespace-nowrap">
+      <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+      {text}
     </span>
   );
 }
@@ -205,11 +297,19 @@ function SlotRenderer({ sessionId, slot }: { sessionId: string; slot: Slot }) {
   );
 }
 
-function EmptyState({ sessionId }: { sessionId: string }) {
+// Welcome state for a session with no transcript entries yet (or a slot
+// view whose slot vanished).
+function WelcomeCard({ sessionId, connected }: { sessionId: string; connected: boolean }) {
   return (
     <section className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="bg-card max-w-xl p-10 text-left" style={{ borderRadius: "var(--radius)" }}>
-        <span className="label">01 / Welcome</span>
+        <div className="flex items-center justify-between">
+          <span className="label">01 / Welcome</span>
+          <StatusPill
+            text={connected ? "live" : "reconnecting"}
+            dotClass={connected ? "bg-success" : "bg-amber-500"}
+          />
+        </div>
         <h2 className="h-display text-3xl mt-3 mb-3">
           Ready when Claude is.
         </h2>

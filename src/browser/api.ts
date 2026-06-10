@@ -1,4 +1,4 @@
-import type { EditKind } from "../shared/types.ts";
+import type { BoardOpsResult, BoardScene, EditKind } from "../shared/types.ts";
 
 const TOKEN_HEADER = "x-canvas-token";
 
@@ -50,6 +50,49 @@ export async function deleteSlot(sessionId: string, slotId: string): Promise<voi
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`deleteSlot failed (${response.status}): ${text}`);
+  }
+}
+
+export async function fetchBoardScene(sessionId: string): Promise<BoardScene> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`, { headers });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`fetchBoardScene failed (${response.status}): ${text}`);
+  }
+  return (await response.json()) as BoardScene;
+}
+
+export async function postBoardScene(
+  sessionId: string,
+  scene: BoardScene,
+  clientId: string,
+): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ ...scene, clientId }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`postBoardScene failed (${response.status}): ${text}`);
+  }
+}
+
+export async function postBoardOpsResult(
+  sessionId: string,
+  requestId: string,
+  result: BoardOpsResult,
+): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/board/ops-result`,
+    { method: "POST", headers, body: JSON.stringify({ requestId, result }) },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`postBoardOpsResult failed (${response.status}): ${text}`);
   }
 }
 
