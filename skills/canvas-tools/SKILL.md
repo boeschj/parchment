@@ -160,6 +160,18 @@ Statement separators between nodes/edges should be actual newlines in the JSON s
 
 ---
 
+## Design like a professional (the bar for every render)
+
+You decide when the canvas earns a render — anything richer than a one-liner usually does. But when the user explicitly asks for a UI ("visualize this", "make me a dashboard", "show me the logs"), the bar is a professional designer's output, not a data dump:
+
+- **Hierarchy first**: one Heading, a TL;DR Alert or stat row answering the question at a glance, then supporting detail. The user should get the answer in 2 seconds and the evidence below it.
+- **Pick the chart for the question**: trends over time → line/area; comparisons → bar; never a pie for more than 4 slices. Tables carry detail; charts carry the point.
+- **Density discipline**: 4-up Grid for stats, 2-up for comparisons, full-width only for tables and charts.
+- **Label with the user's vocabulary** — route names, file paths, env names from THIS conversation, not generic placeholders.
+- **Iterate in place**: pass the prior `slotId` so refinements replace the slot instead of stacking near-duplicates in the rail.
+
+---
+
 ## Anti-patterns (don't do these)
 
 - ❌ `canvas_plan` for analyses, reports, architecture writeups, or "render this markdown" — use `canvas_render`
