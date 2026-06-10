@@ -9,6 +9,7 @@ import {
 import { useSlotContext } from "../SlotContext.tsx";
 import { postEdit } from "../api.ts";
 import { useDebouncedCallback } from "../useDebounce.ts";
+import { Theme, useTheme } from "../theme.ts";
 
 type DiffViewerProps = z.infer<typeof DiffViewerPropsSchema>;
 type RenderProps = { props: DiffViewerProps };
@@ -54,9 +55,11 @@ const DIFF_BEFORE_ELEMENT = "before";
 
 export function DiffViewer({ props }: RenderProps) {
   const { sessionId, slotId } = useSlotContext();
+  const theme = useTheme();
   const editorRef = useRef<Parameters<DiffOnMount>[0] | null>(null);
   const editableSide = props.editableSide ?? DiffEditableSide.After;
   const language = detectLanguage(props.file, props.language);
+  const monacoTheme = theme === Theme.Dark ? "vs-dark" : "vs";
 
   const debouncedPost = useDebouncedCallback(
     async (side: "before" | "after", content: string) => {
@@ -99,20 +102,21 @@ export function DiffViewer({ props }: RenderProps) {
   return (
     <div
       className="bg-card text-card-foreground overflow-hidden"
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      style={{ borderRadius: "var(--radius)" }}
     >
-      <header className="px-6 py-3 border-b flex items-center justify-between">
+      <header className="px-6 py-3 flex items-center justify-between">
         <code className="text-xs font-mono">{props.file}</code>
         <span className="label">
           {language} · {editableSide === DiffEditableSide.None ? "read-only" : `${editableSide} editable`}
         </span>
       </header>
+      <hr className="hairline mx-6" />
       <DiffEditor
         height="480px"
         original={props.before}
         modified={props.after}
         language={language}
-        theme="vs-dark"
+        theme={monacoTheme}
         options={{
           readOnly,
           originalEditable,

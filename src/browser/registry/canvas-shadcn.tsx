@@ -3,7 +3,8 @@
 // Same prop contracts as @json-render/shadcn (so Claude's specs still
 // validate against shadcnComponentDefinitions in the catalog), but rendered
 // with our design language:
-//   - 24px radius default (--radius), borderless surfaces with --shadow-card
+//   - 24px radius default (--radius), flat borderless surfaces (the focus
+//     ring is the only outline anywhere)
 //   - Pill buttons + badges (--radius-full)
 //   - Geist + Geist Mono typography
 //   - Gold #CEA500 primary, alpha borders, hairline separators
@@ -52,7 +53,7 @@ function cx(...parts: Array<string | false | null | undefined>): string {
 }
 
 // ---- Card -----------------------------------------------------------------
-// Borderless surface, 24px radius, three-layer shadow, 24px padding.
+// Flat borderless surface, 24px radius, 24px padding.
 // Optional title + description rendered as a header block above children.
 
 export function Card({ props, children }: BaseComponentProps<ShadcnProps<"Card">>) {
@@ -63,7 +64,7 @@ export function Card({ props, children }: BaseComponentProps<ShadcnProps<"Card">
   return (
     <div
       className={cx("bg-card text-card-foreground p-6", widthClass, centeredClass, props.className ?? undefined)}
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      style={{ borderRadius: "var(--radius)" }}
     >
       {hasHeader ? (
         <header className={cx("flex flex-col gap-1", children ? "mb-4" : "")}>
@@ -270,8 +271,8 @@ export function Button({
 }
 
 // ---- Alert --------------------------------------------------------------
-// Per Style Guide: surface treatment with a softly-tinted left border and
-// optional icon. type controls the tint color.
+// Per Style Guide: flat card surface with a tinted icon chip carrying the
+// semantic color. type controls the tint.
 
 type AlertType = "info" | "success" | "warning" | "error";
 
@@ -301,11 +302,7 @@ export function Alert({
   return (
     <div
       className="flex gap-3 p-5 bg-card text-card-foreground"
-      style={{
-        borderRadius: "var(--radius)",
-        boxShadow: "var(--shadow-card)",
-        borderLeft: `3px solid ${accent}`,
-      }}
+      style={{ borderRadius: "var(--radius)" }}
       role="alert"
     >
       <span

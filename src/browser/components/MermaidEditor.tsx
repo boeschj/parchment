@@ -93,18 +93,23 @@ export function MermaidEditor({ props }: RenderProps) {
   return (
     <div
       className="bg-card text-card-foreground overflow-hidden"
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      style={{ borderRadius: "var(--radius)" }}
     >
       {props.title ? (
-        <header className="px-6 py-4 border-b">
-          <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
-        </header>
+        <>
+          <header className="px-6 py-4">
+            <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
+          </header>
+          <hr className="hairline mx-6" />
+        </>
       ) : null}
-      <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
-        <section className="p-3">
+      <div className="grid md:grid-cols-2">
+        <section className="p-4">
+          <div className="label mb-3">Source</div>
           {editable ? (
             <textarea
-              className="w-full h-[480px] font-mono text-xs border rounded-md p-2 bg-muted focus:outline-none focus:ring-2 focus:ring-ring/40"
+              className="w-full h-[456px] font-mono text-xs p-3 bg-muted focus:outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[3px]"
+              style={{ borderRadius: "var(--radius-md)" }}
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -119,7 +124,11 @@ export function MermaidEditor({ props }: RenderProps) {
         <section
           ref={containerRef}
           onClick={editable ? handleNodeClick : undefined}
-          className="p-3 overflow-auto h-[480px] flex items-start justify-center"
+          className="p-4 overflow-auto h-[504px] flex items-start justify-center"
+          style={{
+            background:
+              "radial-gradient(circle at center, var(--dot) 1px, transparent 1px) 0 0 / 22px 22px",
+          }}
         >
           {renderState.status === "ready" ? (
             <div
@@ -136,7 +145,7 @@ export function MermaidEditor({ props }: RenderProps) {
         </section>
       </div>
       {editable && props.comments && props.comments.length > 0 ? (
-        <footer className="border-t px-4 py-2 text-xs text-muted-foreground">
+        <footer className="px-4 py-2 text-xs text-muted-foreground" style={{ borderTop: "1px solid var(--hairline)" }}>
           <strong>Comments:</strong>
           <ul className="mt-1 space-y-1">
             {props.comments.map((comment, idx) => (

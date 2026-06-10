@@ -23,13 +23,14 @@ import { ChartKind, ChartPropsSchema } from "../../shared/catalog/extensions/Cha
 type ChartProps = z.infer<typeof ChartPropsSchema>;
 type RenderProps = { props: ChartProps };
 
+// Chart series follow the Style Guide palette: gold first, then the ink
+// ramp — charts stay monochrome apart from the single brand accent.
 const SERIES_COLORS = [
-  "oklch(0.55 0.20 255)",
-  "oklch(0.60 0.18 145)",
-  "oklch(0.65 0.18 60)",
-  "oklch(0.55 0.20 25)",
-  "oklch(0.60 0.18 305)",
-  "oklch(0.55 0.18 195)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ];
 
 function colorAt(index: number): string {
@@ -47,7 +48,7 @@ export function Chart({ props }: RenderProps) {
   return (
     <div
       className="bg-card text-card-foreground p-6"
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      style={{ borderRadius: "var(--radius)" }}
     >
       {props.title ? (
         <header className="mb-4">
@@ -71,7 +72,7 @@ function renderChart(
     case ChartKind.Line:
       return (
         <LineChart data={props.data as Array<Record<string, unknown>>}>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 250)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
           <XAxis dataKey={props.x} fontSize={12} />
           <YAxis fontSize={12} />
           <Tooltip />
@@ -91,7 +92,7 @@ function renderChart(
     case ChartKind.Bar:
       return (
         <BarChart data={props.data as Array<Record<string, unknown>>}>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 250)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
           <XAxis dataKey={props.x} fontSize={12} />
           <YAxis fontSize={12} />
           <Tooltip />
@@ -104,7 +105,7 @@ function renderChart(
     case ChartKind.Area:
       return (
         <AreaChart data={props.data as Array<Record<string, unknown>>}>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 250)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
           <XAxis dataKey={props.x} fontSize={12} />
           <YAxis fontSize={12} />
           <Tooltip />
@@ -142,7 +143,7 @@ function renderChart(
     case ChartKind.Scatter:
       return (
         <ScatterChart>
-          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.005 250)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
           <XAxis dataKey={props.x} fontSize={12} type="number" />
           <YAxis dataKey={seriesKeys[0] ?? "y"} fontSize={12} type="number" />
           <Tooltip cursor={{ strokeDasharray: "3 3" }} />

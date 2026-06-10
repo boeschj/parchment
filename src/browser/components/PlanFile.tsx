@@ -55,41 +55,46 @@ export function PlanFile({ props }: RenderProps) {
 
   if (!editor) {
     return (
-      <div className="bg-card border rounded-xl shadow-sm p-6">
+      <div className="bg-card max-w-[860px] mx-auto p-10" style={{ borderRadius: "var(--radius)" }}>
         <div className="text-muted-foreground text-sm">Loading editor…</div>
       </div>
     );
   }
 
+  // Document-card treatment per the plan mockup: centered column, generous
+  // padding, file-title chip above the prose.
   return (
     <div
-      className="bg-card text-card-foreground overflow-hidden"
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      className="bg-card text-card-foreground overflow-hidden max-w-[860px] mx-auto"
+      style={{ borderRadius: "var(--radius)" }}
     >
-      {props.title ? (
-        <header className="px-6 py-4">
-          <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
-        </header>
-      ) : null}
-      <div className="px-6 py-4">
+      <div className="px-10 pt-10 pb-6 sm:px-14 sm:pt-12">
+        {props.title ? (
+          <span className="inline-flex items-center px-3 py-1.5 mb-7 rounded-full bg-background font-mono text-[11.5px] text-muted-foreground">
+            {props.title}
+          </span>
+        ) : null}
         <EditorContent
           editor={editor}
-          className="prose prose-sm max-w-none focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[120px]"
+          className="plan-prose prose prose-sm max-w-none focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[120px]"
         />
       </div>
       {editable ? (
-        <footer className="px-6 py-3 border-t flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            Edits auto-save and flow to Claude on your next prompt.
-          </span>
-          <button
-            type="button"
-            onClick={() => debouncedPost.flush()}
-            className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
-          >
-            Send now
-          </button>
-        </footer>
+        <>
+          <hr className="hairline mx-10 sm:mx-14" />
+          <footer className="px-10 sm:px-14 py-4 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              Edits auto-save and flow to Claude on your next prompt.
+            </span>
+            <button
+              type="button"
+              onClick={() => debouncedPost.flush()}
+              className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              Send now
+            </button>
+          </footer>
+        </>
       ) : null}
     </div>
   );

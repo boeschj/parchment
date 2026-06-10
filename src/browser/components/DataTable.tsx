@@ -116,12 +116,12 @@ export function DataTable({ props }: RenderProps) {
 
   return (
     <div
-      className="bg-card text-card-foreground overflow-hidden"
-      style={{ borderRadius: "var(--radius)", boxShadow: "var(--shadow-card)" }}
+      className="bg-card text-card-foreground overflow-hidden p-6"
+      style={{ borderRadius: "var(--radius)" }}
     >
-      <header className="px-6 py-3 border-b flex items-center justify-between">
+      <header className="pb-4 flex items-center justify-between">
         {props.caption ? (
-          <h2 className="text-base font-semibold tracking-tight">{props.caption}</h2>
+          <h2 className="h-display text-[1.75rem]">{props.caption}</h2>
         ) : (
           <span className="label">{props.rows.length} rows</span>
         )}
@@ -132,23 +132,23 @@ export function DataTable({ props }: RenderProps) {
               const csv = rowsToCsv(props.columns, props.rows);
               triggerCsvDownload(`${props.caption ?? "table"}.csv`, csv);
             }}
-            className="h-8 px-3 rounded-full text-xs font-medium text-foreground hover:bg-accent transition-colors"
+            className="h-8 px-3.5 rounded-full bg-popover text-[12.5px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            Export CSV
+            CSV
           </button>
         ) : null}
       </header>
       <div className="overflow-auto max-h-[600px]">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-muted">
+            <tr>
               {props.columns.map((column) => {
                 const direction = sort?.key === column.key ? sort.direction : null;
                 return (
                   <th
                     key={column.key}
                     onClick={() => toggleSort(column.key)}
-                    className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer select-none border-b"
+                    className="px-3 py-2 text-left font-mono text-[10.5px] font-medium text-muted-foreground uppercase tracking-[0.12em] cursor-pointer select-none"
                     style={{ textAlign: column.align ?? "left", width: column.width ?? "auto" }}
                   >
                     {column.header}
@@ -161,11 +161,11 @@ export function DataTable({ props }: RenderProps) {
           </thead>
           <tbody>
             {sortedRows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="border-b last:border-b-0 hover:bg-muted/40">
+              <tr key={rowIndex} className="border-t hover:bg-muted/40">
                 {props.columns.map((column) => (
                   <td
                     key={column.key}
-                    className="px-3 py-2 align-top"
+                    className="px-3 py-2.5 align-top"
                     style={{ textAlign: column.align ?? "left" }}
                   >
                     {editable ? (
@@ -178,7 +178,7 @@ export function DataTable({ props }: RenderProps) {
                             handleCellEdit(rowIndex, column, next);
                           }
                         }}
-                        className="w-full bg-transparent border border-transparent hover:border-border focus:border-primary rounded px-1 py-0.5 text-sm focus:outline-none"
+                        className="w-full bg-transparent rounded px-1 py-0.5 text-sm hover:bg-muted/60 focus:outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
                       />
                     ) : (
                       <span>{formatCell(row[column.key])}</span>
