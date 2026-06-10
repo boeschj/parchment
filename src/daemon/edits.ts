@@ -2,17 +2,14 @@ import {
   EditKind,
   type Edit,
   type EditPayload,
-  type OverlayEntry,
   type CanvasInjectionPayload,
 } from "../shared/types.ts";
-import { broadcast, ensureSession, getSession } from "./sessions.ts";
+import { overlayKey, persistEdits } from "./session-store.ts";
+import { generateId } from "./ids.ts";
+import { broadcast, ensureSession, getSession, type SessionRoom } from "./sessions.ts";
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function overlayKey(slotId: string, elementId: string | null): string {
-  return `${slotId}::${elementId ?? "*"}`;
+function persistSessionEdits(session: SessionRoom): void {
+  persistEdits(session.sessionId, session.pendingEdits, Array.from(session.overlay.values()));
 }
 
 export type RecordEditInput = {
@@ -50,6 +47,7 @@ export function recordEdit(input: RecordEditInput): Edit {
     updatedAt: edit.recordedAt,
   });
 
+  persistSessionEdits(session);
   broadcast(session, { kind: "edit-recorded", data: edit });
   return edit;
 }
@@ -68,6 +66,7 @@ export function drainPendingEdits(sessionId: string): Edit[] {
   if (!session) return [];
   const drained = session.pendingEdits;
   session.pendingEdits = [];
+  persistSessionEdits(session);
   return drained;
 }
 
@@ -76,6 +75,7 @@ export function clearOverlay(sessionId: string): void {
   if (!session) return;
   session.overlay.clear();
   session.pendingEdits = [];
+  persistSessionEdits(session);
   broadcast(session, { kind: "reset", data: { sessionId } });
 }
 

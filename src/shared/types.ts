@@ -88,13 +88,49 @@ export type OverlayEntry = {
   updatedAt: number;
 };
 
+// One parsed line of a Claude Code session JSONL file. The schema is
+// undocumented and drifts across versions, so the daemon passes lines
+// through untyped and the browser's parser narrows defensively.
+export type TranscriptEntry = Record<string, unknown>;
+
+// The shared Excalidraw board. Elements/files use Excalidraw's own JSON
+// shapes; the daemon treats them as opaque and persists them verbatim as a
+// standard .excalidraw file.
+export type BoardScene = {
+  elements: unknown[];
+  files: Record<string, unknown>;
+};
+
+// Operations Claude sends the board. Skeleton elements are Excalidraw's
+// LLM-friendly format (convertToExcalidrawElements fills in bindings,
+// seeds, text containers); mermaid is the auto-layout cold-start path.
+// Conversion needs a DOM, so the daemon relays ops to the browser tab and
+// the browser writes the resulting scene back.
+export type BoardOps = {
+  addSkeletons?: unknown[];
+  addMermaid?: string;
+  deleteElementIds?: string[];
+  exportPng?: boolean;
+};
+
+export type BoardOpsResult = {
+  ok: boolean;
+  error?: string;
+  elementCount?: number;
+  pngBase64?: string;
+};
+
 export type WsEvent =
   | { kind: "snapshot"; data: { sessionId: string; slots: Slot[] } }
   | { kind: "slot-added"; data: Slot }
   | { kind: "slot-updated"; data: Slot }
   | { kind: "slot-removed"; data: { slotId: string } }
   | { kind: "edit-recorded"; data: Edit }
-  | { kind: "reset"; data: { sessionId: string } };
+  | { kind: "reset"; data: { sessionId: string } }
+  | { kind: "transcript-snapshot"; data: { entries: TranscriptEntry[] } }
+  | { kind: "transcript-append"; data: { entries: TranscriptEntry[] } }
+  | { kind: "board-updated"; data: { clientId: string | null } }
+  | { kind: "board-ops"; data: { requestId: string; ops: BoardOps } };
 
 export type CanvasInjectionPayload = {
   count: number;

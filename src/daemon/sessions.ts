@@ -4,6 +4,13 @@ import type {
   Edit,
   WsEvent,
 } from "../shared/types.ts";
+import {
+  loadPersistedSlots,
+  loadPersistedEdits,
+  loadSessionMeta,
+  listPersistedSessionIds,
+  overlayKey,
+} from "./session-store.ts";
 
 export type WebSocketSubscriber = {
   send: (data: string) => void;
@@ -22,46 +29,76 @@ export type SessionRoom = {
   pendingEdits: Edit[];
   overlay: Map<string, OverlayEntry>;
   subscribers: Set<WebSocketSubscriber>;
+  transcriptPath: string | null;
   createdAt: number;
   lastPing: number;
 };
 
 const sessions = new Map<string, SessionRoom>();
-let onEmptyMap: (() => void) | null = null;
-let onSessionCreated: (() => void) | null = null;
 
-export function configureSessionLifecycleHooks(hooks: {
-  onEmptyMap: () => void;
-  onSessionCreated: () => void;
-}): void {
-  onEmptyMap = hooks.onEmptyMap;
-  onSessionCreated = hooks.onSessionCreated;
-}
+// Disk persistence makes eviction lossless, so the in-memory map stays
+// bounded no matter how many session ids requests invent.
+const MAX_RESIDENT_SESSIONS = 50;
 
+// A room missing from the map is either brand new or predates a daemon
+// restart — hydrating from disk covers both, so restarts are lossless.
 export function ensureSession(sessionId: string, cwd: string = ""): SessionRoom {
   const existing = sessions.get(sessionId);
   if (existing) {
-    if (cwd !== "" && existing.cwd === "") existing.cwd = cwd;
+    if (cwd !== "" && existing.cwd !== cwd) existing.cwd = cwd;
     return existing;
   }
+  evictStalestIfFull();
+  const persisted = loadPersistedEdits(sessionId);
+  const overlay = new Map(
+    persisted.overlayEntries.map((entry) => [overlayKey(entry.slotId, entry.elementId), entry]),
+  );
   const now = Date.now();
   const fresh: SessionRoom = {
     sessionId,
     cwd,
-    slots: [],
-    pendingEdits: [],
-    overlay: new Map(),
+    slots: loadPersistedSlots(sessionId),
+    pendingEdits: persisted.pendingEdits,
+    overlay,
     subscribers: new Set(),
+    transcriptPath: loadSessionMeta(sessionId).transcriptPath,
     createdAt: now,
     lastPing: now,
   };
   sessions.set(sessionId, fresh);
-  if (onSessionCreated) onSessionCreated();
   return fresh;
+}
+
+function evictStalestIfFull(): void {
+  if (sessions.size < MAX_RESIDENT_SESSIONS) return;
+  let stalest: SessionRoom | null = null;
+  for (const session of sessions.values()) {
+    if (session.subscribers.size > 0) continue;
+    if (stalest === null || session.lastPing < stalest.lastPing) stalest = session;
+  }
+  if (stalest) sessions.delete(stalest.sessionId);
 }
 
 export function getSession(sessionId: string): SessionRoom | undefined {
   return sessions.get(sessionId);
+}
+
+// Heartbeats arrive without a token (statusline GET), so they only revive
+// sessions that legitimately exist — in memory, or persisted on disk by a
+// token-bearing hook. Unknown ids are ignored rather than allocated.
+export function pingKnownSession(sessionId: string): SessionRoom | null {
+  const existing = sessions.get(sessionId);
+  if (existing) {
+    existing.lastPing = Date.now();
+    return existing;
+  }
+  const persistedIds = new Set(listPersistedSessionIds());
+  if (!persistedIds.has(sanitizeForSessionDir(sessionId))) return null;
+  return pingSession(sessionId);
+}
+
+function sanitizeForSessionDir(sessionId: string): string {
+  return sessionId.replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
 export function listSessions(): SessionRoom[] {
@@ -72,17 +109,6 @@ export function pingSession(sessionId: string): SessionRoom {
   const session = ensureSession(sessionId);
   session.lastPing = Date.now();
   return session;
-}
-
-export function evictSession(sessionId: string): void {
-  sessions.delete(sessionId);
-  if (sessions.size === 0 && onEmptyMap) onEmptyMap();
-}
-
-export function totalSubscriberCount(): number {
-  let count = 0;
-  for (const session of sessions.values()) count += session.subscribers.size;
-  return count;
 }
 
 export function broadcast(session: SessionRoom, event: WsEvent): void {
@@ -107,27 +133,12 @@ export function shortAliasOf(sessionId: string): string {
 
 export function resolveSessionByShortAlias(alias: string): string | null {
   const normalized = alias.toLowerCase();
-  for (const sessionId of sessions.keys()) {
+  const knownIds = [...sessions.keys(), ...listPersistedSessionIds()];
+  for (const sessionId of knownIds) {
     if (shortAliasOf(sessionId) === normalized) return sessionId;
   }
-  for (const sessionId of sessions.keys()) {
+  for (const sessionId of knownIds) {
     if (sessionId.toLowerCase().startsWith(normalized)) return sessionId;
   }
   return null;
-}
-
-export function runIdleSweep(
-  staleThresholdMs: number,
-): { evicted: number; remaining: number } {
-  const now = Date.now();
-  let evicted = 0;
-  for (const [sessionId, session] of sessions) {
-    if (session.subscribers.size > 0) continue;
-    if (now - session.lastPing < staleThresholdMs) continue;
-    sessions.delete(sessionId);
-    evicted += 1;
-  }
-  const remaining = sessions.size;
-  if (remaining === 0 && evicted > 0 && onEmptyMap) onEmptyMap();
-  return { evicted, remaining };
 }

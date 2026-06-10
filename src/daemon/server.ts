@@ -3,29 +3,33 @@ import { EditKind, SlotKind, SlotOrigin, SlotStatus } from "../shared/types.ts";
 import {
   generateToken,
   writeServerStateFiles,
-  clearServerStateFiles,
-  isExistingServerAlive,
+  clearServerStateFilesIfOwned,
+  isCanvasDaemonAt,
+  isExistingDaemonHealthy,
 } from "./state.ts";
 import { guardRequest, jsonResponse, errorResponse, ErrorCode, HttpStatus } from "./security.ts";
 import {
-  configureSessionLifecycleHooks,
   ensureSession,
   pingSession,
+  pingKnownSession,
   getSession,
   listSessions,
   broadcast,
   sessionSnapshot,
   resolveSessionByShortAlias,
-  runIdleSweep,
   type WebSocketAttachment,
   type WebSocketSubscriber,
 } from "./sessions.ts";
+import { upsertSlot, removeSlot, markSlotError } from "./slots.ts";
+import { clearPersistedSlots } from "./session-store.ts";
+import { registerTranscriptPath, readTranscriptBacklog } from "./transcript.ts";
 import {
-  upsertSlot,
-  removeSlot,
-  markSlotError,
-  clearSessionSlotDir,
-} from "./slots.ts";
+  readBoardScene,
+  writeBoardScene,
+  requestBoardOps,
+  resolveBoardOps,
+} from "./board.ts";
+import type { BoardOps, BoardOpsResult, BoardScene } from "../shared/types.ts";
 import {
   recordEdit,
   buildInjectionPayload,
@@ -34,46 +38,23 @@ import {
 } from "./edits.ts";
 import { serveStatic } from "./static.ts";
 
-const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7777);
+const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
 const MAX_PORT_ATTEMPTS = 10;
-const DEFAULT_SESSION_STALE_MS = 120 * 1000;
-const DEFAULT_EXIT_GRACE_MS = 60 * 1000;
-const IDLE_CHECK_INTERVAL_MS = 15 * 1000;
+// Board ops hold a request open up to 15s waiting on a browser round-trip;
+// Bun's default idleTimeout (10s) would kill them mid-wait.
+const REQUEST_IDLE_TIMEOUT_S = 30;
 
-const SESSION_STALE_MS = Number(process.env.CANVAS_SESSION_STALE_MS ?? DEFAULT_SESSION_STALE_MS);
-const EXIT_GRACE_MS = Number(process.env.CANVAS_EXIT_GRACE_MS ?? DEFAULT_EXIT_GRACE_MS);
-const IDLE_SHUTDOWN_ENABLED = SESSION_STALE_MS > 0 && EXIT_GRACE_MS > 0;
+// The daemon runs until explicitly stopped (cli clean, SIGTERM). Idle
+// shutdown was removed in v0.3: a canvas that kills itself between glances
+// is worse than a few MB of resident memory, and every consumer (hooks,
+// MCP, browser) had to carry respawn logic to compensate.
 
-if (isExistingServerAlive()) {
+if (await isExistingDaemonHealthy()) {
   console.error("clawd-canvas: daemon already running; exiting.");
   process.exit(0);
 }
 
 const SERVER_TOKEN = generateToken();
-
-let pendingExitTimer: ReturnType<typeof setTimeout> | null = null;
-
-function cancelExitTimer(): void {
-  if (pendingExitTimer !== null) {
-    clearTimeout(pendingExitTimer);
-    pendingExitTimer = null;
-  }
-}
-
-function scheduleExitTimer(): void {
-  if (pendingExitTimer !== null) return;
-  pendingExitTimer = setTimeout(() => {
-    console.log(
-      `clawd-canvas: no sessions for ${Math.round(EXIT_GRACE_MS / 1000)}s — shutting down`,
-    );
-    process.exit(0);
-  }, EXIT_GRACE_MS);
-}
-
-configureSessionLifecycleHooks({
-  onSessionCreated: cancelExitTimer,
-  onEmptyMap: scheduleExitTimer,
-});
 
 type CanvasServer = ReturnType<typeof serve<WebSocketAttachment>>;
 
@@ -110,8 +91,8 @@ async function handleFetch(
   if (path === "/api/heartbeat") {
     const sessionId = url.searchParams.get("session");
     if (!sessionId) return jsonResponse({ ok: true });
-    const session = pingSession(sessionId);
-    return jsonResponse({ ok: true, lastPing: session.lastPing });
+    const session = pingKnownSession(sessionId);
+    return jsonResponse({ ok: true, lastPing: session?.lastPing ?? null });
   }
 
   if (path === "/api/sessions") {
@@ -300,11 +281,54 @@ async function handleSessionRoute(
     return jsonResponse(payload);
   }
 
+  if (subPath === "/board" && method === "GET") {
+    return jsonResponse(readBoardScene(sessionId));
+  }
+
+  if (subPath === "/board" && method === "POST") {
+    const body = (await request.json()) as Partial<BoardScene> & { clientId?: string };
+    if (!Array.isArray(body.elements)) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "elements[] required");
+    }
+    const session = ensureSession(sessionId);
+    const scene: BoardScene = { elements: body.elements, files: body.files ?? {} };
+    writeBoardScene(session, scene, body.clientId ?? null);
+    return jsonResponse({ ok: true });
+  }
+
+  if (subPath === "/board/ops" && method === "POST") {
+    const body = (await request.json()) as { ops?: BoardOps };
+    if (!body.ops) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "ops required");
+    }
+    const session = ensureSession(sessionId);
+    const result = await requestBoardOps(session, body.ops);
+    return jsonResponse(result);
+  }
+
+  if (subPath === "/board/ops-result" && method === "POST") {
+    const body = (await request.json()) as { requestId?: string; result?: BoardOpsResult };
+    if (typeof body.requestId !== "string" || !body.result) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "requestId and result required");
+    }
+    const resolved = resolveBoardOps(body.requestId, body.result);
+    return jsonResponse({ ok: resolved });
+  }
+
+  if (subPath === "/transcript" && method === "POST") {
+    const body = (await request.json()) as { path?: string };
+    if (typeof body.path !== "string" || body.path.length === 0) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "path required");
+    }
+    registerTranscriptPath(sessionId, body.path);
+    return jsonResponse({ ok: true });
+  }
+
   if (subPath === "/reset" && method === "POST") {
     const session = ensureSession(sessionId);
     session.slots = [];
     clearOverlay(sessionId);
-    clearSessionSlotDir(sessionId);
+    clearPersistedSlots(sessionId);
     broadcast(session, { kind: "reset", data: { sessionId } });
     return jsonResponse({ ok: true });
   }
@@ -335,6 +359,8 @@ const websocketHandler: Bun.WebSocketHandler<WebSocketAttachment> = {
     session.subscribers.add(subscriber);
     ws.data.subscriber = subscriber;
     ws.send(JSON.stringify({ kind: "snapshot", data: sessionSnapshot(session) }));
+    const transcriptEntries = readTranscriptBacklog(session);
+    ws.send(JSON.stringify({ kind: "transcript-snapshot", data: { entries: transcriptEntries } }));
   },
   close(ws) {
     const session = getSession(ws.data.sessionId);
@@ -347,17 +373,28 @@ const websocketHandler: Bun.WebSocketHandler<WebSocketAttachment> = {
   },
 };
 
-function startServerWithPortFallback(): CanvasServer {
+// Port fallback exists for ports held by OTHER software. If a port is held
+// by another canvas daemon, we lost a spawn race — exit instead of becoming
+// a second daemon that clobbers the winner's state files.
+async function startServerWithPortFallback(): Promise<CanvasServer> {
   const errors: string[] = [];
   for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
     const candidatePort = DEFAULT_PORT + offset;
     try {
       return serve<WebSocketAttachment>({
+        hostname: "127.0.0.1",
         port: candidatePort,
+        idleTimeout: REQUEST_IDLE_TIMEOUT_S,
         fetch: handleFetch,
         websocket: websocketHandler,
       });
     } catch (caught) {
+      if (await isCanvasDaemonAt(candidatePort)) {
+        console.error(
+          `clawd-canvas: another daemon won port ${candidatePort} during startup; exiting.`,
+        );
+        process.exit(0);
+      }
       const message = caught instanceof Error ? caught.message : String(caught);
       errors.push(`port ${candidatePort}: ${message}`);
     }
@@ -367,31 +404,17 @@ function startServerWithPortFallback(): CanvasServer {
   );
 }
 
-const server = startServerWithPortFallback();
+const server = await startServerWithPortFallback();
 const boundPort = server.port;
 if (boundPort === undefined) {
   throw new Error("clawd-canvas: server bound but Bun did not report a port");
 }
 writeServerStateFiles(boundPort, SERVER_TOKEN);
 
-let idleCheckInterval: ReturnType<typeof setInterval> | null = null;
-if (IDLE_SHUTDOWN_ENABLED) {
-  idleCheckInterval = setInterval(() => {
-    runIdleSweep(SESSION_STALE_MS);
-  }, IDLE_CHECK_INTERVAL_MS);
-}
-
 process.on("exit", () => {
-  if (idleCheckInterval) clearInterval(idleCheckInterval);
-  cancelExitTimer();
-  clearServerStateFiles();
+  clearServerStateFilesIfOwned();
 });
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
 
 console.log(`clawd-canvas: listening on http://localhost:${boundPort}`);
-if (IDLE_SHUTDOWN_ENABLED) {
-  console.log(
-    `clawd-canvas: idle shutdown enabled (evict > ${Math.round(SESSION_STALE_MS / 1000)}s, exit after ${Math.round(EXIT_GRACE_MS / 1000)}s empty)`,
-  );
-}

@@ -35,22 +35,41 @@ export function writeServerStateFiles(boundPort: number, token: string): void {
   chmodSync(TOKEN_FILE, TOKEN_FILE_MODE);
 }
 
-export function clearServerStateFiles(): void {
-  if (existsSync(PID_FILE)) unlinkSync(PID_FILE);
+// Only the process that owns the PID file may clear state — a dying loser
+// of a spawn race must never delete the winner's files.
+export function clearServerStateFilesIfOwned(): void {
+  if (!existsSync(PID_FILE)) return;
+  const recordedPid = readFileSync(PID_FILE, "utf8").trim();
+  if (recordedPid !== String(process.pid)) return;
+  unlinkSync(PID_FILE);
   if (existsSync(PORT_FILE)) unlinkSync(PORT_FILE);
   if (existsSync(TOKEN_FILE)) unlinkSync(TOKEN_FILE);
 }
 
-export function isExistingServerAlive(): boolean {
-  if (!existsSync(PID_FILE)) return false;
-  const pid = Number(readFileSync(PID_FILE, "utf8").trim());
-  if (!Number.isFinite(pid)) return false;
+const HEALTH_PROBE_TIMEOUT_MS = 750;
+
+// "A daemon exists" means it answers /api/health — a PID check alone is
+// wrong twice over: stale PID files get recycled to unrelated processes
+// (bricking startup forever), and a live-but-wedged daemon shouldn't block
+// a replacement.
+export async function isCanvasDaemonAt(port: number): Promise<boolean> {
   try {
-    process.kill(pid, 0);
-    return true;
+    const response = await fetch(`http://localhost:${port}/api/health`, {
+      signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const payload = (await response.json()) as { ok?: boolean };
+    return payload.ok === true;
   } catch {
     return false;
   }
+}
+
+export async function isExistingDaemonHealthy(): Promise<boolean> {
+  if (!existsSync(PORT_FILE)) return false;
+  const port = Number(readFileSync(PORT_FILE, "utf8").trim());
+  if (!Number.isFinite(port) || port <= 0) return false;
+  return isCanvasDaemonAt(port);
 }
 
 export function sessionSlotDir(sessionId: string): string {

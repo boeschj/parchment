@@ -1,20 +1,21 @@
-# clawd-canvas v0.2
+# clawd-canvas v0.3
 
-> Generative-UI canvas for Claude Code. Claude calls MCP tools, your browser tab renders json-render specs, your edits flow back into Claude's next turn.
+> A shared workspace for you and Claude Code. Live session transcript, an instantly-appearing plan editor, a collaborative Excalidraw board, and generative UI Claude composes on demand — one statusline click away.
 
 Claude has Artifacts, ChatGPT has Canvas, Cursor has plan files. Claude Code dumps walls of green ASCII into a terminal. **clawd-canvas** adds the missing rich-rendering surface — as a lightweight statusline-link addon.
 
-## What changed in v0.2
+## The surfaces
 
-v0.1 tailed the assistant transcript JSONL on every `Stop` hook and tried to render every turn. That mechanism was fragile: a schema drift silently broke message capture for the rest of the session, and the markdown-string pipeline made generative UI impossible.
+The left rail has three fixed tabs, then whatever Claude generates:
 
-v0.2 inverts the flow:
+- **Transcript** — the full session, live: your prompts, Claude's prose as rendered markdown, thinking blocks, and every tool call with its input and output as collapsible rows. Streams while Claude works.
+- **Plan** — the moment Claude exits plan mode (or calls `canvas_plan`), the plan appears here in a Tiptap WYSIWYG editor. Your edits flow back into Claude's next turn. The statusline flips from `◐ canvas` to `✎ view plan` so you never miss one.
+- **Board** — one persistent Excalidraw scene per session, stored as a real `.excalidraw` file. You draw with the full Excalidraw UI; Claude draws through `board_*` MCP tools (incremental element edits, mermaid cold-starts) and can look at the board via PNG export. Both of you see every change live.
+- **Generative slots** — Claude pushes composed UI (dashboards, reports, diffs, tables, diagrams) via `canvas_*` MCP tools. Each tool's `inputSchema` is a Zod-derived JSON Schema for a [json-render](https://github.com/vercel-labs/json-render) spec, validated against a 41-component catalog (36 shadcn/ui + 5 canvas extensions). The newest push pulls focus — a render IS the "look at this" signal.
 
-- **Claude pushes** rich content to the canvas via MCP tools (`canvas_plan`, `canvas_diagram`, `canvas_diff`, `canvas_dashboard`, `canvas_table`, `canvas_render`, `canvas_close`). No more transcript tailing.
-- **Each tool's `inputSchema`** is a Zod-derived JSON Schema for a [json-render](https://github.com/vercel-labs/json-render) spec, validated against a 41-component catalog (36 shadcn/ui + 5 canvas extensions: `PlanFile`, `DiffViewer`, `MermaidEditor`, `Chart`, `DataTable`). Claude can only emit valid specs.
-- **The browser tab renders specs via `@json-render/react`**, with editable components per kind (Tiptap WYSIWYG plans, Monaco diffs, mermaid editor with node comments, sortable + inline-editable tables).
-- **Plans still auto-render** via a `PostToolUse` matcher on `ExitPlanMode` — the one auto-capture path kept.
-- **Edits flow back** via the same `UserPromptSubmit` hook as v0.1, but the payload is now spec-shaped `<canvas-edit kind="..." slot="...">` blocks.
+## Reliability model
+
+The daemon never idles itself out. Every slot, edit, and board scene is persisted under `~/.canvas/sessions/` the moment it changes, and sessions hydrate from disk on access — a crash or restart loses nothing. Every consumer self-heals a dead daemon: the hooks respawn it, and so does any MCP tool call.
 
 ## Prerequisites
 
@@ -185,8 +186,6 @@ Enter plan mode (Shift+Tab) and ask Claude for a plan. When Claude exits plan mo
 | Env var | Default | Purpose |
 |---|---|---|
 | `CANVAS_PORT` | `7800` | Daemon preferred port; falls back through `7801..7809` on collision. |
-| `CANVAS_SESSION_STALE_MS` | `120000` | Evict sessions stale longer than this. Set `0` to disable. |
-| `CANVAS_EXIT_GRACE_MS` | `60000` | Daemon exits this long after the session map empties. Set `0` to disable. |
 | `CANVAS_SESSION_ID` | _(unset)_ | Override the session id the MCP server pushes to. Useful for testing; in production Claude Code sets `CLAUDE_CODE_SESSION_ID` automatically. |
 | `CANVAS_MCP_DEBUG` | _(unset)_ | Set to `1` to write MCP tool-call traces to `/tmp/canvas-mcp-debug.log`. |
 

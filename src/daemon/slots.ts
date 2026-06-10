@@ -1,5 +1,3 @@
-import { mkdirSync, writeFileSync, existsSync, readdirSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
 import {
   SlotKind,
   SlotStatus,
@@ -7,41 +5,9 @@ import {
   type Slot,
   type JsonRenderSpec,
 } from "../shared/types.ts";
-import { sessionSlotDir } from "./state.ts";
-import { broadcast, ensureSession, getSession, type SessionRoom } from "./sessions.ts";
-
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function writeSlotStatusFile(session: SessionRoom, slot: Slot): void {
-  const dir = sessionSlotDir(session.sessionId);
-  mkdirSync(dir, { recursive: true });
-  const payload = {
-    id: slot.id,
-    kind: slot.kind,
-    status: slot.status,
-    origin: slot.origin,
-    title: slot.title,
-    createdAt: slot.createdAt,
-    updatedAt: slot.updatedAt,
-  };
-  writeFileSync(join(dir, `${slot.id}.json`), JSON.stringify(payload));
-}
-
-function removeSlotStatusFile(session: SessionRoom, slotId: string): void {
-  const dir = sessionSlotDir(session.sessionId);
-  const path = join(dir, `${slotId}.json`);
-  if (existsSync(path)) unlinkSync(path);
-}
-
-export function clearSessionSlotDir(sessionId: string): void {
-  const dir = sessionSlotDir(sessionId);
-  if (!existsSync(dir)) return;
-  for (const name of readdirSync(dir)) {
-    if (name.endsWith(".json")) unlinkSync(join(dir, name));
-  }
-}
+import { persistSlot, removePersistedSlot } from "./session-store.ts";
+import { generateId } from "./ids.ts";
+import { broadcast, ensureSession, getSession } from "./sessions.ts";
 
 export type UpsertSlotInput = {
   sessionId: string;
@@ -70,7 +36,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
       existing.origin = input.origin;
       existing.updatedAt = now;
       if (input.state) existing.state = input.state;
-      writeSlotStatusFile(session, existing);
+      persistSlot(session.sessionId, existing);
       broadcast(session, { kind: "slot-updated", data: existing });
       return existing;
     }
@@ -88,7 +54,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
     updatedAt: now,
   };
   session.slots.push(slot);
-  writeSlotStatusFile(session, slot);
+  persistSlot(session.sessionId, slot);
   broadcast(session, { kind: "slot-added", data: slot });
   return slot;
 }
@@ -101,7 +67,7 @@ export function markSlotError(sessionId: string, slotId: string, errorMessage: s
   slot.status = SlotStatus.Error;
   slot.errorMessage = errorMessage;
   slot.updatedAt = Date.now();
-  writeSlotStatusFile(session, slot);
+  persistSlot(session.sessionId, slot);
   broadcast(session, { kind: "slot-updated", data: slot });
   return slot;
 }
@@ -112,7 +78,7 @@ export function removeSlot(sessionId: string, slotId: string): boolean {
   const before = session.slots.length;
   session.slots = session.slots.filter((slot) => slot.id !== slotId);
   if (session.slots.length === before) return false;
-  removeSlotStatusFile(session, slotId);
+  removePersistedSlot(sessionId, slotId);
   broadcast(session, { kind: "slot-removed", data: { slotId } });
   return true;
 }

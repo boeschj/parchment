@@ -1,8 +1,23 @@
-import { readFileSync, existsSync } from "node:fs";
-import { PORT_FILE, TOKEN_FILE, TOKEN_HEADER } from "./state.ts";
-import type { JsonRenderSpec, Slot, SlotKind, SlotOrigin } from "../shared/types.ts";
+import { readFileSync, existsSync, mkdirSync, openSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { LOG_FILE, PORT_FILE, STATE_DIR, TOKEN_FILE, TOKEN_HEADER } from "./state.ts";
+import type {
+  BoardOps,
+  BoardOpsResult,
+  BoardScene,
+  JsonRenderSpec,
+  Slot,
+  SlotKind,
+  SlotOrigin,
+} from "../shared/types.ts";
 
 const FETCH_TIMEOUT_MS = 5000;
+// Board ops wait on a browser round-trip (daemon holds them up to 15s).
+const BOARD_OPS_TIMEOUT_MS = 20_000;
+const HEALTH_WAIT_ATTEMPTS = 25;
+const HEALTH_WAIT_INTERVAL_MS = 200;
+const DAEMON_ENTRY = join(import.meta.dir, "server.ts");
 
 export class CanvasDaemonError extends Error {
   public override readonly cause: unknown;
@@ -48,7 +63,11 @@ export function canvasSessionUrl(sessionId: string): string {
   return `${canvasBaseUrl()}/?session=${encodeURIComponent(sessionId)}`;
 }
 
-async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function authorizedFetch(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<Response> {
   const url = `${canvasBaseUrl()}${path}`;
   const token = readToken();
   const headers = new Headers(init.headers);
@@ -57,7 +76,7 @@ async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("content-type", "application/json");
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, headers, signal: controller.signal });
     return response;
@@ -71,6 +90,35 @@ async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Re
   }
 }
 
+// Self-heal: any consumer that finds the daemon dead revives it. The daemon
+// itself dedupes concurrent spawns (it exits if a live PID already holds the
+// state files), so racing heals are harmless.
+export async function ensureDaemonAlive(): Promise<void> {
+  if (await pingDaemon()) return;
+  spawnDaemonProcess();
+  await waitForDaemonHealth();
+}
+
+function spawnDaemonProcess(): void {
+  mkdirSync(STATE_DIR, { recursive: true });
+  const logDescriptor = openSync(LOG_FILE, "a");
+  const child = spawn("bun", ["run", DAEMON_ENTRY], {
+    detached: true,
+    stdio: ["ignore", logDescriptor, logDescriptor],
+  });
+  child.unref();
+}
+
+async function waitForDaemonHealth(): Promise<void> {
+  for (let attempt = 0; attempt < HEALTH_WAIT_ATTEMPTS; attempt += 1) {
+    if (await pingDaemon()) return;
+    await Bun.sleep(HEALTH_WAIT_INTERVAL_MS);
+  }
+  throw new CanvasDaemonError(
+    `canvas daemon did not become healthy after respawn — see ${LOG_FILE}`,
+  );
+}
+
 export type PushSlotInput = {
   sessionId: string;
   cwd?: string;
@@ -82,6 +130,7 @@ export type PushSlotInput = {
 };
 
 export async function pushSlot(input: PushSlotInput): Promise<Slot> {
+  await ensureDaemonAlive();
   const body = {
     kind: input.kind,
     title: input.title,
@@ -103,6 +152,7 @@ export async function pushSlot(input: PushSlotInput): Promise<Slot> {
 }
 
 export async function closeSlot(sessionId: string, slotId: string): Promise<void> {
+  await ensureDaemonAlive();
   const response = await authorizedFetch(
     `/api/sessions/${encodeURIComponent(sessionId)}/slots/${encodeURIComponent(slotId)}`,
     { method: "DELETE" },
@@ -111,6 +161,30 @@ export async function closeSlot(sessionId: string, slotId: string): Promise<void
     const text = await response.text();
     throw new CanvasDaemonError(`closeSlot failed (${response.status}): ${text}`);
   }
+}
+
+export async function readBoard(sessionId: string): Promise<BoardScene> {
+  await ensureDaemonAlive();
+  const response = await authorizedFetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new CanvasDaemonError(`readBoard failed (${response.status}): ${text}`);
+  }
+  return (await response.json()) as BoardScene;
+}
+
+export async function sendBoardOps(sessionId: string, ops: BoardOps): Promise<BoardOpsResult> {
+  await ensureDaemonAlive();
+  const response = await authorizedFetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/board/ops`,
+    { method: "POST", body: JSON.stringify({ ops }) },
+    BOARD_OPS_TIMEOUT_MS,
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new CanvasDaemonError(`board ops failed (${response.status}): ${text}`);
+  }
+  return (await response.json()) as BoardOpsResult;
 }
 
 export async function pingDaemon(): Promise<boolean> {
@@ -128,6 +202,7 @@ export async function pingDaemon(): Promise<boolean> {
 // multiple claude sessions are open.
 export async function resolveActiveSessionId(cwd?: string): Promise<string | null> {
   try {
+    await ensureDaemonAlive();
     const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
     const response = await fetch(`${canvasBaseUrl()}/api/sessions/active${params}`);
     if (!response.ok) return null;
