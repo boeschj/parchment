@@ -31,12 +31,19 @@ fi
 
 hook_input="$(cat -)"
 session_id="default"
+transcript_path=""
 if command -v jq >/dev/null 2>&1; then
   session_id="$(printf '%s' "${hook_input}" | jq -r '.session_id // "default"')"
+  transcript_path="$(printf '%s' "${hook_input}" | jq -r '.transcript_path // ""')"
 else
   parsed="$(printf '%s' "${hook_input}" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   if [[ -n "${parsed}" ]]; then session_id="${parsed}"; fi
+  transcript_path="$(printf '%s' "${hook_input}" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
+
+# Re-register every prompt: covers daemon restarts mid-session, when the
+# in-memory transcript registration was lost.
+canvas_register_transcript "${session_id}" "${transcript_path}"
 
 safe_session_id="$(printf '%s' "${session_id}" | sed 's/[^A-Za-z0-9._-]/_/g')"
 url="$(canvas_base_url)/api/sessions/${safe_session_id}/edits?format=injection"

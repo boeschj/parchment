@@ -26,12 +26,17 @@ fi
 
 hook_input="$(cat -)"
 session_id="default"
+transcript_path=""
 if command -v jq >/dev/null 2>&1; then
   session_id="$(printf '%s' "${hook_input}" | jq -r '.session_id // "default"')"
+  transcript_path="$(printf '%s' "${hook_input}" | jq -r '.transcript_path // ""')"
 else
   parsed="$(printf '%s' "${hook_input}" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   if [[ -n "${parsed}" ]]; then session_id="${parsed}"; fi
+  transcript_path="$(printf '%s' "${hook_input}" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
+
+canvas_register_transcript "${session_id}" "${transcript_path}"
 
 url="$(canvas_session_full_href "${session_id}")"
 printf '[clawd-canvas] canvas ready: %s\n' "${url}" >&2

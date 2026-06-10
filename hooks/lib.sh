@@ -59,12 +59,28 @@ canvas_slots_dir() {
   echo "${CANVAS_STATE_DIR}/sessions/${safe_id}/slots"
 }
 
+# Liveness = answers /api/health. A PID check is wrong twice over: stale
+# PID files get recycled to unrelated processes, and a wedged daemon that
+# still holds a PID shouldn't count as alive.
 canvas_server_alive() {
-  if [[ ! -f "${CANVAS_PID_FILE}" ]]; then return 1; fi
-  local pid
-  pid="$(cat "${CANVAS_PID_FILE}")"
-  if [[ -z "${pid}" ]]; then return 1; fi
-  kill -0 "${pid}" 2>/dev/null
+  curl -fsS --max-time 0.5 "$(canvas_base_url)/api/health" >/dev/null 2>&1
+}
+
+# Tell the daemon where this session's transcript JSONL lives so it can
+# stream the conversation to the canvas. Fire-and-forget: transcript display
+# is never worth blocking a prompt over.
+canvas_register_transcript() {
+  local session_id="$1"
+  local transcript_path="$2"
+  if [[ -z "${transcript_path}" || "${transcript_path}" == "null" ]]; then return 0; fi
+  local safe_id
+  safe_id="$(printf '%s' "${session_id}" | sed 's/[^A-Za-z0-9._-]/_/g')"
+  ( curl -fsS --max-time 1 \
+      -X POST "$(canvas_base_url)/api/sessions/${safe_id}/transcript" \
+      -H "${CANVAS_TOKEN_HEADER}: $(canvas_token)" \
+      -H "Content-Type: application/json" \
+      -d "{\"path\": \"${transcript_path}\"}" >/dev/null 2>&1 || true ) &
+  disown $! 2>/dev/null || true
 }
 
 canvas_wait_for_health() {
