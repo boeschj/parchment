@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# PostToolUse with matcher "*": when ExitPlanMode fires, auto-push the plan to
-# the canvas as a PlanFile slot. Other tools are ignored.
+# PostToolUse with matcher "*": push plans to the canvas the moment they
+# exist.
+#
+# Plan mode writes the plan to ~/.claude/plans/<slug>.md (via Write/Edit)
+# BEFORE ExitPlanMode ever runs — and ExitPlanMode only completes if the
+# user approves, so approval-time capture misses exactly the case the
+# canvas exists for: reading and editing the plan before deciding. Capture
+# on the file write instead, and treat ExitPlanMode (when it does complete)
+# as a final sync of the same slot.
 
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -12,15 +19,40 @@ if ! command -v jq >/dev/null 2>&1; then exit 0; fi
 hook_input="$(cat -)"
 tool_name="$(printf '%s' "${hook_input}" | jq -r '.tool_name // empty')"
 
-if [[ "${tool_name}" != "ExitPlanMode" ]]; then
-  exit 0
+# Capture trace: one line per invocation so "hook never fired" and "hook
+# fired but bailed" are distinguishable after the fact. Reset at 1MB so it
+# never grows unbounded.
+trace_file="${CANVAS_STATE_DIR}/hook-trace.log"
+if [[ -f "${trace_file}" ]] && (( $(wc -c < "${trace_file}") > 1048576 )); then
+  : > "${trace_file}"
 fi
+echo "$(date '+%Y-%m-%dT%H:%M:%S') tool=${tool_name}" >> "${trace_file}" 2>/dev/null || true
+
+plan_file=""
+case "${tool_name}" in
+  Write|Edit|MultiEdit)
+    file_path="$(printf '%s' "${hook_input}" | jq -r '.tool_input.file_path // empty')"
+    if [[ "${file_path}" == "${HOME}/.claude/plans/"*.md ]]; then
+      plan_file="${file_path}"
+    fi
+    ;;
+  ExitPlanMode)
+    plan_file="$(printf '%s' "${hook_input}" | jq -r '.tool_input.planFilePath // empty')"
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+if [[ -z "${plan_file}" || ! -f "${plan_file}" ]]; then exit 0; fi
 
 session_id="$(printf '%s' "${hook_input}" | jq -r '.session_id // "default"')"
 cwd="$(printf '%s' "${hook_input}" | jq -r '.cwd // empty')"
-plan="$(printf '%s' "${hook_input}" | jq -r '.tool_input.plan // empty')"
+plan_name="$(basename "${plan_file}" .md)"
 
-if [[ -z "${plan}" ]]; then exit 0; fi
+# Stable slot id per plan file: every revision replaces the slot instead of
+# stacking near-duplicates in the rail.
+slot_id="plan_$(printf '%s' "${plan_name}" | sed 's/[^A-Za-z0-9_-]/_/g')"
 
 token="$(canvas_token)"
 base_url="$(canvas_base_url)"
@@ -28,21 +60,23 @@ safe_session_id="$(printf '%s' "${session_id}" | sed 's/[^A-Za-z0-9._-]/_/g')"
 
 payload="$(jq -n \
   --arg kind "plan" \
-  --arg title "Plan from Claude" \
+  --arg title "${plan_name}.md" \
   --arg origin "auto-capture" \
   --arg cwd "${cwd}" \
-  --arg markdown "${plan}" \
+  --arg slotId "${slot_id}" \
+  --rawfile markdown "${plan_file}" \
   '{
     kind: $kind,
     title: $title,
     origin: $origin,
     cwd: $cwd,
+    slotId: $slotId,
     spec: {
       root: "main",
       elements: {
         main: {
           type: "PlanFile",
-          props: { markdown: $markdown, editable: true }
+          props: { title: $title, markdown: $markdown, editable: true }
         }
       }
     }
