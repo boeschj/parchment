@@ -2,6 +2,7 @@ import { StickToBottom } from "use-stick-to-bottom";
 import { Streamdown } from "streamdown";
 import type { TranscriptItem, TranscriptModel } from "../transcript/parse.ts";
 import { ToolCall } from "./ToolCall.tsx";
+import { ImageAttachments } from "./ImageAttachments.tsx";
 
 export function TranscriptView({
   transcript,
@@ -25,7 +26,7 @@ export function TranscriptView({
 function TranscriptItemView({ item }: { item: TranscriptItem }) {
   switch (item.kind) {
     case "user":
-      return <UserMessage text={item.text} />;
+      return <UserMessage text={item.text} images={item.images} />;
     case "assistant":
       return <AssistantMessage markdown={item.markdown} />;
     case "thinking":
@@ -35,11 +36,12 @@ function TranscriptItemView({ item }: { item: TranscriptItem }) {
   }
 }
 
-function UserMessage({ text }: { text: string }) {
+function UserMessage({ text, images }: { text: string; images: string[] }) {
   return (
-    <div className="ml-12 bg-secondary text-secondary-foreground px-6 py-4" style={{ borderRadius: "var(--radius-lg)" }}>
+    <div className="ml-12 text-foreground px-6 py-4" style={{ background: "var(--user-bubble)", borderRadius: "var(--radius-lg)" }}>
       <RoleHeader name="You" dotClass="bg-muted-foreground" />
       <p className="text-[15px] leading-relaxed whitespace-pre-wrap m-0 mt-2">{text}</p>
+      <ImageAttachments images={images} />
     </div>
   );
 }
@@ -72,20 +74,11 @@ function WorkingIndicator() {
     <div className="mr-12 inline-flex items-center gap-3 w-fit bg-card px-4 py-3" style={{ borderRadius: "var(--radius-lg)" }}>
       <RoleHeader name="Claude" dotClass="bg-primary" />
       <span className="flex items-center gap-1" aria-label="Claude is working">
-        <BounceDot delay="0ms" />
-        <BounceDot delay="150ms" />
-        <BounceDot delay="300ms" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.3s]" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.15s]" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" />
       </span>
     </div>
-  );
-}
-
-function BounceDot({ delay }: { delay: string }) {
-  return (
-    <span
-      className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce"
-      style={{ animationDelay: delay }}
-    />
   );
 }
 

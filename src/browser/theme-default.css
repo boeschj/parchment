@@ -28,7 +28,7 @@
  *   Sidebar   --sidebar --sidebar-foreground --sidebar-primary
  *             --sidebar-primary-foreground --sidebar-accent
  *             --sidebar-accent-foreground --sidebar-border --sidebar-ring
- *   Detail    --hairline --dot
+ *   Detail    --hairline --dot --user-bubble
  *   Radius    --radius (+ --radius-sm-token … --radius-3xl-token)
  *   Motion    --scroll-fade   (height of the soft top scroll fade)
  *   Type      set --font-sans / --font-mono in styles.css @theme block
@@ -84,6 +84,7 @@
   --sidebar-ring: #CEA500;
   --hairline: rgba(3, 2, 4, 0.06);
   --dot: rgba(3, 2, 4, 0.05);
+  --user-bubble: rgba(245, 158, 11, 0.10);
 }
 
 /* ------------------------------------------------------------
@@ -125,4 +126,5 @@
   --sidebar-ring: #CEA500;
   --hairline: rgba(255, 250, 230, 0.07);
   --dot: rgba(255, 250, 230, 0.06);
+  --user-bubble: rgba(245, 158, 11, 0.16);
 }

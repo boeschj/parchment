@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { TranscriptItem } from "../transcript/parse.ts";
+import { ImageAttachments } from "./ImageAttachments.tsx";
 
 type ToolItem = Extract<TranscriptItem, { kind: "tool" }>;
 
@@ -141,17 +142,29 @@ function OutputTabs({ item }: { item: ToolItem }) {
 }
 
 function FormattedOutput({ item }: { item: ToolItem }) {
-  if (item.output === null) {
+  const hasImages = item.images.length > 0;
+  const output = item.output;
+
+  if (output === null && !hasImages) {
     return <div className="text-muted-foreground text-[12.5px] font-mono">running…</div>;
   }
+
   const colorClass = item.isError ? "text-destructive" : "text-foreground";
+  const downloadBaseName = outputDownloadBase(item);
+  const downloadProps = downloadBaseName ? { downloadBaseName } : {};
+
   return (
-    <ScrollCode>
-      <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
-        {truncateOutput(item.output)}
-      </pre>
-      <CopyAffordance text={item.output} />
-    </ScrollCode>
+    <div className="flex flex-col gap-3">
+      {hasImages ? <ImageAttachments images={item.images} {...downloadProps} /> : null}
+      {output !== null && output.length > 0 ? (
+        <ScrollCode>
+          <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
+            {truncateOutput(output)}
+          </pre>
+          <CopyAffordance text={output} />
+        </ScrollCode>
+      ) : null}
+    </div>
   );
 }
 
@@ -302,7 +315,7 @@ function toolTitle(item: ToolItem): string {
 
   const prop = TITLE_PROP[item.name];
   const preferred = prop ? item.input[prop] : undefined;
-  if (typeof preferred === "string") return preferred;
+  if (typeof preferred === "string") return prop === "file_path" ? baseName(preferred) : preferred;
 
   const firstString = Object.values(item.input).find((value) => typeof value === "string");
   return typeof firstString === "string" ? firstString : "";
@@ -320,4 +333,16 @@ function str(record: Record<string, unknown>, key: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function baseName(path: string): string {
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const last = segments[segments.length - 1];
+  return last ?? path;
+}
+
+function outputDownloadBase(item: ToolItem): string | undefined {
+  const filePath = item.input["file_path"];
+  if (typeof filePath !== "string") return undefined;
+  return baseName(filePath);
 }
