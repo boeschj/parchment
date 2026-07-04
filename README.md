@@ -13,6 +13,18 @@ The left rail has three fixed tabs, then whatever Claude generates:
 - **Board** — one persistent Excalidraw scene per session, stored as a real `.excalidraw` file. You draw with the full Excalidraw UI; Claude draws through `board_*` MCP tools (incremental element edits, mermaid cold-starts) and can look at the board via PNG export. Both of you see every change live.
 - **Generative slots** — Claude pushes composed UI (dashboards, reports, diffs, tables, diagrams) via `canvas_*` MCP tools. Each tool's `inputSchema` is a Zod-derived JSON Schema for a [json-render](https://github.com/vercel-labs/json-render) spec, validated against a 41-component catalog (36 shadcn/ui + 5 canvas extensions). The newest push pulls focus — a render IS the "look at this" signal.
 
+## The trace explorer
+
+A second rail group turns the canvas into a full trace explorer over everything Claude Code has ever recorded on your machine (`~/.claude/projects`). It's built on a typed parser covering the complete session JSONL schema — corpus-validated with zero unknown entry types — and every number is computed from real API usage data, never estimated:
+
+- **Sessions** — browse every project and session: titles, first prompts, cost, tokens, branch, duration, and Claude's own judged outcome. Open any historical session and the transcript, graph, cost, and context views all load for it.
+- **Session graph** — the killer view: an animated trace of what Claude did. The main thread is a pinned vertical spine (prompts, tool-call clusters with per-turn cost, compaction events, PR links); subagents diverge into side lanes git-graph style and rejoin where their results landed, each with its own cost/token/tool stats. Click a node to dim everything not connected to it.
+- **Cost center** — exact spend, calibrated to reproduce Claude Code's own accounting to the cent (cache read/write tiers priced separately, `[1m]` variants, web-search fees). Per-session composition + burn curve, and an all-time view with daily burn by model and per-project totals.
+- **Context explorer** — the context window over time from real usage data: baseline overhead, growth per call, compaction boundaries with exact pre/post token counts, top consumers, and the hidden attachment footprint (task reminders, skill listings, queued commands).
+- **Safety** — facts, never scores: flagged shell commands (pattern tables ported from Codex/shellfirm), sensitive-file access, the full domain inventory checked against locally-cached URLhaus/phishing feeds, permission denials, and model refusals.
+
+The transcript itself is metadata-rich: timestamps and day dividers, model + context-size chips, tool durations, denial states with reasons, compaction markers, and slash-command chips.
+
 ## Reliability model
 
 The daemon never idles itself out. Every slot, edit, and board scene is persisted under `~/.canvas/sessions/` the moment it changes, and sessions hydrate from disk on access — a crash or restart loses nothing. Every consumer self-heals a dead daemon: the hooks respawn it, and so does any MCP tool call.
