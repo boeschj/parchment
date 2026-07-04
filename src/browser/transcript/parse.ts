@@ -14,7 +14,7 @@
 import type { TranscriptEntry } from "../../shared/types.ts";
 
 export type TranscriptItem =
-  | { kind: "user"; id: string; text: string }
+  | { kind: "user"; id: string; text: string; images: string[] }
   | { kind: "assistant"; id: string; markdown: string }
   | { kind: "thinking"; id: string; text: string }
   | {
@@ -23,6 +23,7 @@ export type TranscriptItem =
       name: string;
       input: Record<string, unknown>;
       output: string | null;
+      images: string[];
       isError: boolean;
     };
 
@@ -97,6 +98,7 @@ function appendAssistantBlocks(
         name: stringField(block, "name") ?? "unknown",
         input: recordField(block, "input"),
         output: null,
+        images: [],
         isError: false,
       });
     }
@@ -116,12 +118,15 @@ function appendUserContent(
   const fromHuman = isHumanUserEntry(entry);
 
   if (typeof content === "string") {
-    if (fromHuman && content.trim().length > 0) items.push({ kind: "user", id: entryId, text: content });
+    if (fromHuman && content.trim().length > 0) {
+      items.push({ kind: "user", id: entryId, text: content, images: [] });
+    }
     return;
   }
   if (!Array.isArray(content)) return;
 
   const textParts: string[] = [];
+  const images: string[] = [];
   for (const block of content) {
     if (!isRecord(block)) continue;
     if (block["type"] === "text") {
@@ -129,7 +134,8 @@ function appendUserContent(
       if (text) textParts.push(text);
     }
     if (block["type"] === "image") {
-      textParts.push("[image]");
+      const url = imageDataUrl(block);
+      if (url) images.push(url);
     }
     if (block["type"] === "tool_result") {
       attachToolResult(block, items, toolItemIndexById);
@@ -137,7 +143,9 @@ function appendUserContent(
   }
 
   const combined = textParts.join("\n\n").trim();
-  if (fromHuman && combined.length > 0) items.push({ kind: "user", id: entryId, text: combined });
+  if (fromHuman && (combined.length > 0 || images.length > 0)) {
+    items.push({ kind: "user", id: entryId, text: combined, images });
+  }
 }
 
 const SYNTHETIC_USER_PREFIXES = [
@@ -172,8 +180,32 @@ function attachToolResult(
   items[index] = {
     ...item,
     output: toolResultText(block["content"]),
+    images: [...item.images, ...toolResultImages(block["content"])],
     isError: block["is_error"] === true,
   };
+}
+
+function toolResultImages(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  const urls: string[] = [];
+  for (const part of content) {
+    if (!isRecord(part)) continue;
+    if (part["type"] !== "image") continue;
+    const url = imageDataUrl(part);
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+
+function imageDataUrl(block: Record<string, unknown>): string | null {
+  const source = recordField(block, "source");
+  const sourceType = stringField(source, "type");
+  if (sourceType === "url") return stringField(source, "url");
+  if (sourceType !== "base64") return null;
+  const data = stringField(source, "data");
+  if (!data) return null;
+  const mediaType = stringField(source, "media_type") ?? "image/png";
+  return `data:${mediaType};base64,${data}`;
 }
 
 function toolResultText(content: unknown): string {
@@ -185,9 +217,6 @@ function toolResultText(content: unknown): string {
     if (part["type"] === "text") {
       const text = stringField(part, "text");
       if (text) parts.push(text);
-    }
-    if (part["type"] === "image") {
-      parts.push("[image]");
     }
   }
   return parts.join("\n");

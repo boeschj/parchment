@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
 import type { Slot, WsEvent } from "../shared/types.ts";
-import { SlotStatus } from "../shared/types.ts";
+import { SessionStatus, SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
 import { SlotContextProvider } from "./SlotContext.tsx";
 import { LeftRail } from "./components/LeftRail.tsx";
@@ -47,6 +47,8 @@ export function App() {
   const view = resolveView(viewChoice, slots);
   const railSlots = dynamicSlots(slots);
   const planSlot = latestPlanSlot(slots);
+  const currentSession = sessions.find((session) => session.sessionId === sessionId);
+  const isClaudeWorking = currentSession?.status === SessionStatus.Working;
 
   // Claude's board ops execute at app level so drawing works no matter
   // which surface is showing.
@@ -93,6 +95,7 @@ export function App() {
               planSlot={planSlot}
               transcript={transcript}
               connected={connected}
+              isClaudeWorking={isClaudeWorking}
               subscribeToEvents={subscribeToEvents}
             />
           </div>
@@ -109,6 +112,7 @@ function ViewContent({
   planSlot,
   transcript,
   connected,
+  isClaudeWorking,
   subscribeToEvents,
 }: {
   sessionId: string;
@@ -117,6 +121,7 @@ function ViewContent({
   planSlot: Slot | null;
   transcript: TranscriptModel;
   connected: boolean;
+  isClaudeWorking: boolean;
   subscribeToEvents: (listener: WsEventListener) => () => void;
 }) {
   if (view.type === "slot") {
@@ -144,7 +149,7 @@ function ViewContent({
   if (transcript.items.length === 0) {
     return <WelcomeCard sessionId={sessionId} connected={connected} />;
   }
-  return <TranscriptView transcript={transcript} />;
+  return <TranscriptView transcript={transcript} isWorking={isClaudeWorking} />;
 }
 
 function SlotView({
