@@ -152,3 +152,20 @@ export async function fetchGlobalCostReport(): Promise<GlobalCostReport> {
   if (!response.ok) throw new Error(`fetchGlobalCostReport failed: ${response.status}`);
   return (await response.json()) as GlobalCostReport;
 }
+
+export async function fetchSubagentEntries(
+  projectId: string,
+  sessionId: string,
+  agentId: string,
+): Promise<Record<string, unknown>[] | null> {
+  const encodedProjectId = encodeURIComponent(projectId);
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const encodedAgentId = encodeURIComponent(agentId);
+  const response = await fetch(
+    `/api/trace/projects/${encodedProjectId}/sessions/${encodedSessionId}/subagents/${encodedAgentId}/entries`,
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`fetchSubagentEntries failed: ${response.status}`);
+  const payload = (await response.json()) as { entries: Record<string, unknown>[] };
+  return payload.entries ?? [];
+}
