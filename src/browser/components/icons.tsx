@@ -122,3 +122,42 @@ export function SlotKindIcon({ kind, ...props }: IconProps & { kind: string }) {
   const Icon = SLOT_KIND_ICON[kind] ?? SparkleIcon;
   return <Icon {...props} />;
 }
+
+export function ExplorerIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3l1.5 2h6.5A1.5 1.5 0 0 1 17 7.5v7A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5z" {...STROKE} />
+      <path d="M6.5 12.5h7" {...STROKE} />
+    </svg>
+  );
+}
+
+export function GraphIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <circle cx="6" cy="4" r="1.8" {...STROKE} />
+      <circle cx="6" cy="16" r="1.8" {...STROKE} />
+      <circle cx="14" cy="10" r="1.8" {...STROKE} />
+      <path d="M6 5.8v8.4 M7.4 5.2c3.2 1.2 6.6 1 6.6 3 M7.4 14.8c3.2-1.2 6.6-1 6.6-3" {...STROKE} />
+    </svg>
+  );
+}
+
+export function CostIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <circle cx="10" cy="10" r="7" {...STROKE} />
+      <path d="M12.3 7.6c-.5-.7-1.3-1.1-2.3-1.1-1.4 0-2.4.8-2.4 1.9 0 2.6 5 1.2 5 3.9 0 1.2-1.1 2-2.6 2-1.1 0-2-.5-2.5-1.2 M10 5v10" {...STROKE} />
+    </svg>
+  );
+}
+
+export function ContextIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <path d="M4 16c0-6.6 2.7-12 6-12s6 5.4 6 12" {...STROKE} />
+      <path d="M4 16h12 M10 16v-4.5" {...STROKE} />
+      <circle cx="10" cy="10.5" r="1.2" {...STROKE} />
+    </svg>
+  );
+}

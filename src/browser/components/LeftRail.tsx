@@ -10,7 +10,11 @@ import { Theme } from "../theme.ts";
 import { Surface, type CanvasView } from "../view.ts";
 import {
   BoardIcon,
+  ContextIcon,
+  CostIcon,
   DocIcon,
+  ExplorerIcon,
+  GraphIcon,
   MoonIcon,
   SlotKindIcon,
   SunIcon,
@@ -21,6 +25,14 @@ const SURFACE_ITEMS = [
   { surface: Surface.Transcript, label: "Transcript", icon: <TranscriptIcon width={19} height={19} /> },
   { surface: Surface.Plan, label: "Plan", icon: <DocIcon width={19} height={19} /> },
   { surface: Surface.Board, label: "Board", icon: <BoardIcon width={19} height={19} /> },
+] as const;
+
+// The trace explorer group: read-only insight surfaces over ~/.claude.
+const TRACE_ITEMS = [
+  { surface: Surface.Explorer, label: "Sessions", icon: <ExplorerIcon width={19} height={19} /> },
+  { surface: Surface.Graph, label: "Session graph", icon: <GraphIcon width={19} height={19} /> },
+  { surface: Surface.Costs, label: "Cost center", icon: <CostIcon width={19} height={19} /> },
+  { surface: Surface.Context, label: "Context explorer", icon: <ContextIcon width={19} height={19} /> },
 ] as const;
 
 type LeftRailProps = {
@@ -38,6 +50,19 @@ export function LeftRail({ slots, view, onSelectView, theme, onToggleTheme }: Le
   return (
     <nav className="w-[72px] shrink-0 py-2 flex flex-col items-center gap-3.5">
       {SURFACE_ITEMS.map((item) => (
+        <RailItem
+          key={item.surface}
+          label={item.label}
+          isActive={view.type === "surface" && view.surface === item.surface}
+          onSelect={() => onSelectView({ type: "surface", surface: item.surface })}
+        >
+          {item.icon}
+        </RailItem>
+      ))}
+
+      <div className="w-4 h-px bg-border" />
+
+      {TRACE_ITEMS.map((item) => (
         <RailItem
           key={item.surface}
           label={item.label}

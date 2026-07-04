@@ -8,6 +8,10 @@ export const Surface = {
   Transcript: "transcript",
   Plan: "plan",
   Board: "board",
+  Explorer: "explorer",
+  Graph: "graph",
+  Costs: "costs",
+  Context: "context",
 } as const;
 
 export type Surface = (typeof Surface)[keyof typeof Surface];

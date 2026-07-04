@@ -9,6 +9,10 @@ import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
 import { BoardView } from "./components/BoardView.tsx";
+import { ExplorerView } from "./components/trace/ExplorerView.tsx";
+import { GraphView } from "./components/trace/GraphView.tsx";
+import { CostsView } from "./components/trace/CostsView.tsx";
+import { ContextView } from "./components/trace/ContextView.tsx";
 import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
 import type { SessionSummary } from "../shared/types.ts";
@@ -144,6 +148,22 @@ function ViewContent({
 
   if (view.surface === Surface.Board) {
     return <BoardView sessionId={sessionId} subscribeToEvents={subscribeToEvents} />;
+  }
+
+  if (view.surface === Surface.Explorer) {
+    return <ExplorerView sessionId={sessionId} />;
+  }
+
+  if (view.surface === Surface.Graph) {
+    return <GraphView sessionId={sessionId} />;
+  }
+
+  if (view.surface === Surface.Costs) {
+    return <CostsView sessionId={sessionId} />;
+  }
+
+  if (view.surface === Surface.Context) {
+    return <ContextView sessionId={sessionId} />;
   }
 
   if (transcript.items.length === 0) {

@@ -114,3 +114,41 @@ export async function resetSession(sessionId: string): Promise<void> {
     throw new Error(`resetSession failed (${response.status}): ${text}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Trace explorer endpoints (read-only GETs, no token required)
+// ---------------------------------------------------------------------------
+
+import type {
+  GlobalCostReport,
+  TraceProject,
+  TraceSessionDetail,
+  TraceSessionSummary,
+} from "../shared/trace/api-types.ts";
+
+export async function fetchTraceProjects(): Promise<TraceProject[]> {
+  const response = await fetch("/api/trace/projects");
+  if (!response.ok) throw new Error(`fetchTraceProjects failed: ${response.status}`);
+  const payload = (await response.json()) as { projects: TraceProject[] };
+  return payload.projects ?? [];
+}
+
+export async function fetchTraceSessions(projectId: string): Promise<TraceSessionSummary[]> {
+  const response = await fetch(`/api/trace/projects/${encodeURIComponent(projectId)}/sessions`);
+  if (!response.ok) throw new Error(`fetchTraceSessions failed: ${response.status}`);
+  const payload = (await response.json()) as { sessions: TraceSessionSummary[] };
+  return payload.sessions ?? [];
+}
+
+export async function fetchTraceSessionDetail(sessionId: string): Promise<TraceSessionDetail | null> {
+  const response = await fetch(`/api/trace/sessions/${encodeURIComponent(sessionId)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`fetchTraceSessionDetail failed: ${response.status}`);
+  return (await response.json()) as TraceSessionDetail;
+}
+
+export async function fetchGlobalCostReport(): Promise<GlobalCostReport> {
+  const response = await fetch("/api/trace/costs");
+  if (!response.ok) throw new Error(`fetchGlobalCostReport failed: ${response.status}`);
+  return (await response.json()) as GlobalCostReport;
+}
