@@ -40,6 +40,7 @@ import {
   clearOverlay,
 } from "./edits.ts";
 import { serveStatic, serveUserTheme } from "./static.ts";
+import { handleTraceRoute } from "./trace/routes.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
 const MAX_PORT_ATTEMPTS = 10;
@@ -136,6 +137,10 @@ async function handleFetch(
       cwd: active.cwd,
       lastPing: active.lastPing,
     });
+  }
+
+  if (path.startsWith("/api/trace/")) {
+    return handleTraceRoute(request, path);
   }
 
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(\/.*)?$/);
