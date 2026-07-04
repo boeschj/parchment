@@ -273,7 +273,13 @@ button {
     calc((var(--dissolve, 99) + var(--fade-half) - var(--detail, 0.36)) / var(--fade-w)),
     1
   );
-  opacity: calc(min(var(--lod-in), var(--lod-out)) * var(--dim, 1));
+  /*
+   * Replay factor: 1 once the playhead has reached this element's --reveal
+   * step, a faint ghost before then. --playhead defaults huge, so with no
+   * replay running every element reads as fully arrived.
+   */
+  --replay: clamp(0.12, calc((var(--playhead, 999999) - var(--reveal, 0) + 0.5) * 1000), 1);
+  opacity: calc(min(var(--lod-in), var(--lod-out)) * var(--dim, 1) * var(--replay));
 }
 
 /*
