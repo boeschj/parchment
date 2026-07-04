@@ -1,4 +1,4 @@
-import type { BoardOpsResult, BoardScene, EditKind } from "../shared/types.ts";
+import type { BoardOpsResult, BoardScene, EditKind, SessionSummary } from "../shared/types.ts";
 
 const TOKEN_HEADER = "x-canvas-token";
 
@@ -94,6 +94,13 @@ export async function postBoardOpsResult(
     const text = await response.text();
     throw new Error(`postBoardOpsResult failed (${response.status}): ${text}`);
   }
+}
+
+export async function fetchSessions(): Promise<SessionSummary[]> {
+  const response = await fetch("/api/sessions");
+  if (!response.ok) throw new Error(`fetchSessions failed: ${response.status}`);
+  const payload = await response.json();
+  return payload.sessions ?? [];
 }
 
 export async function resetSession(sessionId: string): Promise<void> {

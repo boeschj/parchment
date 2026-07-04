@@ -1,5 +1,5 @@
 import { serve } from "bun";
-import { EditKind, SlotKind, SlotOrigin, SlotStatus } from "../shared/types.ts";
+import { EditKind, SessionStatus, SlotKind, SlotOrigin, SlotStatus } from "../shared/types.ts";
 import {
   generateToken,
   writeServerStateFiles,
@@ -14,6 +14,7 @@ import {
   pingKnownSession,
   getSession,
   listSessions,
+  setSessionStatus,
   broadcast,
   sessionSnapshot,
   resolveSessionByShortAlias,
@@ -103,6 +104,7 @@ async function handleFetch(
         slotCount: session.slots.length,
         createdAt: session.createdAt,
         lastPing: session.lastPing,
+        status: session.status,
       })),
     });
   }
@@ -320,6 +322,19 @@ async function handleSessionRoute(
     return jsonResponse({ ok: resolved });
   }
 
+  if (subPath === "/status" && method === "POST") {
+    const { status } = await request.json();
+    if (!isSessionStatus(status)) {
+      return errorResponse(
+        HttpStatus.BadRequest,
+        ErrorCode.BadRequest,
+        `unknown session status: ${status}`,
+      );
+    }
+    const session = setSessionStatus(sessionId, status);
+    return jsonResponse({ ok: true, status: session.status });
+  }
+
   if (subPath === "/transcript" && method === "POST") {
     const body = (await request.json()) as { path?: string };
     if (typeof body.path !== "string" || body.path.length === 0) {
@@ -352,6 +367,9 @@ function isSlotOrigin(value: unknown): value is import("../shared/types.ts").Slo
 }
 function isEditKind(value: unknown): value is import("../shared/types.ts").EditKind {
   return typeof value === "string" && Object.values(EditKind).includes(value as never);
+}
+function isSessionStatus(value: unknown): value is SessionStatus {
+  return typeof value === "string" && Object.values(SessionStatus).some((candidate) => candidate === value);
 }
 
 const websocketHandler: Bun.WebSocketHandler<WebSocketAttachment> = {

@@ -26,6 +26,23 @@ export const SlotOrigin = {
 
 export type SlotOrigin = (typeof SlotOrigin)[keyof typeof SlotOrigin];
 
+export const SessionStatus = {
+  Working: "working",
+  Complete: "complete",
+  Blocked: "blocked",
+} as const;
+
+export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
+
+export type SessionSummary = {
+  sessionId: string;
+  cwd: string;
+  slotCount: number;
+  createdAt: number;
+  lastPing: number;
+  status: SessionStatus;
+};
+
 export type UIElement = {
   type: string;
   props: Record<string, unknown>;

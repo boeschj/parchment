@@ -83,6 +83,30 @@ canvas_register_transcript() {
   disown $! 2>/dev/null || true
 }
 
+canvas_session_id_from() {
+  local json="$1"
+  local parsed
+  if command -v jq >/dev/null 2>&1; then
+    parsed="$(printf '%s' "${json}" | jq -r '.session_id // "default"')"
+  else
+    parsed="$(printf '%s' "${json}" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  fi
+  printf '%s' "${parsed:-default}"
+}
+
+canvas_set_status() {
+  local session_id="$1"
+  local status="$2"
+  local safe_id
+  safe_id="$(printf '%s' "${session_id}" | sed 's/[^A-Za-z0-9._-]/_/g')"
+  ( curl -fsS --max-time 1 \
+      -X POST "$(canvas_base_url)/api/sessions/${safe_id}/status" \
+      -H "${CANVAS_TOKEN_HEADER}: $(canvas_token)" \
+      -H "Content-Type: application/json" \
+      -d "{\"status\": \"${status}\"}" >/dev/null 2>&1 || true ) &
+  disown $! 2>/dev/null || true
+}
+
 canvas_wait_for_health() {
   local attempts=20
   local url

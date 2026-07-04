@@ -9,6 +9,9 @@ import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
 import { BoardView } from "./components/BoardView.tsx";
+import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
+import { useSessions } from "./useSessions.ts";
+import type { SessionSummary } from "../shared/types.ts";
 import { createBoardOpsListener } from "./board/ops-listener.ts";
 import { useWsEventSubscription } from "./useWsEventSubscription.ts";
 import type { TranscriptModel } from "./transcript/parse.ts";
@@ -37,6 +40,7 @@ const STATE_CHANGE_DEBOUNCE_MS = 300;
 export function App() {
   const sessionId = readSessionIdFromUrl();
   const { slots, transcript, connected, subscribeToEvents } = useCanvasWebSocket(sessionId);
+  const sessions = useSessions();
   const { theme, toggleTheme } = useThemeToggle();
   const [viewChoice, setViewChoice] = useState<ViewChoice | null>(null);
 
@@ -72,7 +76,7 @@ export function App() {
   return (
     <ThemeProvider value={theme}>
       <div className="h-screen flex flex-col bg-background text-foreground">
-        <TopBar />
+        <TopBar sessions={sessions} currentSessionId={sessionId} />
         <div className="flex-1 flex min-h-0">
           <LeftRail
             slots={railSlots}
@@ -173,9 +177,13 @@ function SurfacePlaceholder({ title, body }: { title: string; body: string }) {
   );
 }
 
-// Top bar per the mockups — 72px, transparent, wordmark only. The right
-// side stays intentionally empty.
-function TopBar() {
+function TopBar({
+  sessions,
+  currentSessionId,
+}: {
+  sessions: SessionSummary[];
+  currentSessionId: string;
+}) {
   return (
     <header className="h-[72px] shrink-0 px-8 flex items-center gap-3">
       <Mark />
@@ -183,6 +191,8 @@ function TopBar() {
       <span className="text-[19px] font-light text-muted-foreground tracking-tight leading-none">
         canvas
       </span>
+      <div className="flex-1" />
+      <SessionSwitcher sessions={sessions} currentSessionId={currentSessionId} />
     </header>
   );
 }

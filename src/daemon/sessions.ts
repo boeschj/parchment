@@ -4,6 +4,7 @@ import type {
   Edit,
   WsEvent,
 } from "../shared/types.ts";
+import { SessionStatus } from "../shared/types.ts";
 import {
   loadPersistedSlots,
   loadPersistedEdits,
@@ -32,6 +33,7 @@ export type SessionRoom = {
   transcriptPath: string | null;
   createdAt: number;
   lastPing: number;
+  status: SessionStatus;
 };
 
 const sessions = new Map<string, SessionRoom>();
@@ -64,9 +66,17 @@ export function ensureSession(sessionId: string, cwd: string = ""): SessionRoom 
     transcriptPath: loadSessionMeta(sessionId).transcriptPath,
     createdAt: now,
     lastPing: now,
+    status: SessionStatus.Complete,
   };
   sessions.set(sessionId, fresh);
   return fresh;
+}
+
+export function setSessionStatus(sessionId: string, status: SessionStatus): SessionRoom {
+  const session = ensureSession(sessionId);
+  session.status = status;
+  session.lastPing = Date.now();
+  return session;
 }
 
 function evictStalestIfFull(): void {

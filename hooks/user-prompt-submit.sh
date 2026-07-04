@@ -45,6 +45,8 @@ fi
 # in-memory transcript registration was lost.
 canvas_register_transcript "${session_id}" "${transcript_path}"
 
+canvas_set_status "${session_id}" "working"
+
 safe_session_id="$(printf '%s' "${session_id}" | sed 's/[^A-Za-z0-9._-]/_/g')"
 url="$(canvas_base_url)/api/sessions/${safe_session_id}/edits?format=injection"
 
