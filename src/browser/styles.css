@@ -293,3 +293,34 @@ button {
 .trace-graph.depth-2 .react-flow__node:not(.hit2) {
   pointer-events: none;
 }
+
+/*
+ * React Flow's zoom/fit Controls ship with a hard-coded light palette (white
+ * buttons, dark icons) that vanish in dark mode. Re-skin them onto the theme
+ * tokens so they read in both.
+ */
+.trace-graph .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.trace-graph .react-flow__controls-button {
+  background: var(--card);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--muted-foreground);
+}
+
+.trace-graph .react-flow__controls-button:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.trace-graph .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.trace-graph .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
