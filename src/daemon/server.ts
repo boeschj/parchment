@@ -36,7 +36,7 @@ import {
   renderInjectionMarkup,
   clearOverlay,
 } from "./edits.ts";
-import { serveStatic } from "./static.ts";
+import { serveStatic, serveUserTheme } from "./static.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
 const MAX_PORT_ATTEMPTS = 10;
@@ -149,6 +149,11 @@ async function handleFetch(
       ? `/?session=${encodeURIComponent(resolved)}`
       : `/?session=${encodeURIComponent(prefix)}`;
     return new Response(null, { status: 302, headers: { location: target } });
+  }
+
+  // User theme override, served from ~/.canvas/theme.css (empty if absent).
+  if (path === "/theme.css") {
+    return serveUserTheme();
   }
 
   if (path === "/" || path.startsWith("/assets/") || path.startsWith("/ui/")) {

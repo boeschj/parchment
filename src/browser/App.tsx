@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
-import type { Slot } from "../shared/types.ts";
+import type { Slot, WsEvent } from "../shared/types.ts";
 import { SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
 import { SlotContextProvider } from "./SlotContext.tsx";
@@ -47,6 +47,23 @@ export function App() {
   // Claude's board ops execute at app level so drawing works no matter
   // which surface is showing.
   useWsEventSubscription(subscribeToEvents, createBoardOpsListener(sessionId));
+
+  // On the first snapshot, land on the transcript and mark every slot already
+  // present as "seen". Otherwise a stale plan from earlier in the session hits
+  // the Jarvis follow-rule on load and hijacks the view. Only slots pushed
+  // AFTER load (newer than this baseline) pull focus.
+  const didSeedViewRef = useRef(false);
+  useWsEventSubscription(
+    subscribeToEvents,
+    useCallback((event: WsEvent) => {
+      if (didSeedViewRef.current || event.kind !== "snapshot") return;
+      didSeedViewRef.current = true;
+      setViewChoice({
+        view: { type: "surface", surface: Surface.Transcript },
+        newestSeenUpdatedAt: newestSlotUpdatedAt(event.data.slots),
+      });
+    }, []),
+  );
 
   const selectView = (next: CanvasView): void => {
     setViewChoice({ view: next, newestSeenUpdatedAt: newestSlotUpdatedAt(slots) });
@@ -138,7 +155,7 @@ function SlotView({
   return (
     <>
       <SlotHeader sessionId={sessionId} slot={slot} connected={connected} />
-      <section className="flex-1 px-7 pb-7 overflow-auto">
+      <section className="flex-1 px-7 pb-7 overflow-auto scroll-fade-top">
         <SlotRenderer sessionId={sessionId} slot={slot} />
       </section>
     </>

@@ -22,7 +22,8 @@ type RenderState =
 
 export function MermaidEditor({ props }: RenderProps) {
   const { sessionId, slotId } = useSlotContext();
-  const editable = props.editable !== false;
+  const editable = props.editable === true;
+  const showSource = props.showSource ?? editable;
   const renderId = useId().replace(/:/g, "");
   const { draft, setDraft, clearDraft } = useLocalDraft(
     sessionId,
@@ -90,6 +91,9 @@ export function MermaidEditor({ props }: RenderProps) {
     });
   };
 
+  const containerLayoutClass = showSource ? "grid md:grid-cols-2" : "block";
+  const diagramSizeClass = showSource ? "h-[504px]" : "min-h-[320px] max-h-[80vh]";
+
   return (
     <div
       className="bg-card text-card-foreground overflow-hidden"
@@ -103,28 +107,30 @@ export function MermaidEditor({ props }: RenderProps) {
           <hr className="hairline mx-6" />
         </>
       ) : null}
-      <div className="grid md:grid-cols-2">
-        <section className="p-4">
-          <div className="label mb-3">Source</div>
-          {editable ? (
-            <textarea
-              className="w-full h-[456px] font-mono text-xs p-3 bg-muted focus:outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[3px]"
-              style={{ borderRadius: "var(--radius-md)" }}
-              value={draft}
-              onChange={(event) => {
-                setDraft(event.target.value);
-                debouncedPost.schedule(event.target.value);
-              }}
-              spellCheck={false}
-            />
-          ) : (
-            <pre className="font-mono text-xs whitespace-pre-wrap">{draft}</pre>
-          )}
-        </section>
+      <div className={containerLayoutClass}>
+        {showSource ? (
+          <section className="p-4">
+            <div className="label mb-3">Source</div>
+            {editable ? (
+              <textarea
+                className="w-full h-[456px] font-mono text-xs p-3 bg-muted focus:outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[3px]"
+                style={{ borderRadius: "var(--radius-md)" }}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  debouncedPost.schedule(event.target.value);
+                }}
+                spellCheck={false}
+              />
+            ) : (
+              <pre className="font-mono text-xs whitespace-pre-wrap">{draft}</pre>
+            )}
+          </section>
+        ) : null}
         <section
           ref={containerRef}
           onClick={editable ? handleNodeClick : undefined}
-          className="p-4 overflow-auto h-[504px] flex items-start justify-center"
+          className={`p-4 overflow-auto ${diagramSizeClass} flex items-start justify-center`}
           style={{
             background:
               "radial-gradient(circle at center, var(--dot) 1px, transparent 1px) 0 0 / 22px 22px",

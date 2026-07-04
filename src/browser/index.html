@@ -14,5 +14,9 @@
   <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
+    <!-- User theme override. The daemon serves ~/.canvas/theme.css here (empty
+         if absent). Loaded last so a dev's :root token redefinitions win over
+         theme-default.css with no rebuild. -->
+    <link rel="stylesheet" href="/theme.css" />
   </body>
 </html>

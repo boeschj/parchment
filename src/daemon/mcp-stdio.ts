@@ -139,7 +139,7 @@ server.registerTool(
         cwd,
         kind: SlotKind.Diagram,
         title: title ?? props.title ?? "Diagram",
-        spec: singleElementSpec("MermaidEditor", props),
+        spec: singleElementSpec("MermaidEditor", { editable: true, ...props }),
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
