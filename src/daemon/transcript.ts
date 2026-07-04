@@ -46,6 +46,52 @@ export function readTranscriptBacklog(session: SessionRoom): TranscriptEntry[] {
   return readEntriesFrom(session.transcriptPath, 0).entries;
 }
 
+const SUMMARY_MAX_CHARS = 100;
+
+export function firstHumanPrompt(transcriptPath: string): string {
+  if (!existsSync(transcriptPath)) return "";
+  const { entries } = readEntriesFrom(transcriptPath, 0);
+  for (const entry of entries) {
+    if (entry["type"] !== "user") continue;
+    if (originKindOf(entry) !== "human") continue;
+    const text = promptTextOf(entry);
+    if (text.length > 0) return truncateSummary(text);
+  }
+  return "";
+}
+
+function originKindOf(entry: TranscriptEntry): string | null {
+  const origin = entry["origin"];
+  if (!isRecord(origin)) return null;
+  const kind = origin["kind"];
+  return typeof kind === "string" ? kind : null;
+}
+
+function promptTextOf(entry: TranscriptEntry): string {
+  const message = entry["message"];
+  if (!isRecord(message)) return "";
+  const content = message["content"];
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  for (const block of content) {
+    if (!isRecord(block)) continue;
+    if (block["type"] !== "text") continue;
+    const text = block["text"];
+    if (typeof text === "string") return text.trim();
+  }
+  return "";
+}
+
+function truncateSummary(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= SUMMARY_MAX_CHARS) return collapsed;
+  return `${collapsed.slice(0, SUMMARY_MAX_CHARS).trimEnd()}…`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function ensureTailing(session: SessionRoom): TailState | null {
   if (!session.transcriptPath) return null;
   const existing = tails.get(session.sessionId);

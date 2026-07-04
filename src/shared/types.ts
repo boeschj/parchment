@@ -37,6 +37,8 @@ export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
 export type SessionSummary = {
   sessionId: string;
   cwd: string;
+  name: string;
+  summary: string;
   slotCount: number;
   createdAt: number;
   lastPing: number;

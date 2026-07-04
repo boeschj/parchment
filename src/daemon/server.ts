@@ -1,4 +1,5 @@
 import { serve } from "bun";
+import { basename } from "node:path";
 import { EditKind, SessionStatus, SlotKind, SlotOrigin, SlotStatus } from "../shared/types.ts";
 import {
   generateToken,
@@ -18,12 +19,13 @@ import {
   broadcast,
   sessionSnapshot,
   resolveSessionByShortAlias,
+  type SessionRoom,
   type WebSocketAttachment,
   type WebSocketSubscriber,
 } from "./sessions.ts";
 import { upsertSlot, removeSlot, markSlotError } from "./slots.ts";
 import { clearPersistedSlots } from "./session-store.ts";
-import { registerTranscriptPath, readTranscriptBacklog } from "./transcript.ts";
+import { registerTranscriptPath, readTranscriptBacklog, firstHumanPrompt } from "./transcript.ts";
 import {
   readBoardScene,
   writeBoardScene,
@@ -101,6 +103,8 @@ async function handleFetch(
       sessions: listSessions().map((session) => ({
         sessionId: session.sessionId,
         cwd: session.cwd,
+        name: sessionName(session),
+        summary: sessionSummary(session),
         slotCount: session.slots.length,
         createdAt: session.createdAt,
         lastPing: session.lastPing,
@@ -370,6 +374,27 @@ function isEditKind(value: unknown): value is import("../shared/types.ts").EditK
 }
 function isSessionStatus(value: unknown): value is SessionStatus {
   return typeof value === "string" && Object.values(SessionStatus).some((candidate) => candidate === value);
+}
+
+const SHORT_ID_LENGTH = 8;
+
+function sessionName(session: SessionRoom): string {
+  const base = basename(session.cwd);
+  if (base.length > 0) return base;
+  return shortSessionId(session.sessionId);
+}
+
+function sessionSummary(session: SessionRoom): string {
+  if (session.cachedSummary !== undefined) return session.cachedSummary;
+  if (!session.transcriptPath) return "";
+  const summary = firstHumanPrompt(session.transcriptPath);
+  if (summary.length > 0) session.cachedSummary = summary;
+  return summary;
+}
+
+function shortSessionId(sessionId: string): string {
+  const hexish = sessionId.replace(/[^0-9a-f]/gi, "");
+  return (hexish || sessionId).slice(0, SHORT_ID_LENGTH);
 }
 
 const websocketHandler: Bun.WebSocketHandler<WebSocketAttachment> = {

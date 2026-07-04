@@ -31,6 +31,7 @@ export type SessionRoom = {
   overlay: Map<string, OverlayEntry>;
   subscribers: Set<WebSocketSubscriber>;
   transcriptPath: string | null;
+  cachedSummary?: string;
   createdAt: number;
   lastPing: number;
   status: SessionStatus;

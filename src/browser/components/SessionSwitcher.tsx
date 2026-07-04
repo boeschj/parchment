@@ -20,6 +20,8 @@ export function SessionSwitcher({
   const ordered = [...sessions].sort((a, b) => b.lastPing - a.lastPing);
   const current = sessions.find((session) => session.sessionId === currentSessionId);
   const currentMeta = statusMeta(current?.status);
+  const currentShortId = shortSessionLabel(currentSessionId);
+  const currentName = triggerLabel(current, currentShortId);
 
   const switchTo = (sessionId: string): void => {
     setOpen(false);
@@ -37,7 +39,8 @@ export function SessionSwitcher({
         aria-label="Switch session"
       >
         <span className={`w-1.5 h-1.5 rounded-full ${currentMeta.dot}`} />
-        <span className="font-mono">{shortSessionLabel(currentSessionId)}</span>
+        <span className="max-w-[14rem] truncate text-foreground">{currentName}</span>
+        <span className="font-mono text-[11px] opacity-70">{currentShortId}</span>
         <span className="text-[10px] opacity-70" aria-hidden>
           ▾
         </span>
@@ -82,6 +85,7 @@ function SessionRow({
 }) {
   const meta = statusMeta(session.status);
   const highlightClass = isCurrent ? "bg-accent" : "hover:bg-accent";
+  const labels = rowLabels(session);
 
   return (
     <button
@@ -91,9 +95,12 @@ function SessionRow({
       style={{ borderRadius: "var(--radius-sm)" }}
     >
       <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} title={meta.label} />
-      <span className="font-mono text-[12.5px] shrink-0">{shortSessionLabel(session.sessionId)}</span>
-      <span className="text-[12px] text-muted-foreground truncate">{cwdLabel(session.cwd)}</span>
-      <span className="flex-1" />
+      <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <span className="text-[12.5px] text-foreground truncate">{labels.primary}</span>
+        {labels.secondary ? (
+          <span className="text-[11px] text-muted-foreground font-mono truncate">{labels.secondary}</span>
+        ) : null}
+      </span>
       <span className="text-[11px] text-muted-foreground font-mono shrink-0">{meta.label}</span>
     </button>
   );
@@ -104,8 +111,19 @@ function statusMeta(status: SessionStatus | undefined): { dot: string; label: st
   return STATUS_META[SessionStatus.Complete];
 }
 
-function cwdLabel(cwd: string): string {
-  if (!cwd) return "—";
-  const parts = cwd.split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? cwd;
+function triggerLabel(session: SessionSummary | undefined, shortId: string): string {
+  if (session && session.name.length > 0) return session.name;
+  return shortId;
+}
+
+function rowLabels(session: SessionSummary): { primary: string; secondary: string } {
+  const shortId = shortSessionLabel(session.sessionId);
+  if (session.summary.length > 0) {
+    const secondary = session.name.length > 0 ? `${session.name} · ${shortId}` : shortId;
+    return { primary: session.summary, secondary };
+  }
+  if (session.name.length > 0) {
+    return { primary: session.name, secondary: shortId };
+  }
+  return { primary: shortId, secondary: "" };
 }
