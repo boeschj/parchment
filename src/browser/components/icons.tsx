@@ -161,3 +161,12 @@ export function ContextIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ShieldIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <path d="M10 3 4.5 5v5c0 3.6 2.3 6 5.5 7 3.2-1 5.5-3.4 5.5-7V5z" {...STROKE} />
+      <path d="M7.8 10.2l1.6 1.6 2.8-3" {...STROKE} />
+    </svg>
+  );
+}

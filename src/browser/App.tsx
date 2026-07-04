@@ -13,6 +13,7 @@ import { ExplorerView } from "./components/trace/ExplorerView.tsx";
 import { GraphView } from "./components/trace/GraphView.tsx";
 import { CostsView } from "./components/trace/CostsView.tsx";
 import { ContextView } from "./components/trace/ContextView.tsx";
+import { SafetyView } from "./components/trace/SafetyView.tsx";
 import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
 import type { SessionSummary } from "../shared/types.ts";
@@ -164,6 +165,10 @@ function ViewContent({
 
   if (view.surface === Surface.Context) {
     return <ContextView sessionId={sessionId} />;
+  }
+
+  if (view.surface === Surface.Safety) {
+    return <SafetyView sessionId={sessionId} />;
   }
 
   if (transcript.items.length === 0) {

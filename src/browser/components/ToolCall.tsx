@@ -48,6 +48,9 @@ export function ToolCall({ item }: { item: ToolItem }) {
   const [open, setOpen] = useState(false);
   const status = toolStatus(item);
   const title = toolTitle(item);
+  const isDenied = item.denialKind !== null;
+  const denialLabel = isDenied ? `denied · ${item.denialKind}` : null;
+  const durationLabel = isDenied ? null : toolDurationLabel(item);
 
   return (
     <details className="group mr-12" onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -56,6 +59,12 @@ export function ToolCall({ item }: { item: ToolItem }) {
         <span className="font-mono text-[12px] font-medium shrink-0">{item.name}</span>
         {title ? (
           <span className="font-mono text-[11.5px] text-muted-foreground truncate">{title}</span>
+        ) : null}
+        {denialLabel ? (
+          <span className="font-mono text-[11px] text-amber-600 dark:text-amber-500 shrink-0">{denialLabel}</span>
+        ) : null}
+        {durationLabel ? (
+          <span className="font-mono text-[11px] text-muted-foreground shrink-0">{durationLabel}</span>
         ) : null}
       </summary>
 
@@ -164,7 +173,7 @@ function FormattedOutput({ item }: { item: ToolItem }) {
 
 function OutputBody({ item, text }: { item: ToolItem; text: string }) {
   if (isProseTool(item.name)) return <Prose markdown={text} />;
-  const colorClass = item.isError ? "text-destructive" : "text-foreground";
+  const colorClass = outputColorClass(item);
   return (
     <ScrollCode copyText={text}>
       <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
@@ -309,9 +318,33 @@ function CheckIcon() {
 }
 
 function toolStatus(item: ToolItem): { dotClass: string } {
+  if (item.denialKind !== null) return { dotClass: "bg-amber-500" };
   if (item.isError) return { dotClass: "bg-destructive" };
   if (item.output === null) return { dotClass: "bg-amber-500" };
   return { dotClass: "bg-success" };
+}
+
+function outputColorClass(item: ToolItem): string {
+  if (item.denialKind !== null) return "text-amber-600 dark:text-amber-500";
+  if (item.isError) return "text-destructive";
+  return "text-foreground";
+}
+
+const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+
+function toolDurationLabel(item: ToolItem): string | null {
+  if (item.timestampMs === null || item.endedAtMs === null) return null;
+
+  const elapsedMs = item.endedAtMs - item.timestampMs;
+  if (elapsedMs < 0) return null;
+
+  const elapsedSeconds = elapsedMs / MS_PER_SECOND;
+  if (elapsedSeconds < SECONDS_PER_MINUTE) return `${elapsedSeconds.toFixed(1)}s`;
+
+  const minutes = Math.floor(elapsedSeconds / SECONDS_PER_MINUTE);
+  const seconds = Math.round(elapsedSeconds % SECONDS_PER_MINUTE);
+  return `${minutes}m ${seconds}s`;
 }
 
 function toolTitle(item: ToolItem): string {

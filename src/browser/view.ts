@@ -12,6 +12,7 @@ export const Surface = {
   Graph: "graph",
   Costs: "costs",
   Context: "context",
+  Safety: "safety",
 } as const;
 
 export type Surface = (typeof Surface)[keyof typeof Surface];

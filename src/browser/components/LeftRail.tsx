@@ -16,6 +16,7 @@ import {
   ExplorerIcon,
   GraphIcon,
   MoonIcon,
+  ShieldIcon,
   SlotKindIcon,
   SunIcon,
   TranscriptIcon,
@@ -33,6 +34,7 @@ const TRACE_ITEMS = [
   { surface: Surface.Graph, label: "Session graph", icon: <GraphIcon width={19} height={19} /> },
   { surface: Surface.Costs, label: "Cost center", icon: <CostIcon width={19} height={19} /> },
   { surface: Surface.Context, label: "Context explorer", icon: <ContextIcon width={19} height={19} /> },
+  { surface: Surface.Safety, label: "Safety", icon: <ShieldIcon width={19} height={19} /> },
 ] as const;
 
 type LeftRailProps = {

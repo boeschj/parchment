@@ -1,30 +1,118 @@
 // Maps raw Claude Code transcript JSONL entries onto the view model the
-// transcript surface renders. The JSONL schema is undocumented and drifts
-// across versions, so every accessor here is defensive: unknown entry
-// types are skipped, never thrown on.
+// transcript surface renders. Line-level narrowing is delegated to the shared
+// typed parser (parseTraceEntry); this module only decides what earns a place
+// in the rendered transcript and in what shape.
 //
 // Shapes this relies on (verified against real session files):
 //   - type:"assistant" → message.content[] of text | thinking | tool_use
-//   - type:"user"      → message.content as string, or [] of text | image
-//     | tool_result; isMeta entries are hook noise, not the human
-//   - tool_result pairs to an earlier tool_use via tool_use_id
+//     | fallback, plus model + usage on every content-block line
+//   - type:"user"      → prompts, images, tool_results (paired to an earlier
+//     tool_use via tool_use_id), slash-command tags, compaction summaries;
+//     isMeta entries are hook noise, not the human
+//   - type:"system"    → subtyped; compact_boundary and api_error render
 //   - subagent activity lives in separate agent-*.jsonl files, so Agent
 //     tool calls here are ordinary tool calls
 
 import type { TranscriptEntry } from "../../shared/types.ts";
+import type {
+  AssistantTraceEntry,
+  SystemTraceEntry,
+  TokenUsage,
+  ToolDenialKind,
+  ToolResultBlock,
+  UserTraceEntry,
+} from "../../shared/trace/entry-types.ts";
+import {
+  BlockKind,
+  SystemSubtype,
+  TraceEntryKind,
+  UserOrigin,
+} from "../../shared/trace/entry-types.ts";
+import { parseTraceEntry } from "../../shared/trace/parse-entry.ts";
+
+export const TranscriptItemKind = {
+  User: "user",
+  Assistant: "assistant",
+  Thinking: "thinking",
+  Tool: "tool",
+  Compaction: "compaction",
+  CompactSummary: "compact-summary",
+  SlashCommand: "slash-command",
+  ApiError: "api-error",
+  ModelFallback: "model-fallback",
+} as const;
+
+export type TranscriptItemKind = (typeof TranscriptItemKind)[keyof typeof TranscriptItemKind];
 
 export type TranscriptItem =
-  | { kind: "user"; id: string; text: string; images: string[] }
-  | { kind: "assistant"; id: string; markdown: string }
-  | { kind: "thinking"; id: string; text: string }
   | {
-      kind: "tool";
+      kind: typeof TranscriptItemKind.User;
+      id: string;
+      text: string;
+      images: string[];
+      timestampMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.Assistant;
+      id: string;
+      markdown: string;
+      timestampMs: number | null;
+      model: string | null;
+      contextTokens: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.Thinking;
+      id: string;
+      text: string;
+      timestampMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.Tool;
       id: string;
       name: string;
       input: Record<string, unknown>;
       output: string | null;
       images: string[];
       isError: boolean;
+      denialKind: ToolDenialKind | null;
+      timestampMs: number | null;
+      endedAtMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.Compaction;
+      id: string;
+      timestampMs: number | null;
+      trigger: string | null;
+      preTokens: number | null;
+      postTokens: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.CompactSummary;
+      id: string;
+      text: string;
+      timestampMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.SlashCommand;
+      id: string;
+      command: string;
+      args: string;
+      timestampMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.ApiError;
+      id: string;
+      message: string | null;
+      retryAttempt: number | null;
+      maxRetries: number | null;
+      timestampMs: number | null;
+    }
+  | {
+      kind: typeof TranscriptItemKind.ModelFallback;
+      id: string;
+      fromModel: string | null;
+      toModel: string | null;
+      timestampMs: number | null;
     };
 
 export type TranscriptModel = {
@@ -50,195 +138,196 @@ export function appendEntries(
   const toolItemIndexById = { ...model.toolItemIndexById };
   const seenEntryIds = new Set(model.seenEntryIds);
 
-  for (const entry of entries) {
-    const entryType = entry["type"];
-    if (entryType !== "assistant" && entryType !== "user") continue;
+  for (const rawEntry of entries) {
+    const entry = parseTraceEntry(rawEntry);
+    const isRenderableKind =
+      entry.kind === TraceEntryKind.Assistant ||
+      entry.kind === TraceEntryKind.User ||
+      entry.kind === TraceEntryKind.System;
+    if (!isRenderableKind) continue;
 
-    const uuid = stringField(entry, "uuid");
+    const uuid = entry.envelope.uuid;
     if (uuid !== null) {
       if (seenEntryIds.has(uuid)) continue;
       seenEntryIds.add(uuid);
     }
 
-    if (entryType === "assistant") {
-      appendAssistantBlocks(entry, items, toolItemIndexById);
+    if (entry.kind === TraceEntryKind.Assistant) {
+      appendAssistantItems(entry, items, toolItemIndexById);
     }
-    if (entryType === "user") {
-      appendUserContent(entry, items, toolItemIndexById);
+    if (entry.kind === TraceEntryKind.User) {
+      appendUserItems(entry, items, toolItemIndexById);
+    }
+    if (entry.kind === TraceEntryKind.System) {
+      appendSystemItems(entry, items);
     }
   }
 
   return { items, toolItemIndexById, seenEntryIds };
 }
 
-function appendAssistantBlocks(
-  entry: TranscriptEntry,
+function appendAssistantItems(
+  entry: AssistantTraceEntry,
   items: TranscriptItem[],
   toolItemIndexById: Record<string, number>,
 ): void {
-  const entryId = stringField(entry, "uuid") ?? `entry-${items.length}`;
-  for (const [blockIndex, block] of contentBlocks(entry).entries()) {
-    const blockId = `${entryId}-${blockIndex}`;
-    const blockType = block["type"];
+  const entryId = entry.envelope.uuid ?? `entry-${items.length}`;
+  const timestampMs = entry.envelope.timestampMs;
+  const model = entry.isSynthetic ? null : entry.model;
+  const contextTokens = contextTokensFromUsage(entry.usage);
 
-    if (blockType === "text") {
-      const text = stringField(block, "text") ?? "";
-      if (text.trim().length > 0) items.push({ kind: "assistant", id: blockId, markdown: text });
+  for (const [blockIndex, block] of entry.blocks.entries()) {
+    const blockId = `${entryId}-${blockIndex}`;
+
+    if (block.kind === BlockKind.Text && block.text.trim().length > 0) {
+      items.push({
+        kind: TranscriptItemKind.Assistant,
+        id: blockId,
+        markdown: block.text,
+        timestampMs,
+        model,
+        contextTokens,
+      });
     }
-    if (blockType === "thinking") {
-      const text = stringField(block, "thinking") ?? "";
-      if (text.trim().length > 0) items.push({ kind: "thinking", id: blockId, text });
+    if (block.kind === BlockKind.Thinking && block.text.trim().length > 0) {
+      items.push({ kind: TranscriptItemKind.Thinking, id: blockId, text: block.text, timestampMs });
     }
-    if (blockType === "tool_use") {
-      const toolUseId = stringField(block, "id") ?? blockId;
+    if (block.kind === BlockKind.ToolUse) {
+      const toolUseId = block.toolUseId.length > 0 ? block.toolUseId : blockId;
       toolItemIndexById[toolUseId] = items.length;
       items.push({
-        kind: "tool",
+        kind: TranscriptItemKind.Tool,
         id: toolUseId,
-        name: stringField(block, "name") ?? "unknown",
-        input: recordField(block, "input"),
+        name: block.toolName,
+        input: block.input,
         output: null,
         images: [],
         isError: false,
+        denialKind: null,
+        timestampMs,
+        endedAtMs: null,
+      });
+    }
+    if (block.kind === BlockKind.ModelFallback) {
+      items.push({
+        kind: TranscriptItemKind.ModelFallback,
+        id: blockId,
+        fromModel: block.fromModel,
+        toModel: block.toModel,
+        timestampMs,
       });
     }
   }
 }
 
-function appendUserContent(
-  entry: TranscriptEntry,
+function appendUserItems(
+  entry: UserTraceEntry,
   items: TranscriptItem[],
   toolItemIndexById: Record<string, number>,
 ): void {
-  if (entry["isMeta"] === true) return;
+  if (entry.isMeta) return;
 
-  const message = recordField(entry, "message");
-  const content = message["content"];
-  const entryId = stringField(entry, "uuid") ?? `entry-${items.length}`;
-  const fromHuman = isHumanUserEntry(entry);
+  for (const result of entry.toolResults) {
+    attachToolResult(entry, result, items, toolItemIndexById);
+  }
 
-  if (typeof content === "string") {
-    if (fromHuman && content.trim().length > 0) {
-      items.push({ kind: "user", id: entryId, text: content, images: [] });
-    }
+  const entryId = entry.envelope.uuid ?? `entry-${items.length}`;
+  const timestampMs = entry.envelope.timestampMs;
+
+  if (entry.isCompactSummary) {
+    items.push({ kind: TranscriptItemKind.CompactSummary, id: entryId, text: entry.text.trim(), timestampMs });
     return;
   }
-  if (!Array.isArray(content)) return;
 
-  const textParts: string[] = [];
-  const images: string[] = [];
-  for (const block of content) {
-    if (!isRecord(block)) continue;
-    if (block["type"] === "text") {
-      const text = stringField(block, "text");
-      if (text) textParts.push(text);
-    }
-    if (block["type"] === "image") {
-      const url = imageDataUrl(block);
-      if (url) images.push(url);
-    }
-    if (block["type"] === "tool_result") {
-      attachToolResult(block, items, toolItemIndexById);
-    }
+  const slashCommand = parseSlashCommand(entry.text);
+  if (slashCommand !== null) {
+    items.push({
+      kind: TranscriptItemKind.SlashCommand,
+      id: entryId,
+      command: slashCommand.command,
+      args: slashCommand.args,
+      timestampMs,
+    });
+    return;
   }
 
-  const combined = textParts.join("\n\n").trim();
-  if (fromHuman && (combined.length > 0 || images.length > 0)) {
-    items.push({ kind: "user", id: entryId, text: combined, images });
-  }
+  if (entry.origin !== UserOrigin.Human) return;
+
+  const text = entry.text.trim();
+  if (text.length === 0 && entry.images.length === 0) return;
+  items.push({ kind: TranscriptItemKind.User, id: entryId, text, images: entry.images, timestampMs });
 }
 
-const SYNTHETIC_USER_PREFIXES = [
-  "<task-notification>",
-  "<command-name>",
-  "<local-command-stdout>",
-  "<local-command-stderr>",
-] as const;
+function appendSystemItems(entry: SystemTraceEntry, items: TranscriptItem[]): void {
+  const entryId = entry.envelope.uuid ?? `entry-${items.length}`;
+  const timestampMs = entry.envelope.timestampMs;
+  const payload = entry.payload;
 
-function isHumanUserEntry(entry: TranscriptEntry): boolean {
-  const originKind = stringField(recordField(entry, "origin"), "kind");
-  if (originKind === "human") return true;
-  if (originKind !== null) return false;
-
-  const content = recordField(entry, "message")["content"];
-  const text = typeof content === "string" ? content.trimStart() : "";
-  return !SYNTHETIC_USER_PREFIXES.some((prefix) => text.startsWith(prefix));
+  if (payload.subtype === SystemSubtype.CompactBoundary) {
+    items.push({
+      kind: TranscriptItemKind.Compaction,
+      id: entryId,
+      timestampMs,
+      trigger: payload.compaction.trigger,
+      preTokens: payload.compaction.preTokens,
+      postTokens: payload.compaction.postTokens,
+    });
+  }
+  if (payload.subtype === SystemSubtype.ApiError) {
+    items.push({
+      kind: TranscriptItemKind.ApiError,
+      id: entryId,
+      message: payload.message,
+      retryAttempt: payload.retryAttempt,
+      maxRetries: payload.maxRetries,
+      timestampMs,
+    });
+  }
 }
 
 function attachToolResult(
-  block: Record<string, unknown>,
+  entry: UserTraceEntry,
+  result: ToolResultBlock,
   items: TranscriptItem[],
   toolItemIndexById: Record<string, number>,
 ): void {
-  const toolUseId = stringField(block, "tool_use_id");
-  if (!toolUseId) return;
-  const index = toolItemIndexById[toolUseId];
+  const index = toolItemIndexById[result.toolUseId];
   if (index === undefined) return;
   const item = items[index];
-  if (!item || item.kind !== "tool") return;
+  if (!item || item.kind !== TranscriptItemKind.Tool) return;
+
+  // Denied calls carry the refusal reason in toolUseResult as a bare string;
+  // the tool_result content sometimes duplicates it and sometimes doesn't.
+  const denialReason = typeof entry.toolUseResult === "string" ? entry.toolUseResult : null;
+  const output = result.text.length > 0 ? result.text : (denialReason ?? "");
 
   items[index] = {
     ...item,
-    output: toolResultText(block["content"]),
-    images: [...item.images, ...toolResultImages(block["content"])],
-    isError: block["is_error"] === true,
+    output,
+    images: [...item.images, ...result.images],
+    isError: result.isError,
+    denialKind: entry.toolDenialKind,
+    endedAtMs: entry.envelope.timestampMs,
   };
 }
 
-function toolResultImages(content: unknown): string[] {
-  if (!Array.isArray(content)) return [];
-  const urls: string[] = [];
-  for (const part of content) {
-    if (!isRecord(part)) continue;
-    if (part["type"] !== "image") continue;
-    const url = imageDataUrl(part);
-    if (url) urls.push(url);
-  }
-  return urls;
+function contextTokensFromUsage(usage: TokenUsage | null): number | null {
+  if (usage === null) return null;
+  const total = usage.inputTokens + usage.cacheReadTokens + usage.cacheCreationTokens;
+  return total > 0 ? total : null;
 }
 
-function imageDataUrl(block: Record<string, unknown>): string | null {
-  const source = recordField(block, "source");
-  const sourceType = stringField(source, "type");
-  if (sourceType === "url") return stringField(source, "url");
-  if (sourceType !== "base64") return null;
-  const data = stringField(source, "data");
-  if (!data) return null;
-  const mediaType = stringField(source, "media_type") ?? "image/png";
-  return `data:${mediaType};base64,${data}`;
-}
+const COMMAND_NAME_PATTERN = /<command-name>([\s\S]*?)<\/command-name>/;
+const COMMAND_ARGS_PATTERN = /<command-args>([\s\S]*?)<\/command-args>/;
 
-function toolResultText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  const parts: string[] = [];
-  for (const part of content) {
-    if (!isRecord(part)) continue;
-    if (part["type"] === "text") {
-      const text = stringField(part, "text");
-      if (text) parts.push(text);
-    }
-  }
-  return parts.join("\n");
-}
+function parseSlashCommand(text: string): { command: string; args: string } | null {
+  const nameMatch = COMMAND_NAME_PATTERN.exec(text);
+  if (nameMatch === null) return null;
 
-function contentBlocks(entry: TranscriptEntry): Record<string, unknown>[] {
-  const message = recordField(entry, "message");
-  const content = message["content"];
-  if (!Array.isArray(content)) return [];
-  return content.filter(isRecord);
-}
+  const command = (nameMatch[1] ?? "").trim();
+  if (command.length === 0) return null;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringField(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
-  return typeof value === "string" ? value : null;
-}
-
-function recordField(record: Record<string, unknown>, key: string): Record<string, unknown> {
-  const value = record[key];
-  return isRecord(value) ? value : {};
+  const argsMatch = COMMAND_ARGS_PATTERN.exec(text);
+  const args = (argsMatch?.[1] ?? "").trim();
+  return { command, args };
 }
