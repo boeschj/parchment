@@ -248,3 +248,42 @@ button {
   background: transparent;
   padding: 0;
 }
+
+/*
+ * Trace-graph level-of-detail. Every graph node/edge carries a reveal band
+ * (--appear / --dissolve, in viewport-zoom units) set inline; useGraphZoom
+ * writes the live zoom to --detail on the .trace-graph container. Opacity
+ * cross-fades from those three numbers in pure CSS, so zooming reveals detail
+ * with zero React re-renders and the camera never moves. A child's --appear
+ * equals its parent's --dissolve, so exactly one cross-fade is ever in flight.
+ */
+.trace-graph {
+  --fade-w: 0.16;
+  --fade-half: 0.08;
+}
+
+.lod-fade {
+  --lod-in: clamp(
+    0,
+    calc((var(--detail, 0.36) - var(--appear, -1) + var(--fade-half)) / var(--fade-w)),
+    1
+  );
+  --lod-out: clamp(
+    0,
+    calc((var(--dissolve, 99) + var(--fade-half) - var(--detail, 0.36)) / var(--fade-w)),
+    1
+  );
+  opacity: calc(min(var(--lod-in), var(--lod-out)) * var(--dim, 1));
+}
+
+/*
+ * An invisible finer node must not intercept a click or drag meant for the
+ * visible coarse node it overlaps: disable pointer events on any node not
+ * legible at the current detail level. Each node carries hit{level} classes
+ * for the levels it reads at; the container carries the current depth.
+ */
+.trace-graph.depth-0 .react-flow__node:not(.hit0),
+.trace-graph.depth-1 .react-flow__node:not(.hit1),
+.trace-graph.depth-2 .react-flow__node:not(.hit2) {
+  pointer-events: none;
+}
