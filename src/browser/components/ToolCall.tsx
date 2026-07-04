@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Streamdown } from "streamdown";
 import type { TranscriptItem } from "../transcript/parse.ts";
 import { ImageAttachments } from "./ImageAttachments.tsx";
 
@@ -85,7 +86,7 @@ function CallPreview({ item }: { item: ToolItem }) {
     return <CodeBlock text={str(input, "pattern")} />;
   }
   if (item.name === ToolName.Agent || item.name === ToolName.Task) {
-    return <CodeBlock text={str(input, "prompt")} />;
+    return <Prose markdown={str(input, "prompt")} />;
   }
   if (item.name === ToolName.Write) {
     return (
@@ -143,49 +144,61 @@ function OutputTabs({ item }: { item: ToolItem }) {
 
 function FormattedOutput({ item }: { item: ToolItem }) {
   const hasImages = item.images.length > 0;
-  const output = item.output;
+  const text = item.output ?? "";
+  const hasText = text.length > 0;
 
-  if (output === null && !hasImages) {
+  if (item.output === null && !hasImages) {
     return <div className="text-muted-foreground text-[12.5px] font-mono">running…</div>;
   }
 
-  const colorClass = item.isError ? "text-destructive" : "text-foreground";
   const downloadBaseName = outputDownloadBase(item);
   const downloadProps = downloadBaseName ? { downloadBaseName } : {};
 
   return (
     <div className="flex flex-col gap-3">
       {hasImages ? <ImageAttachments images={item.images} {...downloadProps} /> : null}
-      {output !== null && output.length > 0 ? (
-        <ScrollCode>
-          <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
-            {truncateOutput(output)}
-          </pre>
-          <CopyAffordance text={output} />
-        </ScrollCode>
-      ) : null}
+      {hasText ? <OutputBody item={item} text={text} /> : null}
     </div>
+  );
+}
+
+function OutputBody({ item, text }: { item: ToolItem; text: string }) {
+  if (isProseTool(item.name)) return <Prose markdown={text} />;
+  const colorClass = item.isError ? "text-destructive" : "text-foreground";
+  return (
+    <ScrollCode copyText={text}>
+      <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
+        {truncateOutput(text)}
+      </pre>
+    </ScrollCode>
+  );
+}
+
+function Prose({ markdown }: { markdown: string }) {
+  return (
+    <ScrollCode copyText={markdown}>
+      <Streamdown className="transcript-prose">{markdown}</Streamdown>
+    </ScrollCode>
   );
 }
 
 function CodeBlock({ text }: { text: string }) {
   return (
-    <ScrollCode>
+    <ScrollCode copyText={text}>
       <pre className="font-mono text-[12.5px] leading-relaxed whitespace-pre m-0 text-foreground">
         {text}
       </pre>
-      <CopyAffordance text={text} />
     </ScrollCode>
   );
 }
 
-function ScrollCode({ children }: { children: React.ReactNode }) {
+function ScrollCode({ copyText, children }: { copyText: string; children: React.ReactNode }) {
   return (
-    <div
-      className="relative bg-background p-3 max-h-96 overflow-auto"
-      style={{ borderRadius: "var(--radius-md)" }}
-    >
-      {children}
+    <div className="relative bg-background overflow-hidden" style={{ borderRadius: "var(--radius-md)" }}>
+      <div className="max-h-96 overflow-auto p-3">{children}</div>
+      <div className="absolute top-2 right-2 rounded-md bg-background/70 backdrop-blur-sm">
+        <CopyButton text={copyText} />
+      </div>
     </div>
   );
 }
@@ -250,14 +263,6 @@ function TabButton({
     >
       {children}
     </button>
-  );
-}
-
-function CopyAffordance({ text }: { text: string }) {
-  return (
-    <div className="absolute top-2 right-2">
-      <CopyButton text={text} />
-    </div>
   );
 }
 
@@ -333,6 +338,10 @@ function str(record: Record<string, unknown>, key: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isProseTool(name: string): boolean {
+  return name === ToolName.Agent || name === ToolName.Task;
 }
 
 function baseName(path: string): string {
