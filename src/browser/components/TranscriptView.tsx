@@ -1,16 +1,29 @@
 import { Fragment } from "react";
 import { StickToBottom } from "use-stick-to-bottom";
 import { Streamdown } from "streamdown";
-import type { TranscriptItem, TranscriptModel } from "../transcript/parse.ts";
+import type { TranscriptCoverage, TranscriptItem, TranscriptModel } from "../transcript/parse.ts";
 import { TranscriptItemKind } from "../transcript/parse.ts";
-import { ToolCall } from "./ToolCall.tsx";
+import { SystemSubtype } from "../../shared/trace/entry-types.ts";
+import { InspectableRow, JsonPanel, ToolCall } from "./ToolCall.tsx";
 import { ImageAttachments } from "./ImageAttachments.tsx";
 
-type TranscriptRow = {
-  item: TranscriptItem;
-  timeLabel: string | null;
-  dayLabel: string | null;
-};
+const RowKind = {
+  Item: "item",
+  Cluster: "cluster",
+} as const;
+
+type TranscriptRow =
+  | {
+      rowKind: typeof RowKind.Item;
+      item: TranscriptItem;
+      timeLabel: string | null;
+      dayLabel: string | null;
+    }
+  | {
+      rowKind: typeof RowKind.Cluster;
+      items: TranscriptItem[];
+      dayLabel: string | null;
+    };
 
 export function TranscriptView({
   transcript,
@@ -24,15 +37,46 @@ export function TranscriptView({
   return (
     <StickToBottom className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-fade-top" resize="smooth" initial="instant">
       <StickToBottom.Content className="max-w-[860px] mx-auto px-7 pb-10 flex flex-col gap-5">
-        {rows.map(({ item, timeLabel, dayLabel }) => (
-          <Fragment key={item.id}>
-            {dayLabel ? <DayDivider label={dayLabel} /> : null}
-            <TranscriptItemView item={item} timeLabel={timeLabel} />
+        <CoverageHeader coverage={transcript.coverage} />
+        {rows.map((row) => (
+          <Fragment key={rowKeyOf(row)}>
+            {row.dayLabel ? <DayDivider label={row.dayLabel} /> : null}
+            <TranscriptRowView row={row} />
           </Fragment>
         ))}
         {isWorking ? <WorkingIndicator /> : null}
       </StickToBottom.Content>
     </StickToBottom>
+  );
+}
+
+function CoverageHeader({ coverage }: { coverage: TranscriptCoverage }) {
+  if (coverage.totalEntries === 0) return null;
+
+  const summary = `${coverage.totalEntries} events · ${coverage.renderedEntries} rendered · ${coverage.droppedEntries} hidden`;
+  return (
+    <div className="flex justify-center pt-4">
+      <span className="label">{summary}</span>
+    </div>
+  );
+}
+
+function TranscriptRowView({ row }: { row: TranscriptRow }) {
+  if (row.rowKind === RowKind.Cluster) {
+    return <MetaClusterRow items={row.items} />;
+  }
+  return <InspectableItem item={row.item} timeLabel={row.timeLabel} />;
+}
+
+// Tool calls own their inspector (they pair call + result raw entries);
+// everything else gets wrapped here with the entry's raw line.
+function InspectableItem({ item, timeLabel }: { item: TranscriptItem; timeLabel: string | null }) {
+  if (item.kind === TranscriptItemKind.Tool) return <ToolCall item={item} />;
+
+  return (
+    <InspectableRow payload={item.raw}>
+      <TranscriptItemView item={item} timeLabel={timeLabel} />
+    </InspectableRow>
   );
 }
 
@@ -63,6 +107,16 @@ function TranscriptItemView({ item, timeLabel }: { item: TranscriptItem; timeLab
       return <ApiErrorLine message={item.message} retryAttempt={item.retryAttempt} maxRetries={item.maxRetries} />;
     case TranscriptItemKind.ModelFallback:
       return <ModelFallbackLine fromModel={item.fromModel} toModel={item.toModel} />;
+    case TranscriptItemKind.SystemEvent: {
+      if (item.subtype === SystemSubtype.AwaySummary) return <AwaySummaryCard text={item.summary} />;
+      return <MetaRow item={item} />;
+    }
+    case TranscriptItemKind.Attachment:
+    case TranscriptItemKind.QueueOp:
+    case TranscriptItemKind.SessionMeta:
+    case TranscriptItemKind.FileSnapshot:
+    case TranscriptItemKind.Unknown:
+      return <MetaRow item={item} />;
   }
 }
 
@@ -228,6 +282,126 @@ function ModelFallbackLine({ fromModel, toModel }: { fromModel: string | null; t
   );
 }
 
+// away_summary is a narrative worth reading, so it gets a real card instead
+// of a collapsed meta row.
+function AwaySummaryCard({ text }: { text: string }) {
+  return (
+    <div className="mr-12 px-6 py-4 bg-card" style={{ borderRadius: "var(--radius-lg)" }}>
+      <span className="label">While you were away</span>
+      <p className="text-[13px] leading-relaxed italic text-muted-foreground whitespace-pre-wrap m-0 mt-2">{text}</p>
+    </div>
+  );
+}
+
+type MetaRowContent = { label: string; summary: string; detail: string | null };
+
+function MetaRow({ item }: { item: TranscriptItem }) {
+  const content = metaRowContentOf(item);
+  if (content === null) return null;
+
+  const detail = content.detail;
+  const hasDetail = detail !== null && detail.trim().length > 0;
+  if (!hasDetail) {
+    return (
+      <div className="flex items-center min-w-0 py-0.5">
+        <MetaRowLine label={content.label} summary={content.summary} />
+      </div>
+    );
+  }
+
+  return (
+    <details className="min-w-0">
+      <summary className="flex items-center min-w-0 py-0.5 cursor-pointer list-none select-none">
+        <MetaRowLine label={content.label} summary={content.summary} />
+      </summary>
+      <div className="mt-1.5 mr-12">
+        <JsonPanel text={detail} />
+      </div>
+    </details>
+  );
+}
+
+function MetaRowLine({ label, summary }: { label: string; summary: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
+      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-card text-muted-foreground shrink-0">
+        {label}
+      </span>
+      <span className="font-mono text-[11px] text-muted-foreground/80 truncate">{summary}</span>
+    </span>
+  );
+}
+
+function metaRowContentOf(item: TranscriptItem): MetaRowContent | null {
+  switch (item.kind) {
+    case TranscriptItemKind.Attachment:
+      return { label: item.subtype, summary: item.summary, detail: item.payloadJson };
+    case TranscriptItemKind.SystemEvent:
+      return { label: item.subtype, summary: item.summary, detail: item.detailJson };
+    case TranscriptItemKind.QueueOp:
+      return {
+        label: `queue · ${item.operation}`,
+        summary: firstLineOf(item.content),
+        detail: multilineDetailOf(item.content),
+      };
+    case TranscriptItemKind.SessionMeta:
+      return { label: item.field, summary: item.value, detail: multilineDetailOf(item.value) };
+    case TranscriptItemKind.FileSnapshot:
+      return {
+        label: "file snapshot",
+        summary: `${item.trackedFileCount} tracked files`,
+        detail: null,
+      };
+    case TranscriptItemKind.Unknown:
+      return { label: item.rawType, summary: "unrecognized entry", detail: null };
+    default:
+      return null;
+  }
+}
+
+// Bursts of injected/meta lines collapse into one row so the conversation
+// stays readable; expanding reveals each row with its own inspector.
+function MetaClusterRow({ items }: { items: TranscriptItem[] }) {
+  const countLabel = `${items.length} injected events`;
+  const kindSummary = clusterSummaryOf(items);
+
+  return (
+    <details className="min-w-0">
+      <summary className="flex items-center min-w-0 py-0.5 cursor-pointer list-none select-none">
+        <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
+          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-card text-muted-foreground shrink-0">
+            {countLabel}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground/70 truncate">{kindSummary}</span>
+        </span>
+      </summary>
+      <div className="mt-1.5 flex flex-col gap-1 pl-3 border-l border-border">
+        {items.map((item) => (
+          <InspectableItem key={item.id} item={item} timeLabel={null} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function clusterSummaryOf(items: TranscriptItem[]): string {
+  const countsByLabel = new Map<string, number>();
+  for (const item of items) {
+    const label = metaRowContentOf(item)?.label ?? item.kind;
+    countsByLabel.set(label, (countsByLabel.get(label) ?? 0) + 1);
+  }
+
+  const parts: string[] = [];
+  for (const [label, count] of countsByLabel) {
+    if (count > 1) {
+      parts.push(`${label} ×${count}`);
+    } else {
+      parts.push(label);
+    }
+  }
+  return parts.join(" · ");
+}
+
 function DayDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 py-1" role="separator">
@@ -260,16 +434,60 @@ function RoleHeader({ name, dotClass }: { name: string; dotClass: string }) {
   );
 }
 
+const CLUSTER_MIN_ITEMS = 2;
+
+// Quiet items are meta noise the reader can expand on demand; away_summary is
+// narrative and stays a first-class row.
+const QUIET_ITEM_KINDS = new Set<TranscriptItemKind>([
+  TranscriptItemKind.Attachment,
+  TranscriptItemKind.SystemEvent,
+  TranscriptItemKind.QueueOp,
+  TranscriptItemKind.SessionMeta,
+  TranscriptItemKind.FileSnapshot,
+  TranscriptItemKind.Unknown,
+]);
+
+function isQuietItem(item: TranscriptItem): boolean {
+  if (!QUIET_ITEM_KINDS.has(item.kind)) return false;
+  if (item.kind === TranscriptItemKind.SystemEvent && item.subtype === SystemSubtype.AwaySummary) {
+    return false;
+  }
+  return true;
+}
+
 // Time labels anchor the conversation without stamping every row: user turns
 // always get one, and the first assistant reply after each user turn does too.
+// Consecutive quiet items collapse into cluster rows; a day boundary splits a
+// cluster so the divider lands where the calendar flipped.
 function buildTranscriptRows(items: TranscriptItem[]): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
   let previousDayKey: string | null = null;
   let nextAssistantIsTurnAnchor = false;
+  let pendingQuiet: { items: TranscriptItem[]; dayLabel: string | null } | null = null;
+
+  const flushQuiet = (): void => {
+    if (pendingQuiet === null) return;
+    const [firstItem] = pendingQuiet.items;
+    if (pendingQuiet.items.length >= CLUSTER_MIN_ITEMS) {
+      rows.push({ rowKind: RowKind.Cluster, items: pendingQuiet.items, dayLabel: pendingQuiet.dayLabel });
+    } else if (firstItem !== undefined) {
+      rows.push({ rowKind: RowKind.Item, item: firstItem, timeLabel: null, dayLabel: pendingQuiet.dayLabel });
+    }
+    pendingQuiet = null;
+  };
 
   for (const item of items) {
     const dayLabel = dayBoundaryLabel(item.timestampMs, previousDayKey);
     if (item.timestampMs !== null) previousDayKey = dayKeyOf(item.timestampMs);
+
+    if (isQuietItem(item)) {
+      if (dayLabel !== null) flushQuiet();
+      if (pendingQuiet === null) pendingQuiet = { items: [], dayLabel };
+      pendingQuiet.items.push(item);
+      continue;
+    }
+
+    flushQuiet();
 
     let timeLabel: string | null = null;
     const isUserAuthored =
@@ -283,10 +501,28 @@ function buildTranscriptRows(items: TranscriptItem[]): TranscriptRow[] {
       nextAssistantIsTurnAnchor = false;
     }
 
-    rows.push({ item, timeLabel, dayLabel });
+    rows.push({ rowKind: RowKind.Item, item, timeLabel, dayLabel });
   }
 
+  flushQuiet();
   return rows;
+}
+
+function rowKeyOf(row: TranscriptRow): string {
+  if (row.rowKind === RowKind.Item) return row.item.id;
+  const firstItem = row.items[0];
+  if (firstItem === undefined) return "cluster-empty";
+  return `cluster-${firstItem.id}`;
+}
+
+function firstLineOf(text: string): string {
+  return (text.trim().split("\n")[0] ?? "").trim();
+}
+
+function multilineDetailOf(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.includes("\n")) return null;
+  return trimmed;
 }
 
 function dayBoundaryLabel(timestampMs: number | null, previousDayKey: string | null): string | null {

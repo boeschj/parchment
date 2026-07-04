@@ -6,6 +6,7 @@ import { ImageAttachments } from "./ImageAttachments.tsx";
 type ToolItem = Extract<TranscriptItem, { kind: "tool" }>;
 
 const TOOL_OUTPUT_DISPLAY_LIMIT = 4000;
+const RAW_JSON_DISPLAY_LIMIT = 20000;
 
 const ToolName = {
   Bash: "Bash",
@@ -51,34 +52,94 @@ export function ToolCall({ item }: { item: ToolItem }) {
   const isDenied = item.denialKind !== null;
   const denialLabel = isDenied ? `denied · ${item.denialKind}` : null;
   const durationLabel = isDenied ? null : toolDurationLabel(item);
+  const rawPayload = { call: item.raw, result: item.resultRaw };
 
   return (
-    <details className="group mr-12" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="inline-flex items-center gap-2.5 w-fit max-w-full cursor-pointer list-none px-3.5 py-2 rounded-full bg-card select-none">
-        <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${status.dotClass}`} />
-        <span className="font-mono text-[12px] font-medium shrink-0">{item.name}</span>
-        {title ? (
-          <span className="font-mono text-[11.5px] text-muted-foreground truncate">{title}</span>
-        ) : null}
-        {denialLabel ? (
-          <span className="font-mono text-[11px] text-amber-600 dark:text-amber-500 shrink-0">{denialLabel}</span>
-        ) : null}
-        {durationLabel ? (
-          <span className="font-mono text-[11px] text-muted-foreground shrink-0">{durationLabel}</span>
-        ) : null}
-      </summary>
+    <InspectableRow payload={rawPayload}>
+      <details className="group mr-12" onToggle={(event) => setOpen(event.currentTarget.open)}>
+        <summary className="inline-flex items-center gap-2.5 w-fit max-w-full cursor-pointer list-none px-3.5 py-2 rounded-full bg-card select-none">
+          <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${status.dotClass}`} />
+          <span className="font-mono text-[12px] font-medium shrink-0">{item.name}</span>
+          {title ? (
+            <span className="font-mono text-[11.5px] text-muted-foreground truncate">{title}</span>
+          ) : null}
+          {denialLabel ? (
+            <span className="font-mono text-[11px] text-amber-600 dark:text-amber-500 shrink-0">{denialLabel}</span>
+          ) : null}
+          {durationLabel ? (
+            <span className="font-mono text-[11px] text-muted-foreground shrink-0">{durationLabel}</span>
+          ) : null}
+        </summary>
 
-      {open ? <ExpandedPanel item={item} /> : null}
-    </details>
+        {open ? <ExpandedPanel item={item} /> : null}
+      </details>
+    </InspectableRow>
+  );
+}
+
+// Hover-revealed "{ }" toggle exposing the raw JSONL entry behind any
+// transcript item. Shared by every item renderer so fidelity is uniform.
+export function InspectableRow({
+  payload,
+  children,
+}: {
+  payload: unknown;
+  children: React.ReactNode;
+}) {
+  const [rawVisible, setRawVisible] = useState(false);
+
+  const handleToggleRaw = () => setRawVisible((visible) => !visible);
+  const visibilityClass = rawVisible
+    ? "opacity-100"
+    : "opacity-0 group-hover/raw:opacity-100 focus-visible:opacity-100";
+
+  return (
+    <div className="group/raw relative">
+      {children}
+      <button
+        type="button"
+        onClick={handleToggleRaw}
+        aria-label="Toggle raw entry JSON"
+        title="Raw entry JSON"
+        className={`absolute top-1 right-1 w-6 h-6 inline-flex items-center justify-center rounded-md font-mono text-[10px] text-muted-foreground bg-background/70 backdrop-blur-sm hover:text-foreground hover:bg-secondary transition-opacity ${visibilityClass}`}
+      >
+        {"{ }"}
+      </button>
+      {rawVisible ? (
+        <div className="mt-1.5">
+          <JsonPanel text={prettyJson(payload)} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Compact scrollable code panel for raw/detail payloads (pretty JSON or
+// prose), with copy. Shared with TranscriptView's meta rows.
+export function JsonPanel({ text }: { text: string }) {
+  return (
+    <div className="relative bg-background overflow-hidden" style={{ borderRadius: "var(--radius-md)" }}>
+      <div className="max-h-64 overflow-auto p-3">
+        <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap m-0 text-muted-foreground">
+          {truncateForDisplay(text, RAW_JSON_DISPLAY_LIMIT)}
+        </pre>
+      </div>
+      <div className="absolute top-2 right-2 rounded-md bg-background/70 backdrop-blur-sm">
+        <CopyButton text={text} />
+      </div>
+    </div>
   );
 }
 
 function ExpandedPanel({ item }: { item: ToolItem }) {
+  const stats = taskStatsOf(item.toolUseResult);
+
   return (
     <div className="mt-2 max-w-2xl bg-card overflow-hidden" style={{ borderRadius: "var(--radius-lg)" }}>
       <div className="p-3">
         <CallPreview item={item} />
       </div>
+      {stats !== null ? <TaskStatsRow stats={stats} /> : null}
       <hr className="hairline" />
       <OutputTabs item={item} />
     </div>
@@ -101,7 +162,7 @@ function CallPreview({ item }: { item: ToolItem }) {
     return (
       <div className="flex flex-col gap-2">
         <FileRef path={str(input, "file_path")} />
-        <CodeBlock text={str(input, "content")} />
+        <WritePreview item={item} />
       </div>
     );
   }
@@ -109,25 +170,50 @@ function CallPreview({ item }: { item: ToolItem }) {
     return (
       <div className="flex flex-col gap-2">
         <FileRef path={str(input, "file_path")} />
-        <DiffPreview before={str(input, "old_string")} after={str(input, "new_string")} />
+        <EditPreview item={item} />
       </div>
     );
   }
   if (item.name === ToolName.MultiEdit) {
-    const edits = Array.isArray(input["edits"]) ? input["edits"] : [];
     return (
       <div className="flex flex-col gap-2">
         <FileRef path={str(input, "file_path")} />
-        {edits.map((edit, index) =>
-          isRecord(edit) ? (
-            <DiffPreview key={index} before={str(edit, "old_string")} after={str(edit, "new_string")} />
-          ) : null,
-        )}
+        <MultiEditPreview item={item} />
       </div>
     );
   }
 
   return <CodeBlock text={JSON.stringify(input, null, 2)} />;
+}
+
+// The applied patch from toolUseResult is the ground truth (it reflects what
+// actually landed on disk), so it wins over the proposed input strings.
+function EditPreview({ item }: { item: ToolItem }) {
+  const appliedHunks = structuredPatchOf(item.toolUseResult);
+  if (appliedHunks !== null) return <StructuredPatchDiff hunks={appliedHunks} />;
+  return <DiffPreview before={str(item.input, "old_string")} after={str(item.input, "new_string")} />;
+}
+
+function WritePreview({ item }: { item: ToolItem }) {
+  const appliedHunks = structuredPatchOf(item.toolUseResult);
+  if (appliedHunks !== null) return <StructuredPatchDiff hunks={appliedHunks} />;
+  return <CodeBlock text={str(item.input, "content")} />;
+}
+
+function MultiEditPreview({ item }: { item: ToolItem }) {
+  const appliedHunks = structuredPatchOf(item.toolUseResult);
+  if (appliedHunks !== null) return <StructuredPatchDiff hunks={appliedHunks} />;
+
+  const edits = Array.isArray(item.input["edits"]) ? item.input["edits"] : [];
+  return (
+    <div className="flex flex-col gap-2">
+      {edits.map((edit, index) =>
+        isRecord(edit) ? (
+          <DiffPreview key={index} before={str(edit, "old_string")} after={str(edit, "new_string")} />
+        ) : null,
+      )}
+    </div>
+  );
 }
 
 function OutputTabs({ item }: { item: ToolItem }) {
@@ -173,13 +259,102 @@ function FormattedOutput({ item }: { item: ToolItem }) {
 
 function OutputBody({ item, text }: { item: ToolItem; text: string }) {
   if (isProseTool(item.name)) return <Prose markdown={text} />;
+
+  const bashStreams = bashStreamsOf(item);
+  if (bashStreams !== null) return <BashStreams streams={bashStreams} />;
+
   const colorClass = outputColorClass(item);
   return (
     <ScrollCode copyText={text}>
       <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
-        {truncateOutput(text)}
+        {truncateForDisplay(text, TOOL_OUTPUT_DISPLAY_LIMIT)}
       </pre>
     </ScrollCode>
+  );
+}
+
+type BashStreamPair = { stdout: string; stderr: string };
+
+function bashStreamsOf(item: ToolItem): BashStreamPair | null {
+  if (item.name !== ToolName.Bash) return null;
+  if (item.toolUseResult === null) return null;
+
+  const stdout = str(item.toolUseResult, "stdout");
+  const stderr = str(item.toolUseResult, "stderr");
+  if (stderr.trim().length === 0) return null;
+  return { stdout, stderr };
+}
+
+const STDERR_BACKGROUND = "color-mix(in srgb, var(--destructive) 8%, transparent)";
+
+function BashStreams({ streams }: { streams: BashStreamPair }) {
+  const hasStdout = streams.stdout.trim().length > 0;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {hasStdout ? (
+        <ScrollCode copyText={streams.stdout}>
+          <pre className="font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 text-foreground">
+            {truncateForDisplay(streams.stdout, TOOL_OUTPUT_DISPLAY_LIMIT)}
+          </pre>
+        </ScrollCode>
+      ) : null}
+      <div className="overflow-hidden" style={{ borderRadius: "var(--radius-md)", background: STDERR_BACKGROUND }}>
+        <div className="px-3 pt-2">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-destructive/80">stderr</span>
+        </div>
+        <div className="relative">
+          <div className="max-h-96 overflow-auto p-3 pt-1.5">
+            <pre className="font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 text-destructive">
+              {truncateForDisplay(streams.stderr, TOOL_OUTPUT_DISPLAY_LIMIT)}
+            </pre>
+          </div>
+          <div className="absolute top-1 right-2 rounded-md bg-background/70 backdrop-blur-sm">
+            <CopyButton text={streams.stderr} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TaskStats = {
+  totalTokens: number | null;
+  totalDurationMs: number | null;
+  totalToolUseCount: number | null;
+};
+
+function taskStatsOf(result: Record<string, unknown> | null): TaskStats | null {
+  if (result === null) return null;
+
+  const stats: TaskStats = {
+    totalTokens: num(result, "totalTokens"),
+    totalDurationMs: num(result, "totalDurationMs"),
+    totalToolUseCount: num(result, "totalToolUseCount"),
+  };
+  const hasAnyStat =
+    stats.totalTokens !== null || stats.totalDurationMs !== null || stats.totalToolUseCount !== null;
+  if (!hasAnyStat) return null;
+  return stats;
+}
+
+function TaskStatsRow({ stats }: { stats: TaskStats }) {
+  const chips: string[] = [];
+  if (stats.totalTokens !== null) chips.push(`${formatTokenCount(stats.totalTokens)} tokens`);
+  if (stats.totalDurationMs !== null) chips.push(formatDurationMs(stats.totalDurationMs));
+  if (stats.totalToolUseCount !== null) chips.push(`${stats.totalToolUseCount} tool calls`);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3">
+      {chips.map((chip) => (
+        <span
+          key={chip}
+          className="font-mono text-[11px] text-muted-foreground bg-background px-2 py-0.5 rounded-full"
+        >
+          {chip}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -210,6 +385,76 @@ function ScrollCode({ copyText, children }: { copyText: string; children: React.
       </div>
     </div>
   );
+}
+
+type PatchHunk = { header: string; lines: string[] };
+
+function structuredPatchOf(result: Record<string, unknown> | null): PatchHunk[] | null {
+  if (result === null) return null;
+  const rawHunks = result["structuredPatch"];
+  if (!Array.isArray(rawHunks) || rawHunks.length === 0) return null;
+
+  const hunks: PatchHunk[] = [];
+  for (const rawHunk of rawHunks) {
+    if (!isRecord(rawHunk)) continue;
+    hunks.push({ header: hunkHeader(rawHunk), lines: stringLines(rawHunk["lines"]) });
+  }
+  if (hunks.length === 0) return null;
+  return hunks;
+}
+
+function hunkHeader(hunk: Record<string, unknown>): string {
+  const oldStart = num(hunk, "oldStart") ?? 0;
+  const oldLines = num(hunk, "oldLines") ?? 0;
+  const newStart = num(hunk, "newStart") ?? 0;
+  const newLines = num(hunk, "newLines") ?? 0;
+  return `@@ -${oldStart},${oldLines} +${newStart},${newLines} @@`;
+}
+
+function stringLines(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((line): line is string => typeof line === "string");
+}
+
+function StructuredPatchDiff({ hunks }: { hunks: PatchHunk[] }) {
+  return (
+    <div
+      className="bg-background p-3 max-h-96 overflow-auto font-mono text-[12px] leading-relaxed"
+      style={{ borderRadius: "var(--radius-md)" }}
+    >
+      {hunks.map((hunk) => (
+        <div key={hunk.header}>
+          <div className="text-muted-foreground/70 select-none whitespace-pre">{hunk.header}</div>
+          {hunk.lines.map((line, index) => (
+            <PatchLine key={index} line={line} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const PATCH_ADDED_PREFIX = "+";
+const PATCH_REMOVED_PREFIX = "-";
+const ADDED_LINE_BACKGROUND = "color-mix(in srgb, var(--success) 12%, transparent)";
+const REMOVED_LINE_BACKGROUND = "color-mix(in srgb, var(--destructive) 10%, transparent)";
+
+function PatchLine({ line }: { line: string }) {
+  if (line.startsWith(PATCH_ADDED_PREFIX)) {
+    return (
+      <div className="whitespace-pre text-success" style={{ background: ADDED_LINE_BACKGROUND }}>
+        {line}
+      </div>
+    );
+  }
+  if (line.startsWith(PATCH_REMOVED_PREFIX)) {
+    return (
+      <div className="whitespace-pre text-destructive" style={{ background: REMOVED_LINE_BACKGROUND }}>
+        {line}
+      </div>
+    );
+  }
+  return <div className="whitespace-pre text-muted-foreground">{line}</div>;
 }
 
 function DiffPreview({ before, after }: { before: string; after: string }) {
@@ -338,13 +583,25 @@ function toolDurationLabel(item: ToolItem): string | null {
 
   const elapsedMs = item.endedAtMs - item.timestampMs;
   if (elapsedMs < 0) return null;
+  return formatDurationMs(elapsedMs);
+}
 
-  const elapsedSeconds = elapsedMs / MS_PER_SECOND;
+function formatDurationMs(durationMs: number): string {
+  const elapsedSeconds = durationMs / MS_PER_SECOND;
   if (elapsedSeconds < SECONDS_PER_MINUTE) return `${elapsedSeconds.toFixed(1)}s`;
 
   const minutes = Math.floor(elapsedSeconds / SECONDS_PER_MINUTE);
   const seconds = Math.round(elapsedSeconds % SECONDS_PER_MINUTE);
   return `${minutes}m ${seconds}s`;
+}
+
+const TOKENS_PER_THOUSAND = 1000;
+const TOKENS_PER_MILLION = 1_000_000;
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= TOKENS_PER_MILLION) return `${(tokens / TOKENS_PER_MILLION).toFixed(1)}M`;
+  if (tokens >= TOKENS_PER_THOUSAND) return `${Math.round(tokens / TOKENS_PER_THOUSAND)}k`;
+  return `${tokens}`;
 }
 
 function toolTitle(item: ToolItem): string {
@@ -359,14 +616,23 @@ function toolTitle(item: ToolItem): string {
   return typeof firstString === "string" ? firstString : "";
 }
 
-function truncateOutput(output: string): string {
-  if (output.length <= TOOL_OUTPUT_DISPLAY_LIMIT) return output;
-  return `${output.slice(0, TOOL_OUTPUT_DISPLAY_LIMIT)}\n… (${output.length - TOOL_OUTPUT_DISPLAY_LIMIT} more characters)`;
+function truncateForDisplay(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}\n… (${text.length - limit} more characters)`;
+}
+
+function prettyJson(value: unknown): string {
+  return JSON.stringify(value, null, 2) ?? "null";
 }
 
 function str(record: Record<string, unknown>, key: string): string {
   const value = record[key];
   return typeof value === "string" ? value : "";
+}
+
+function num(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === "number" ? value : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
