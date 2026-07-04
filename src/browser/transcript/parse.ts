@@ -113,9 +113,10 @@ function appendUserContent(
   const message = recordField(entry, "message");
   const content = message["content"];
   const entryId = stringField(entry, "uuid") ?? `entry-${items.length}`;
+  const fromHuman = isHumanUserEntry(entry);
 
   if (typeof content === "string") {
-    if (content.trim().length > 0) items.push({ kind: "user", id: entryId, text: content });
+    if (fromHuman && content.trim().length > 0) items.push({ kind: "user", id: entryId, text: content });
     return;
   }
   if (!Array.isArray(content)) return;
@@ -136,7 +137,24 @@ function appendUserContent(
   }
 
   const combined = textParts.join("\n\n").trim();
-  if (combined.length > 0) items.push({ kind: "user", id: entryId, text: combined });
+  if (fromHuman && combined.length > 0) items.push({ kind: "user", id: entryId, text: combined });
+}
+
+const SYNTHETIC_USER_PREFIXES = [
+  "<task-notification>",
+  "<command-name>",
+  "<local-command-stdout>",
+  "<local-command-stderr>",
+] as const;
+
+function isHumanUserEntry(entry: TranscriptEntry): boolean {
+  const originKind = stringField(recordField(entry, "origin"), "kind");
+  if (originKind === "human") return true;
+  if (originKind !== null) return false;
+
+  const content = recordField(entry, "message")["content"];
+  const text = typeof content === "string" ? content.trimStart() : "";
+  return !SYNTHETIC_USER_PREFIXES.some((prefix) => text.startsWith(prefix));
 }
 
 function attachToolResult(
