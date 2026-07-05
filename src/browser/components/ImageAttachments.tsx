@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface ImageAttachmentsProps {
   images: string[];
@@ -68,13 +69,25 @@ interface LightboxProps {
 }
 
 function Lightbox({ src, onClose }: LightboxProps) {
-  return (
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Portal to <body> so the overlay escapes the transcript's masked scroll
+  // container — a `mask-image` ancestor becomes the containing block for
+  // `position: fixed`, which would otherwise trap the overlay beside the rail.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-zoom-out"
       onClick={onClose}
     >
       <img src={src} alt="attachment" className="max-h-full max-w-full object-contain" />
-    </div>
+    </div>,
+    document.body,
   );
 }
 
