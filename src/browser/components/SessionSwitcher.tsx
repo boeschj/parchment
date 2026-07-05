@@ -8,6 +8,8 @@ const STATUS_META = {
   [SessionStatus.Blocked]: { dot: "bg-destructive", label: "blocked" },
 } as const;
 
+const CURRENT_LABEL = "current";
+
 export function SessionSwitcher({
   sessions,
   currentSessionId,
@@ -17,7 +19,8 @@ export function SessionSwitcher({
 }) {
   const [open, setOpen] = useState(false);
 
-  const ordered = [...sessions].sort((a, b) => b.lastPing - a.lastPing);
+  const byRecency = [...sessions].sort((a, b) => b.lastPing - a.lastPing);
+  const ordered = pinCurrentFirst(byRecency, currentSessionId);
   const current = sessions.find((session) => session.sessionId === currentSessionId);
   const currentMeta = statusMeta(current?.status);
   const currentShortId = shortSessionLabel(currentSessionId);
@@ -84,26 +87,44 @@ function SessionRow({
   onSelect: (sessionId: string) => void;
 }) {
   const meta = statusMeta(session.status);
-  const highlightClass = isCurrent ? "bg-accent" : "hover:bg-accent";
+  const highlightClass = isCurrent
+    ? "bg-primary/10 ring-1 ring-inset ring-primary/30"
+    : "hover:bg-accent";
+  const markerColor = isCurrent ? "var(--primary)" : "transparent";
   const labels = rowLabels(session);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(session.sessionId)}
-      className={`flex items-center gap-2.5 px-2 py-2 text-left transition-colors ${highlightClass}`}
+      className={`flex items-stretch gap-2.5 px-2 py-2 text-left transition-colors ${highlightClass}`}
       style={{ borderRadius: "var(--radius-sm)" }}
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} title={meta.label} />
+      <span className="w-0.5 shrink-0 rounded-full" style={{ background: markerColor }} />
+      <span className={`w-2 h-2 mt-1 rounded-full shrink-0 ${meta.dot}`} title={meta.label} />
       <span className="min-w-0 flex-1 flex flex-col gap-0.5">
-        <span className="text-[12.5px] text-foreground truncate">{labels.primary}</span>
+        <span className="flex items-baseline gap-2">
+          <span className="text-[12.5px] text-foreground truncate flex-1">{labels.primary}</span>
+          {isCurrent ? (
+            <span className="label shrink-0 !text-primary">{CURRENT_LABEL}</span>
+          ) : null}
+        </span>
         {labels.secondary ? (
           <span className="text-[11px] text-muted-foreground font-mono truncate">{labels.secondary}</span>
         ) : null}
       </span>
-      <span className="text-[11px] text-muted-foreground font-mono shrink-0">{meta.label}</span>
+      <span className="text-[11px] text-muted-foreground font-mono shrink-0 self-center">{meta.label}</span>
     </button>
   );
+}
+
+function pinCurrentFirst(
+  sessions: SessionSummary[],
+  currentSessionId: string,
+): SessionSummary[] {
+  const current = sessions.filter((session) => session.sessionId === currentSessionId);
+  const rest = sessions.filter((session) => session.sessionId !== currentSessionId);
+  return [...current, ...rest];
 }
 
 function statusMeta(status: SessionStatus | undefined): { dot: string; label: string } {
