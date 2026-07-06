@@ -89,6 +89,7 @@ export function App() {
             slots={railSlots}
             view={view}
             onSelectView={selectView}
+            hasPlan={planSlot !== null}
             theme={theme}
             onToggleTheme={toggleTheme}
           />

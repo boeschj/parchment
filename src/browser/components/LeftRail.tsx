@@ -41,17 +41,19 @@ type LeftRailProps = {
   slots: Slot[];
   view: CanvasView;
   onSelectView: (view: CanvasView) => void;
+  hasPlan: boolean;
   theme: Theme;
   onToggleTheme: () => void;
 };
 
-export function LeftRail({ slots, view, onSelectView, theme, onToggleTheme }: LeftRailProps) {
+export function LeftRail({ slots, view, onSelectView, hasPlan, theme, onToggleTheme }: LeftRailProps) {
   const ThemeIcon = theme === Theme.Dark ? SunIcon : MoonIcon;
   const themeLabel = theme === Theme.Dark ? "Switch to light mode" : "Switch to dark mode";
+  const surfaceItems = SURFACE_ITEMS.filter((item) => hasPlan || item.surface !== Surface.Plan);
 
   return (
     <nav className="w-[72px] shrink-0 py-2 flex flex-col items-center gap-3.5">
-      {SURFACE_ITEMS.map((item) => (
+      {surfaceItems.map((item) => (
         <RailItem
           key={item.surface}
           label={item.label}
