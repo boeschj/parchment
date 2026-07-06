@@ -6,6 +6,7 @@ import { TranscriptItemKind } from "../transcript/parse.ts";
 import { SystemSubtype } from "../../shared/trace/entry-types.ts";
 import { InspectableRow, JsonPanel, ToolCall } from "./ToolCall.tsx";
 import { ImageAttachments } from "./ImageAttachments.tsx";
+import "./transcript.css";
 
 const RowKind = {
   Item: "item",
@@ -35,8 +36,8 @@ export function TranscriptView({
   const rows = buildTranscriptRows(transcript.items);
 
   return (
-    <StickToBottom className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-fade-top" resize="smooth" initial="instant">
-      <StickToBottom.Content className="max-w-[860px] mx-auto px-7 pb-10 flex flex-col gap-5">
+    <StickToBottom className="transcript-reader flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-fade-top" resize="smooth" initial="instant">
+      <StickToBottom.Content className="max-w-[720px] mx-auto px-7 pb-10 flex flex-col gap-5">
         <CoverageHeader coverage={transcript.coverage} />
         {rows.map((row) => (
           <Fragment key={rowKeyOf(row)}>
@@ -56,7 +57,7 @@ function CoverageHeader({ coverage }: { coverage: TranscriptCoverage }) {
   const summary = `${coverage.totalEntries} events · ${coverage.renderedEntries} rendered · ${coverage.droppedEntries} hidden`;
   return (
     <div className="flex justify-center pt-4">
-      <span className="label">{summary}</span>
+      <span className="label tabular-nums">{summary}</span>
     </div>
   );
 }
@@ -130,12 +131,12 @@ function UserMessage({
   timeLabel: string | null;
 }) {
   return (
-    <div className="ml-12 text-foreground px-6 py-4" style={{ background: "var(--user-bubble)", borderRadius: "var(--radius-lg)" }}>
+    <div className="user-message ml-12 text-foreground px-6 py-4">
       <div className="flex items-center justify-between gap-3">
         <RoleHeader name="You" dotClass="bg-muted-foreground" />
-        {timeLabel ? <span className="label">{timeLabel}</span> : null}
+        {timeLabel ? <span className="label tabular-nums">{timeLabel}</span> : null}
       </div>
-      <p className="text-[15px] leading-relaxed whitespace-pre-wrap m-0 mt-2">{text}</p>
+      <p className="text-[15px] leading-[1.7] tracking-[-0.011em] whitespace-pre-wrap m-0 mt-2">{text}</p>
       <ImageAttachments images={images} />
     </div>
   );
@@ -163,9 +164,9 @@ function AssistantMessage({
         <RoleHeader name="Claude" dotClass="bg-primary" />
         <span className="flex items-center gap-2.5 min-w-0">
           {metaLabel ? (
-            <span className="label truncate opacity-0 group-hover:opacity-100 transition-opacity">{metaLabel}</span>
+            <span className="label tabular-nums truncate opacity-0 group-hover:opacity-100 transition-opacity">{metaLabel}</span>
           ) : null}
-          {timeLabel ? <span className="label shrink-0">{timeLabel}</span> : null}
+          {timeLabel ? <span className="label tabular-nums shrink-0">{timeLabel}</span> : null}
         </span>
       </div>
       <Streamdown className="transcript-prose mt-3">{markdown}</Streamdown>
@@ -240,11 +241,8 @@ function SlashCommandChip({
 }) {
   return (
     <div className="ml-12 flex items-center justify-end gap-3">
-      {timeLabel ? <span className="label">{timeLabel}</span> : null}
-      <span
-        className="inline-flex items-baseline gap-2 max-w-full px-3.5 py-2 rounded-full font-mono text-[12px]"
-        style={{ background: "var(--user-bubble)" }}
-      >
+      {timeLabel ? <span className="label tabular-nums">{timeLabel}</span> : null}
+      <span className="slash-chip inline-flex items-baseline gap-2 max-w-full px-3.5 py-2 rounded-full font-mono text-[12px]">
         <span className="font-medium shrink-0">{command}</span>
         {args ? <span className="text-muted-foreground truncate">{args}</span> : null}
       </span>

@@ -7,6 +7,7 @@ type ToolItem = Extract<TranscriptItem, { kind: "tool" }>;
 
 const TOOL_OUTPUT_DISPLAY_LIMIT = 4000;
 const RAW_JSON_DISPLAY_LIMIT = 20000;
+const OUTPUT_COLLAPSE_LINE_LIMIT = 20;
 
 const ToolName = {
   Bash: "Bash",
@@ -264,12 +265,57 @@ function OutputBody({ item, text }: { item: ToolItem; text: string }) {
   if (bashStreams !== null) return <BashStreams streams={bashStreams} />;
 
   const colorClass = outputColorClass(item);
+  return <CollapsibleCode text={truncateForDisplay(text, TOOL_OUTPUT_DISPLAY_LIMIT)} colorClass={colorClass} />;
+}
+
+// Long output opens to a preview and expands on demand — a "show N lines"
+// affordance beats a nested scroll box you have to fight to read past.
+function CollapsibleCode({ text, colorClass }: { text: string; colorClass: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = text.split("\n");
+  const isCollapsible = lines.length > OUTPUT_COLLAPSE_LINE_LIMIT;
+  const isCollapsed = isCollapsible && !expanded;
+  const hiddenLineCount = lines.length - OUTPUT_COLLAPSE_LINE_LIMIT;
+  const shownText = isCollapsed ? lines.slice(0, OUTPUT_COLLAPSE_LINE_LIMIT).join("\n") : text;
+  const bodyClass = expanded ? "max-h-[36rem] overflow-auto p-3" : "overflow-auto p-3";
+
+  const handleToggle = (): void => setExpanded((value) => !value);
+
   return (
-    <ScrollCode copyText={text}>
-      <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
-        {truncateForDisplay(text, TOOL_OUTPUT_DISPLAY_LIMIT)}
-      </pre>
-    </ScrollCode>
+    <div className="relative bg-background overflow-hidden" style={{ borderRadius: "var(--radius-md)" }}>
+      <div className={bodyClass}>
+        <pre className={`font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 ${colorClass}`}>
+          {shownText}
+        </pre>
+      </div>
+      {isCollapsible ? (
+        <ShowMoreBar expanded={expanded} hiddenLineCount={hiddenLineCount} onToggle={handleToggle} />
+      ) : null}
+      <div className="absolute top-2 right-2 rounded-md bg-background/70 backdrop-blur-sm">
+        <CopyButton text={text} />
+      </div>
+    </div>
+  );
+}
+
+function ShowMoreBar({
+  expanded,
+  hiddenLineCount,
+  onToggle,
+}: {
+  expanded: boolean;
+  hiddenLineCount: number;
+  onToggle: () => void;
+}) {
+  const label = expanded ? "Show less" : `Show ${hiddenLineCount} more lines`;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-center gap-1.5 py-1.5 font-mono text-[11px] text-muted-foreground hover:text-foreground border-t border-border transition-colors"
+    >
+      {label}
+    </button>
   );
 }
 
@@ -293,11 +339,7 @@ function BashStreams({ streams }: { streams: BashStreamPair }) {
   return (
     <div className="flex flex-col gap-2">
       {hasStdout ? (
-        <ScrollCode copyText={streams.stdout}>
-          <pre className="font-mono text-[12px] leading-relaxed whitespace-pre-wrap m-0 text-foreground">
-            {truncateForDisplay(streams.stdout, TOOL_OUTPUT_DISPLAY_LIMIT)}
-          </pre>
-        </ScrollCode>
+        <CollapsibleCode text={truncateForDisplay(streams.stdout, TOOL_OUTPUT_DISPLAY_LIMIT)} colorClass="text-foreground" />
       ) : null}
       <div className="overflow-hidden" style={{ borderRadius: "var(--radius-md)", background: STDERR_BACKGROUND }}>
         <div className="px-3 pt-2">
@@ -479,24 +521,38 @@ function DiffPreview({ before, after }: { before: string; after: string }) {
   );
 }
 
+const FILE_PATH_MAX_CHARS = 56;
+
 function FileRef({ path }: { path: string }) {
   if (!path) return null;
   const href = path.startsWith("http") ? path : `vscode://file/${path}`;
+  const displayPath = middleTruncatePath(path, FILE_PATH_MAX_CHARS);
   return (
     <div
-      className="inline-flex items-center gap-2 bg-background px-2.5 py-1.5 max-w-full"
+      className="file-chip inline-flex items-center gap-2 bg-background px-2.5 py-1.5 max-w-full"
       style={{ borderRadius: "var(--radius-md)" }}
     >
       <a
         href={href}
-        className="font-mono text-[12.5px] truncate hover:text-primary transition-colors"
+        className="font-mono text-[12.5px] whitespace-nowrap hover:text-primary transition-colors"
         title={path}
       >
-        {path}
+        {displayPath}
       </a>
       <CopyButton text={path} />
     </div>
   );
+}
+
+// Keep the meaningful ends of a long path (the leading root + the filename)
+// and drop the middle, since a plain end-ellipsis would hide the filename.
+function middleTruncatePath(path: string, maxChars: number): string {
+  if (path.length <= maxChars) return path;
+  const ellipsis = "…";
+  const budget = maxChars - ellipsis.length;
+  const headChars = Math.ceil(budget * 0.4);
+  const tailChars = Math.floor(budget * 0.6);
+  return `${path.slice(0, headChars)}${ellipsis}${path.slice(path.length - tailChars)}`;
 }
 
 function TabButton({

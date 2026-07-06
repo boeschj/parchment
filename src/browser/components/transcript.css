@@ -1,0 +1,195 @@
+/*
+ * Transcript reader — blog-quality typography for the conversation surface.
+ *
+ * Contract with the dark theme: dark mode is treated as finished, so every
+ * color/background/border declaration here is scoped to light mode with a
+ * :root:not(.dark) prefix (the .dark class lives on <html>). Mode-neutral
+ * typography — measure, line-height, letter-spacing, font features, spacing
+ * rhythm — applies to both modes, which is the whole point of a reader that
+ * reads like an article.
+ *
+ * Scoped under .transcript-reader so the canvas Markdown extension (which
+ * reuses .transcript-prose elsewhere) keeps its own look.
+ */
+
+/* ------------------------------------------------------------------
+ * Reading measure + body rhythm (both modes)
+ * ------------------------------------------------------------------ */
+.transcript-reader .transcript-prose {
+  max-width: 74ch;
+  font-size: 15.5px;
+  line-height: 1.7;
+  letter-spacing: -0.011em;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "kern";
+}
+
+.transcript-reader .transcript-prose p {
+  margin: 0 0 0.85em;
+}
+
+.transcript-reader .transcript-prose > :first-child {
+  margin-top: 0;
+}
+
+.transcript-reader .transcript-prose > :last-child {
+  margin-bottom: 0;
+}
+
+/* Heading size + tracking rhythm — sized down from Streamdown's text-3xl feed
+ * defaults into an article scale, tighter tracking as they grow. */
+.transcript-reader .transcript-prose h1,
+.transcript-reader .transcript-prose h2,
+.transcript-reader .transcript-prose h3,
+.transcript-reader .transcript-prose h4 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.6em 0 0.5em;
+  letter-spacing: -0.02em;
+}
+
+.transcript-reader .transcript-prose h1 {
+  font-size: 1.5em;
+  letter-spacing: -0.025em;
+}
+
+.transcript-reader .transcript-prose h2 {
+  font-size: 1.28em;
+}
+
+.transcript-reader .transcript-prose h3 {
+  font-size: 1.12em;
+  letter-spacing: -0.015em;
+}
+
+.transcript-reader .transcript-prose h4 {
+  font-size: 1em;
+  letter-spacing: -0.01em;
+}
+
+/* Hanging list indentation — Streamdown ships list-inside (wrapped lines fall
+ * back under the marker); pull the marker into the gutter so wrapped lines
+ * align under the text, the way a printed article sets a list. */
+.transcript-reader .transcript-prose ul,
+.transcript-reader .transcript-prose ol {
+  list-style-position: outside;
+  padding-left: 1.4em;
+  margin: 0.55em 0 0.9em;
+}
+
+.transcript-reader .transcript-prose li {
+  margin: 0.18em 0;
+  padding-left: 0.15em;
+}
+
+/* ------------------------------------------------------------------
+ * Inline code — quiet chips. Shape/size is mode-neutral; the fill stays
+ * light-only (dark keeps its inset --background chip from styles.css).
+ * Targets Streamdown's inline-code hook so syntax-highlighted <pre><code>
+ * blocks are never caught by these rules.
+ * ------------------------------------------------------------------ */
+.transcript-reader .transcript-prose [data-streamdown="inline-code"] {
+  font-size: 0.9em;
+  padding: 0.08em 0.36em;
+  border-radius: 4px;
+  font-weight: 450;
+}
+
+:root:not(.dark) .transcript-reader .transcript-prose [data-streamdown="inline-code"] {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* ------------------------------------------------------------------
+ * Code blocks — light-mode surface + hairline so fenced code separates from
+ * the near-white card. Dark keeps Streamdown's own treatment untouched.
+ * ------------------------------------------------------------------ */
+:root:not(.dark) .transcript-reader [data-streamdown="code-block"] {
+  background: color-mix(in oklab, var(--foreground) 3.5%, var(--card));
+  border-color: var(--border);
+}
+
+:root:not(.dark) .transcript-reader .transcript-prose pre {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------
+ * Blockquote — 2px hairline rule, quiet ink (light-only; dark keeps its own).
+ * ------------------------------------------------------------------ */
+:root:not(.dark) .transcript-reader .transcript-prose blockquote {
+  border-left: 2px solid var(--hairline);
+  padding-left: 1em;
+  margin: 0.9em 0;
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+
+/* ------------------------------------------------------------------
+ * User message — the reader's question. Dark keeps the amber bubble exactly
+ * as-is (bubble fill + radius-lg, no border); light trades the harsh gold wash
+ * for a quiet primary-tinted card with a hairline.
+ * ------------------------------------------------------------------ */
+.transcript-reader .user-message {
+  background: var(--user-bubble);
+  border-radius: var(--radius-lg);
+}
+
+:root:not(.dark) .transcript-reader .user-message {
+  background: color-mix(in oklab, var(--primary) 5%, var(--card));
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border));
+  border-radius: var(--radius-md);
+}
+
+/* Slash-command pill shares the user-bubble token; give it the same quiet
+ * light-mode treatment so nothing reads as leftover gold. */
+.transcript-reader .slash-chip {
+  background: var(--user-bubble);
+}
+
+:root:not(.dark) .transcript-reader .slash-chip {
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, var(--border));
+}
+
+/* ------------------------------------------------------------------
+ * File-path chips — steady the mono chip in light mode.
+ * ------------------------------------------------------------------ */
+:root:not(.dark) .transcript-reader .file-chip {
+  background: color-mix(in oklab, var(--foreground) 3%, var(--card));
+  border: 1px solid var(--border);
+}
+
+/* ------------------------------------------------------------------
+ * Image attachments — framed thumbnails. Larger reading size is mode-neutral;
+ * the hairline frame is light-only (dark's frameless look is intentional).
+ * ------------------------------------------------------------------ */
+.transcript-image {
+  max-height: 420px;
+}
+
+:root:not(.dark) .transcript-image-frame {
+  border: 1px solid var(--hairline);
+}
+
+/* ------------------------------------------------------------------
+ * Thin, quiet scrollbars for the reader's scroll regions (light-only, since
+ * bar color is a color decision and dark's default bars are fine).
+ * ------------------------------------------------------------------ */
+:root:not(.dark) .transcript-reader ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:root:not(.dark) .transcript-reader ::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
+  border-radius: 9999px;
+}
+
+:root:not(.dark) .transcript-reader ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root:not(.dark) .transcript-reader * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;
+}

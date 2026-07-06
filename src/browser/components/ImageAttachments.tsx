@@ -41,14 +41,14 @@ function ImageCard({ src, downloadName, onZoom }: ImageCardProps) {
 
   return (
     <div
-      className="relative group/img bg-background overflow-hidden"
+      className="transcript-image-frame relative group/img bg-background overflow-hidden"
       style={{ borderRadius: "var(--radius-md)" }}
     >
       <img
         src={src}
         onClick={onZoom}
         alt="attachment"
-        className="max-h-64 max-w-full object-contain cursor-zoom-in block"
+        className="transcript-image max-w-full object-contain cursor-zoom-in block"
       />
       <a
         href={src}
