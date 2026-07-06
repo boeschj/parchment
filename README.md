@@ -38,9 +38,23 @@ The daemon never idles itself out. Every slot, edit, and board scene is persiste
 
 ## Install
 
+Two commands inside Claude Code (requires [Bun](https://bun.sh) ≥ 1.3 on PATH):
+
+```
+/plugin marketplace add jboesch/clawd-canvas
+/plugin install clawd-canvas@clawd-canvas
+```
+
+The first session after install runs a one-time build (~30 s, see the
+`[clawd-canvas]` line at startup). The plugin ships its own MCP server, hooks,
+and statusline default — nothing else to configure.
+
+<details>
+<summary>Dev install (working from a clone)</summary>
+
 ```bash
-git clone https://github.com/jboesch/clawd-canvas-v2
-cd clawd-canvas-v2
+git clone https://github.com/jboesch/clawd-canvas
+cd clawd-canvas
 bun install
 bun run build       # produces dist/browser/
 bun run cli install # patches ~/.claude/settings.json (backed up first)
@@ -54,6 +68,7 @@ bun run cli install # patches ~/.claude/settings.json (backed up first)
 4. `mcpServers["canvas"]` — registers the canvas MCP server (gives Claude the `canvas_*` tools)
 
 Your prior `settings.json` is backed up to `~/.claude/settings.json.bak-<timestamp>` first.
+</details>
 
 ### Coexisting with clawd-canvas v0.1
 
@@ -131,9 +146,9 @@ Enter plan mode (Shift+Tab) and ask Claude for a plan. When Claude exits plan mo
 │  Claude Code session                                        │
 │                                                             │
 │  Plugin (this repo):                                        │
-│   • Skills: canvas-tools, canvas-extensions + core/react/   │
-│     shadcn (copied from json-render) — teaches Claude WHEN  │
-│     and HOW to use the canvas tools                         │
+│   • Skills: canvas-tools (composition playbook: transform   │
+│     rules, named layouts, score rubric) + canvas-spec       │
+│     (spec grammar, expressions, component inventory)        │
 │   • Hooks:                                                  │
 │     - SessionStart → boots daemon if dead                   │
 │     - UserPromptSubmit → injects pending <canvas-edit>      │
@@ -230,4 +245,4 @@ Daemon at `src/daemon/server.ts`. Browser entry at `src/browser/main.tsx`. MCP s
 
 ## License
 
-MIT. Bundles json-render skills under Apache 2.0 (see `skills/{core,react,shadcn}/SKILL.md`).
+MIT. Built on [json-render](https://github.com/vercel-labs/json-render) (Apache 2.0).

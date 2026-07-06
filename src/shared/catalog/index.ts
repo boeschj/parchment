@@ -7,6 +7,14 @@ import { DiffViewerDefinition } from "./extensions/DiffViewer.ts";
 import { MermaidEditorDefinition } from "./extensions/MermaidEditor.ts";
 import { ChartDefinition } from "./extensions/Chart.ts";
 import { DataTableDefinition } from "./extensions/DataTable.ts";
+import { MetricDefinition } from "./extensions/Metric.ts";
+import { StepsDefinition } from "./extensions/Steps.ts";
+import { CodeBlockDefinition } from "./extensions/CodeBlock.ts";
+import { CalloutDefinition } from "./extensions/Callout.ts";
+import { TerminalDefinition } from "./extensions/Terminal.ts";
+import { FileChangeDefinition } from "./extensions/FileChange.ts";
+import { TestResultsDefinition } from "./extensions/TestResults.ts";
+import { MarkdownDefinition } from "./extensions/Markdown.ts";
 
 export const CanvasExtensionDefinitions = {
   PlanFile: PlanFileDefinition,
@@ -14,6 +22,14 @@ export const CanvasExtensionDefinitions = {
   MermaidEditor: MermaidEditorDefinition,
   Chart: ChartDefinition,
   DataTable: DataTableDefinition,
+  Metric: MetricDefinition,
+  Steps: StepsDefinition,
+  CodeBlock: CodeBlockDefinition,
+  Callout: CalloutDefinition,
+  Terminal: TerminalDefinition,
+  FileChange: FileChangeDefinition,
+  TestResults: TestResultsDefinition,
+  Markdown: MarkdownDefinition,
 } as const;
 
 // Canvas-specific actions. The browser registers handlers for these in
@@ -37,6 +53,21 @@ export const CanvasActionDefinitions = {
     params: z.object({}),
     description:
       "Force-flush any pending debounced edits in the current slot immediately. Bind to a 'Send now' Button's on.press.",
+  },
+  "canvas.submit": {
+    params: z.object({
+      id: z
+        .string()
+        .describe("Semantic id of what is being submitted, e.g. 'create-ticket-form'"),
+      payload: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          'The data being submitted. Use {"$state": "/form"} to send current form state — expressions are resolved before delivery.',
+        ),
+    }),
+    description:
+      'Deliver a discrete submission (form data, a choice, a confirmation) back to Claude. It arrives on Claude\'s next turn as a <canvas-edit kind="form-submit"> block. Bind to a Button\'s on.press.',
   },
 } as const;
 

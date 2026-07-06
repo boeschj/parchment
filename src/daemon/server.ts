@@ -23,7 +23,7 @@ import {
   type WebSocketAttachment,
   type WebSocketSubscriber,
 } from "./sessions.ts";
-import { upsertSlot, removeSlot, markSlotError } from "./slots.ts";
+import { upsertSlot, removeSlot, markSlotError, requestSlotOps, resolveSlotOps } from "./slots.ts";
 import { clearPersistedSlots } from "./session-store.ts";
 import { registerTranscriptPath, readTranscriptBacklog, firstHumanPrompt } from "./transcript.ts";
 import {
@@ -32,7 +32,13 @@ import {
   requestBoardOps,
   resolveBoardOps,
 } from "./board.ts";
-import type { BoardOps, BoardOpsResult, BoardScene } from "../shared/types.ts";
+import type {
+  BoardOps,
+  BoardOpsResult,
+  BoardScene,
+  SlotOps,
+  SlotOpsResult,
+} from "../shared/types.ts";
 import {
   recordEdit,
   buildInjectionPayload,
@@ -242,6 +248,26 @@ async function handleSessionRoute(
     return jsonResponse({ ok: true, slot });
   }
 
+  if (subPath === "/slots/ops" && method === "POST") {
+    const body = (await request.json()) as { ops?: SlotOps };
+    if (!body.ops) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "ops required");
+    }
+    const session = ensureSession(sessionId);
+    const canvasUrl = sessionCanvasUrl(request, sessionId);
+    const result = await requestSlotOps(session, body.ops, canvasUrl);
+    return jsonResponse(result);
+  }
+
+  if (subPath === "/slots/ops-result" && method === "POST") {
+    const body = (await request.json()) as { requestId?: string; result?: SlotOpsResult };
+    if (typeof body.requestId !== "string" || !body.result) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "requestId and result required");
+    }
+    const resolved = resolveSlotOps(body.requestId, body.result);
+    return jsonResponse({ ok: resolved });
+  }
+
   const slotMatch = subPath.match(/^\/slots\/([^/]+)$/);
   if (slotMatch) {
     const slotId = decodeURIComponent(slotMatch[1]!);
@@ -379,6 +405,13 @@ function isEditKind(value: unknown): value is import("../shared/types.ts").EditK
 }
 function isSessionStatus(value: unknown): value is SessionStatus {
   return typeof value === "string" && Object.values(SessionStatus).some((candidate) => candidate === value);
+}
+
+// The URL the user would open for this session, derived from the request's
+// own origin so error messages point at the port actually bound.
+function sessionCanvasUrl(request: Request, sessionId: string): string {
+  const origin = new URL(request.url).origin;
+  return `${origin}/?session=${encodeURIComponent(sessionId)}`;
 }
 
 const SHORT_ID_LENGTH = 8;

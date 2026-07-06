@@ -119,9 +119,9 @@ export function DataTable({ props }: RenderProps) {
       className="bg-card text-card-foreground overflow-hidden p-6"
       style={{ borderRadius: "var(--radius)" }}
     >
-      <header className="pb-4 flex items-center justify-between">
+      <header className="pb-3 flex items-center justify-between">
         {props.caption ? (
-          <h2 className="h-display text-[1.75rem]">{props.caption}</h2>
+          <h2 className="text-sm font-semibold tracking-tight">{props.caption}</h2>
         ) : (
           <span className="label">{props.rows.length} rows</span>
         )}

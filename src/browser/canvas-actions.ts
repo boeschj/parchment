@@ -15,6 +15,18 @@ export function buildCanvasActionHandlers(
   slot: Slot,
 ): Record<string, (params: Record<string, unknown>) => Promise<void>> {
   return {
+    // json-render deep-resolves {$state:"/path"} expressions in action params
+    // against a live state snapshot before invoking handlers, so a binding
+    // like { payload: { $state: "/form" } } arrives here as concrete data.
+    "canvas.submit": async (params) => {
+      const elementId = typeof params.id === "string" ? params.id : null;
+      await postEdit(sessionId, {
+        slotId: slot.id,
+        elementId,
+        kind: EditKind.FormSubmit,
+        payload: params,
+      });
+    },
     "canvas.commentMermaid": async (params) => {
       const nodeId = String(params.nodeId ?? "");
       const body = String(params.body ?? "");

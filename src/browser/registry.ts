@@ -9,6 +9,14 @@ import { DiffViewer } from "./components/DiffViewer.tsx";
 import { MermaidEditor } from "./components/MermaidEditor.tsx";
 import { Chart } from "./components/Chart.tsx";
 import { DataTable } from "./components/DataTable.tsx";
+import { Metric } from "./components/Metric.tsx";
+import { Steps } from "./components/Steps.tsx";
+import { CodeBlock } from "./components/CodeBlock.tsx";
+import { Callout } from "./components/Callout.tsx";
+import { Terminal } from "./components/Terminal.tsx";
+import { FileChange } from "./components/FileChange.tsx";
+import { TestResults } from "./components/TestResults.tsx";
+import { Markdown } from "./components/Markdown.tsx";
 import { canvasShadcnOverrides } from "./registry/canvas-shadcn.tsx";
 
 // Browser side: include both definitions + React implementations.
@@ -31,7 +39,8 @@ export const browserCatalog = defineCatalog(schema, {
 //      still validate, but pill buttons + 24px-radius surfaces + Geist
 //      typography + gold accent.
 //   3. Canvas extensions (PlanFile, DiffViewer, MermaidEditor, Chart,
-//      DataTable).
+//      DataTable, Metric, Steps, CodeBlock, Callout, Terminal, FileChange,
+//      TestResults, Markdown).
 export const { registry } = defineRegistry(browserCatalog, {
   components: {
     ...shadcnComponents,
@@ -41,5 +50,13 @@ export const { registry } = defineRegistry(browserCatalog, {
     MermaidEditor,
     Chart,
     DataTable,
+    Metric,
+    Steps,
+    CodeBlock,
+    Callout,
+    Terminal,
+    FileChange,
+    TestResults,
+    Markdown,
   },
 });

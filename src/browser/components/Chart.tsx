@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -22,6 +23,7 @@ import { ChartKind, ChartPropsSchema } from "../../shared/catalog/extensions/Cha
 
 type ChartProps = z.infer<typeof ChartPropsSchema>;
 type RenderProps = { props: ChartProps };
+type ChartRow = Record<string, unknown>;
 
 // Chart series follow the Style Guide palette: gold first, then the ink
 // ramp — charts stay monochrome apart from the single brand accent.
@@ -33,12 +35,41 @@ const SERIES_COLORS = [
   "var(--chart-5)",
 ];
 
+const AXIS_FONT_SIZE = 12;
+const BAR_LABEL_FONT_SIZE = 11;
+const MAX_BARS_WITH_VALUE_LABELS = 12;
+const MIN_BAR_POINT_SIZE = 2;
+const LONG_X_LABEL_CHARS = 10;
+const BOTTOM_MARGIN_DEFAULT = 4;
+const BOTTOM_MARGIN_LONG_LABELS = 24;
+
+const COMPACT_NUMBER = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function formatCompactNumber(value: unknown): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  return COMPACT_NUMBER.format(numeric);
+}
+
 function colorAt(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length] ?? "#888";
 }
 
 function toSeriesKeys(y: string | string[]): string[] {
   return Array.isArray(y) ? y : [y];
+}
+
+function bottomMarginFor(rows: ChartRow[], xKey: string): number {
+  const longestLabelChars = rows.reduce((longest, row) => {
+    const labelChars = String(row[xKey] ?? "").length;
+    return Math.max(longest, labelChars);
+  }, 0);
+  return longestLabelChars > LONG_X_LABEL_CHARS
+    ? BOTTOM_MARGIN_LONG_LABELS
+    : BOTTOM_MARGIN_DEFAULT;
 }
 
 export function Chart({ props }: RenderProps) {
@@ -68,15 +99,24 @@ function renderChart(
   props: ChartProps,
   seriesKeys: string[],
 ): React.ReactElement {
+  const rows = props.data as ChartRow[];
+  const showLegend = seriesKeys.length > 1;
+  const chartMargin = { bottom: bottomMarginFor(rows, props.x) };
+
   switch (props.kind) {
     case ChartKind.Line:
       return (
-        <LineChart data={props.data as Array<Record<string, unknown>>}>
+        <LineChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={12} />
-          <YAxis fontSize={12} />
+          <XAxis dataKey={props.x} fontSize={AXIS_FONT_SIZE} tickLine={false} axisLine={false} />
+          <YAxis
+            fontSize={AXIS_FONT_SIZE}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatCompactNumber}
+          />
           <Tooltip />
-          <Legend />
+          {showLegend ? <Legend /> : null}
           {seriesKeys.map((key, index) => (
             <Line
               key={key}
@@ -89,27 +129,49 @@ function renderChart(
           ))}
         </LineChart>
       );
-    case ChartKind.Bar:
+    case ChartKind.Bar: {
+      const showValueLabels = rows.length <= MAX_BARS_WITH_VALUE_LABELS;
       return (
-        <BarChart data={props.data as Array<Record<string, unknown>>}>
+        <BarChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={12} />
-          <YAxis fontSize={12} />
+          <XAxis dataKey={props.x} fontSize={AXIS_FONT_SIZE} tickLine={false} axisLine={false} />
+          <YAxis
+            fontSize={AXIS_FONT_SIZE}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatCompactNumber}
+          />
           <Tooltip />
-          <Legend />
+          {showLegend ? <Legend /> : null}
           {seriesKeys.map((key, index) => (
-            <Bar key={key} dataKey={key} fill={colorAt(index)} />
+            <Bar key={key} dataKey={key} fill={colorAt(index)} minPointSize={MIN_BAR_POINT_SIZE}>
+              {showValueLabels ? (
+                <LabelList
+                  dataKey={key}
+                  position="top"
+                  fontSize={BAR_LABEL_FONT_SIZE}
+                  fill="var(--muted-foreground)"
+                  formatter={formatCompactNumber}
+                />
+              ) : null}
+            </Bar>
           ))}
         </BarChart>
       );
+    }
     case ChartKind.Area:
       return (
-        <AreaChart data={props.data as Array<Record<string, unknown>>}>
+        <AreaChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={12} />
-          <YAxis fontSize={12} />
+          <XAxis dataKey={props.x} fontSize={AXIS_FONT_SIZE} tickLine={false} axisLine={false} />
+          <YAxis
+            fontSize={AXIS_FONT_SIZE}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatCompactNumber}
+          />
           <Tooltip />
-          <Legend />
+          {showLegend ? <Legend /> : null}
           {seriesKeys.map((key, index) => (
             <Area
               key={key}
@@ -128,13 +190,13 @@ function renderChart(
           <Tooltip />
           <Legend />
           <Pie
-            data={props.data as Array<Record<string, unknown>>}
+            data={rows}
             dataKey={seriesKeys[0] ?? "value"}
             nameKey={props.x}
             outerRadius="70%"
             label
           >
-            {(props.data as Array<Record<string, unknown>>).map((_, index) => (
+            {rows.map((_, index) => (
               <Cell key={`cell-${index}`} fill={colorAt(index)} />
             ))}
           </Pie>
@@ -142,13 +204,27 @@ function renderChart(
       );
     case ChartKind.Scatter:
       return (
-        <ScatterChart>
+        <ScatterChart margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={12} type="number" />
-          <YAxis dataKey={seriesKeys[0] ?? "y"} fontSize={12} type="number" />
+          <XAxis
+            dataKey={props.x}
+            fontSize={AXIS_FONT_SIZE}
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatCompactNumber}
+          />
+          <YAxis
+            dataKey={seriesKeys[0] ?? "y"}
+            fontSize={AXIS_FONT_SIZE}
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatCompactNumber}
+          />
           <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-          <Legend />
-          <Scatter data={props.data as Array<Record<string, unknown>>} fill={colorAt(0)} />
+          {showLegend ? <Legend /> : null}
+          <Scatter data={rows} fill={colorAt(0)} />
         </ScatterChart>
       );
     default: {

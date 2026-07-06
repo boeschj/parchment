@@ -32,6 +32,7 @@
     "@xyflow/react": "^12.11.1",
     "dompurify": "latest",
     "elkjs": "^0.11.1",
+    "html-to-image": "^1.11.13",
     "mermaid": "^11.0.0",
     "monaco-editor": "latest",
     "motion": "^12.42.2",

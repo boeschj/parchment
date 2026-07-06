@@ -99,10 +99,34 @@ button {
  * Soft top fade for scroll regions — scrolled content dissolves into the
  * header instead of ending on a hard cut. Fade height is themeable via
  * --scroll-fade. Applied to any overflow-auto scroll container.
+ *
+ * The mask only engages once the region has actually been scrolled: an
+ * always-on mask washed out whatever rested at the top of the container
+ * (headings read as faded gray gradient text). A scroll-driven animation
+ * ramps the fade reach from 0 to full over the first bit of travel, so
+ * content at rest renders solid. Browsers without scroll-driven animation
+ * support get no fade rather than washed-out headings.
  */
-.scroll-fade-top {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade, 2.25rem));
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade, 2.25rem));
+@property --scroll-fade-reach {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@supports (animation-timeline: scroll(self)) {
+  .scroll-fade-top {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade-reach));
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--scroll-fade-reach));
+    animation: scroll-fade-engage linear both;
+    animation-timeline: scroll(self);
+    animation-range: 0px calc(var(--scroll-fade, 2.25rem) * 2);
+  }
+}
+
+@keyframes scroll-fade-engage {
+  to {
+    --scroll-fade-reach: var(--scroll-fade, 2.25rem);
+  }
 }
 
 /*
@@ -127,6 +151,7 @@ button {
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.05;
+  color: var(--foreground);
 }
 
 /*

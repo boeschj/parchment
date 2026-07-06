@@ -18,6 +18,7 @@ import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
 import type { SessionSummary } from "../shared/types.ts";
 import { createBoardOpsListener } from "./board/ops-listener.ts";
+import { createSlotOpsListener } from "./slot-ops/ops-listener.ts";
 import { useWsEventSubscription } from "./useWsEventSubscription.ts";
 import type { TranscriptModel } from "./transcript/parse.ts";
 import type { WsEventListener } from "./ws.ts";
@@ -55,9 +56,10 @@ export function App() {
   const currentSession = sessions.find((session) => session.sessionId === sessionId);
   const isClaudeWorking = currentSession?.status === SessionStatus.Working;
 
-  // Claude's board ops execute at app level so drawing works no matter
-  // which surface is showing.
+  // Claude's board and slot ops execute at app level so drawing and slot
+  // snapshots work no matter which surface is showing.
   useWsEventSubscription(subscribeToEvents, createBoardOpsListener(sessionId));
+  useWsEventSubscription(subscribeToEvents, createSlotOpsListener(sessionId));
 
   // On the first snapshot, land on the transcript and mark every slot already
   // present as "seen". Otherwise a stale plan from earlier in the session hits

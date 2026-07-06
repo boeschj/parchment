@@ -84,6 +84,7 @@ export const EditKind = {
   MermaidComment: "mermaid-comment",
   TableEdit: "table-edit",
   GenericEdit: "generic-edit",
+  FormSubmit: "form-submit",
 } as const;
 
 export type EditKind = (typeof EditKind)[keyof typeof EditKind];
@@ -139,6 +140,22 @@ export type BoardOpsResult = {
   pngBase64?: string;
 };
 
+// Operations Claude sends a rendered slot. Like board ops, execution needs a
+// DOM (the slot renders through React + the component registry), so the
+// daemon relays ops to one browser tab and holds the HTTP request until the
+// tab posts the result back under the same requestId.
+export type SlotOps = {
+  exportPng?: { slotId: string };
+};
+
+export type SlotOpsResult = {
+  ok: boolean;
+  error?: string;
+  pngBase64?: string;
+  width?: number;
+  height?: number;
+};
+
 export type WsEvent =
   | { kind: "snapshot"; data: { sessionId: string; slots: Slot[] } }
   | { kind: "slot-added"; data: Slot }
@@ -149,7 +166,8 @@ export type WsEvent =
   | { kind: "transcript-snapshot"; data: { entries: TranscriptEntry[] } }
   | { kind: "transcript-append"; data: { entries: TranscriptEntry[] } }
   | { kind: "board-updated"; data: { clientId: string | null } }
-  | { kind: "board-ops"; data: { requestId: string; ops: BoardOps } };
+  | { kind: "board-ops"; data: { requestId: string; ops: BoardOps } }
+  | { kind: "slot-ops"; data: { requestId: string; ops: SlotOps } };
 
 export type CanvasInjectionPayload = {
   count: number;

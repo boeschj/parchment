@@ -1,4 +1,11 @@
-import type { BoardOpsResult, BoardScene, EditKind, SessionSummary } from "../shared/types.ts";
+import type {
+  BoardOpsResult,
+  BoardScene,
+  EditKind,
+  SessionSummary,
+  Slot,
+  SlotOpsResult,
+} from "../shared/types.ts";
 
 const TOKEN_HEADER = "x-canvas-token";
 
@@ -94,6 +101,35 @@ export async function postBoardOpsResult(
     const text = await response.text();
     throw new Error(`postBoardOpsResult failed (${response.status}): ${text}`);
   }
+}
+
+export async function postSlotOpsResult(
+  sessionId: string,
+  requestId: string,
+  result: SlotOpsResult,
+): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/slots/ops-result`,
+    { method: "POST", headers, body: JSON.stringify({ requestId, result }) },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`postSlotOpsResult failed (${response.status}): ${text}`);
+  }
+}
+
+// The daemon's slot list is the source of truth — the slot-ops executor reads
+// it directly so a slot pushed moments before an export is always visible,
+// even if this tab's React state hasn't re-rendered yet.
+export async function fetchSessionSlots(sessionId: string): Promise<Slot[]> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/state`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`fetchSessionSlots failed (${response.status}): ${text}`);
+  }
+  const payload = (await response.json()) as { slots?: Slot[] };
+  return payload.slots ?? [];
 }
 
 export async function fetchSessions(): Promise<SessionSummary[]> {

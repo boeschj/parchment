@@ -1,8 +1,12 @@
 #!/usr/bin/env bun
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
-import { canvasCatalog } from "../shared/catalog/index.ts";
+import { autoFixSpec, formatSpecIssues, validateSpec, type Spec } from "@json-render/core";
+import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
+import { canvasCatalog, CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
 import {
   PlanFilePropsSchema,
 } from "../shared/catalog/extensions/PlanFile.ts";
@@ -23,8 +27,10 @@ import {
   readBoard,
   resolveActiveSessionId,
   sendBoardOps,
+  sendSlotOps,
 } from "./canvas-client.ts";
 import { summarizeBoardScene } from "./board.ts";
+import { STATE_DIR } from "./state.ts";
 
 const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const envSessionId =
@@ -84,6 +90,95 @@ function errorText(err: unknown): { content: [{ type: "text"; text: string }]; i
     content: [{ type: "text", text: `canvas error: ${message}` }],
     isError: true,
   };
+}
+
+// canvas_render accepts the FULL element grammar (on/repeat/watch/visible/state)
+// so interactive specs survive the MCP input layer. catalog.zodSchema() is NOT
+// used here — it strips those fields (json-render #222). Validation instead
+// happens in three explicit passes below, and failures come back to the model
+// as tool errors it can act on.
+const SpecElementSchema = z.object({
+  type: z.string(),
+  props: z.record(z.string(), z.unknown()).default({}),
+  children: z.array(z.string()).optional(),
+  visible: z.unknown().optional(),
+  on: z.record(z.string(), z.unknown()).optional(),
+  repeat: z
+    .object({ statePath: z.string(), key: z.string().optional() })
+    .optional(),
+  watch: z.record(z.string(), z.unknown()).optional(),
+});
+
+const SpecInputSchema = z
+  .object({
+    root: z.string().describe("Key of the root element."),
+    elements: z
+      .record(z.string(), SpecElementSchema)
+      .describe(
+        "Flat element map. Children reference sibling keys. Element fields: type, props, children, visible, on (event→action bindings), repeat ({statePath, key}), watch.",
+      ),
+    state: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe(
+        "Initial state model. Seed every path referenced by $state/$bindState/repeat. Put large datasets here once and reference them.",
+      ),
+  })
+  .describe("json-render spec: flat element tree + optional initial state.");
+
+const ComponentPropSchemas: Record<string, z.ZodType> = Object.fromEntries([
+  ...Object.entries(shadcnComponentDefinitions).map(([name, definition]) => {
+    const propsSchema = definition.props as unknown as z.ZodObject;
+    // shadcn definitions mark optional props .nullable() (not .optional());
+    // partial() tolerates omission while still catching wrong types and enums.
+    return [name, propsSchema.partial()] as const;
+  }),
+  ...Object.entries(CanvasExtensionDefinitions).map(
+    ([name, definition]) => [name, definition.props as z.ZodType] as const,
+  ),
+]);
+
+// Expression-valued props ({$state}, {$bindState}, {$template}, ...) resolve at
+// render time, so their static type never matches the prop schema — skip them.
+function isExpressionValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(isExpressionValue);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.keys(value).some((key) => key.startsWith("$"));
+}
+
+function staticPropsOnly(props: Record<string, unknown>): Record<string, unknown> {
+  const entries = Object.entries(props).filter(([, value]) => !isExpressionValue(value));
+  return Object.fromEntries(entries);
+}
+
+type SpecIssueList = string[];
+
+function validateElementProps(spec: Spec): SpecIssueList {
+  const issues: SpecIssueList = [];
+  for (const [key, element] of Object.entries(spec.elements)) {
+    const schema = ComponentPropSchemas[element.type];
+    if (!schema) {
+      const known = canvasCatalog.componentNames.join(", ");
+      issues.push(`elements/${key}: unknown component type "${element.type}". Known types: ${known}`);
+      continue;
+    }
+    const parsed = schema.safeParse(staticPropsOnly(element.props ?? {}));
+    if (parsed.success) continue;
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.length > 0 ? `props/${issue.path.join("/")}` : "props";
+      issues.push(`elements/${key}/${path}: ${issue.message}`);
+    }
+  }
+  return issues;
+}
+
+function specRejection(issues: SpecIssueList): ReturnType<typeof errorText> {
+  const bulleted = issues.map((issue) => `- ${issue}`).join("\n");
+  return errorText(
+    new Error(
+      `spec rejected (${issues.length} issue${issues.length === 1 ? "" : "s"}):\n${bulleted}\nFix these exact issues and re-push with the same slotId.`,
+    ),
+  );
 }
 
 const server = new McpServer({ name: "clawd-canvas", version: "0.2.0" });
@@ -212,17 +307,12 @@ server.registerTool(
   },
 );
 
-// canvas_render uses the FULL canvas catalog (36 shadcn + 5 extensions) as its
-// inputSchema, so Claude can compose arbitrary UI from any component. Use this
-// for dashboards, reports, multi-component compositions.
-const FullCanvasSpecSchema = canvasCatalog.zodSchema();
-
 server.registerTool(
   "canvas_render",
   {
     title: "Compose a Generative UI",
     description:
-      "DEFAULT TOOL for rich content. Render a COMPOSED UI from the 41-component catalog (Stack, Grid, Card, Heading, Text, Badge, Button, Tabs, Alert, Table, Separator, Accordion, Avatar, Progress, Tooltip, Input, Select, Switch, ... + the 5 canvas extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable). Use this WHENEVER you have something to show that isn't a one-liner — analyses, reports, dashboards, investigations, architecture writeups, multi-section explanations. COMPOSE the layout: outer Stack, Heading for the title, MermaidEditor for any diagram, Card sections for major chunks, DataTable for tabular data, Chart for metrics, Text for prose. Do NOT fall back to canvas_plan for long markdown — that's a single editable textarea, not a layout. The spec is validated against the catalog (props for each element are Zod-checked).",
+      "DEFAULT TOOL for rich content — anything you'd otherwise explain in more than a paragraph of terminal text. Composes UI from a 49-component catalog: layout (Stack, Grid, Card, Tabs, Separator, Accordion), coding-agent widgets (Metric, Steps, CodeBlock, Callout, Terminal, FileChange, TestResults, Markdown, MermaidEditor, DiffViewer, Chart, DataTable, PlanFile), forms (Input, Select, Switch, Button, ...). Specs support initial `state`, $state/$bindState/$template expressions, repeat-over-state lists, and `on` event bindings — Button on.press → canvas.submit delivers form payloads back to your next turn, which lets you build working forms and mini-apps over MCP tools. Consult the canvas-tools skill for composition patterns and the canvas-spec skill for grammar. Invalid specs are REJECTED with an issue list — fix the issues and re-push with the same slotId. After substantial renders, verify visually with canvas_snapshot.",
     inputSchema: z.object({
       title: z.string().describe("Slot title shown in the tab strip."),
       kind: z
@@ -233,25 +323,59 @@ server.registerTool(
         ])
         .optional()
         .describe("Slot kind: 'dashboard' for metrics/charts compositions, 'report' for long-form mixed content, 'render' (default) for general UI."),
-      spec: FullCanvasSpecSchema,
+      spec: SpecInputSchema,
       slotId: z.string().optional(),
     }),
   },
   async ({ title, kind, spec, slotId }) => {
     try {
       const resolvedSessionId = await resolveSessionId();
-      const validated = canvasCatalog.validate(spec);
-      const finalSpec = validated.success ? (validated.data as JsonRenderSpec) : (spec as JsonRenderSpec);
+      const { spec: fixedSpec } = autoFixSpec(spec as unknown as Spec);
+      const structural = validateSpec(fixedSpec, { checkOrphans: false });
+      const structuralIssues = structural.valid
+        ? []
+        : formatSpecIssues(structural.issues).split("\n").filter(Boolean);
+      const propIssues = validateElementProps(fixedSpec);
+      const allIssues = [...structuralIssues, ...propIssues];
+      if (allIssues.length > 0) {
+        return specRejection(allIssues);
+      }
       const slot = await pushSlot({
         sessionId: resolvedSessionId,
         cwd,
         kind: kind ?? SlotKind.Render,
         title,
-        spec: finalSpec,
+        spec: fixedSpec as unknown as JsonRenderSpec,
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
       return okText(slot.id, resolvedSessionId);
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_snapshot",
+  {
+    title: "See a Canvas Slot",
+    description:
+      "Export a rendered canvas slot as a PNG you can actually look at. Call this after any substantial canvas_render to verify the layout reads well (answer visible up top, tiles in rows, no text walls), then fix problems by re-pushing the same slotId. Requires a connected canvas browser tab.",
+    inputSchema: z.object({
+      slotId: z.string().describe("The slot id returned by a prior canvas_* tool."),
+    }),
+  },
+  async ({ slotId }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const result = await sendSlotOps(resolvedSessionId, { exportPng: { slotId } });
+      if (!result.ok || !result.pngBase64) {
+        return errorText(new Error(result.error ?? "slot export failed"));
+      }
+      return {
+        content: [{ type: "image" as const, data: result.pngBase64, mimeType: "image/png" as const }],
+      };
     } catch (caught) {
       return errorText(caught);
     }
@@ -406,6 +530,145 @@ server.registerTool(
       return {
         content: [{ type: "image" as const, data: result.pngBase64, mimeType: "image/png" as const }],
       };
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+// ---- Saved UI library -----------------------------------------------------
+// Slots persist on disk as full Slot JSON; the library is a named copy of
+// {title, kind, spec, state} under ~/.canvas/library/. Users can also drop
+// hand-written spec files there — anything loadable by canvas_load.
+
+const LIBRARY_DIR = join(STATE_DIR, "library");
+
+function libraryNameToPath(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (slug.length === 0) throw new Error(`invalid library name: "${name}"`);
+  return join(LIBRARY_DIR, `${slug}.json`);
+}
+
+type LibraryEntry = {
+  name: string;
+  savedAt: number;
+  title: string;
+  kind: SlotKind;
+  spec: JsonRenderSpec;
+  state?: Record<string, unknown>;
+};
+
+server.registerTool(
+  "canvas_save",
+  {
+    title: "Save a Slot to the UI Library",
+    description:
+      "Save a rendered slot's UI (spec + state) under a reusable name in the user's library (~/.canvas/library/). Use when the user says they like a view and wants to keep/reuse it. Reload later with canvas_load.",
+    inputSchema: z.object({
+      slotId: z.string().describe("The slot id to save."),
+      name: z.string().describe("Library name, e.g. 'perf-dashboard'. Lowercased and slugified."),
+    }),
+  },
+  async ({ slotId, name }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const slotPath = join(STATE_DIR, "sessions", resolvedSessionId, "slots", `${slotId}.json`);
+      if (!existsSync(slotPath)) {
+        return errorText(new Error(`slot ${slotId} not found on disk for session ${resolvedSessionId}`));
+      }
+      const slot = JSON.parse(readFileSync(slotPath, "utf8")) as {
+        title: string;
+        kind: SlotKind;
+        spec: JsonRenderSpec;
+        state?: Record<string, unknown>;
+      };
+      const entry: LibraryEntry = {
+        name,
+        savedAt: Date.now(),
+        title: slot.title,
+        kind: slot.kind,
+        spec: slot.spec,
+        ...(slot.state && Object.keys(slot.state).length > 0 ? { state: slot.state } : {}),
+      };
+      mkdirSync(LIBRARY_DIR, { recursive: true });
+      const target = libraryNameToPath(name);
+      writeFileSync(target, JSON.stringify(entry, null, 2));
+      return {
+        content: [{ type: "text" as const, text: `Saved "${slot.title}" to library as ${name} (${target}).` }],
+      };
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_load",
+  {
+    title: "Load a Saved UI from the Library",
+    description:
+      "Render a previously saved UI from the user's library onto the canvas. Refresh its data afterwards by re-pushing with the returned slotId if the saved data is stale.",
+    inputSchema: z.object({
+      name: z.string().describe("Library name used at save time."),
+      slotId: z.string().optional().describe("Replace this slot instead of allocating a new one."),
+    }),
+  },
+  async ({ name, slotId }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const target = libraryNameToPath(name);
+      if (!existsSync(target)) {
+        const available = existsSync(LIBRARY_DIR)
+          ? readdirSync(LIBRARY_DIR).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")).join(", ")
+          : "";
+        return errorText(new Error(`no saved UI named "${name}". Available: ${available || "(library is empty)"}`));
+      }
+      const entry = JSON.parse(readFileSync(target, "utf8")) as LibraryEntry;
+      const spec: JsonRenderSpec = entry.state ? { ...entry.spec, state: entry.state } : entry.spec;
+      const slot = await pushSlot({
+        sessionId: resolvedSessionId,
+        cwd,
+        kind: entry.kind ?? SlotKind.Render,
+        title: entry.title ?? entry.name,
+        spec,
+        origin: SlotOrigin.McpTool,
+        ...(slotId !== undefined ? { slotId } : {}),
+      });
+      return okText(slot.id, resolvedSessionId);
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_library",
+  {
+    title: "List Saved UIs",
+    description: "List the user's saved canvas UIs (name, title, saved date) from ~/.canvas/library/.",
+    inputSchema: z.object({}),
+  },
+  async () => {
+    try {
+      if (!existsSync(LIBRARY_DIR)) {
+        return { content: [{ type: "text" as const, text: "Library is empty." }] };
+      }
+      const lines = readdirSync(LIBRARY_DIR)
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => {
+          try {
+            const entry = JSON.parse(readFileSync(join(LIBRARY_DIR, file), "utf8")) as LibraryEntry;
+            const saved = entry.savedAt ? new Date(entry.savedAt).toISOString().slice(0, 10) : "?";
+            return `- ${file.replace(/\.json$/, "")} — "${entry.title}" (${entry.kind}, saved ${saved})`;
+          } catch {
+            return `- ${file.replace(/\.json$/, "")} — (unreadable)`;
+          }
+        });
+      const text = lines.length > 0 ? `Saved UIs:\n${lines.join("\n")}` : "Library is empty.";
+      return { content: [{ type: "text" as const, text }] };
     } catch (caught) {
       return errorText(caught);
     }

@@ -4,10 +4,23 @@ import {
   SlotOrigin,
   type Slot,
   type JsonRenderSpec,
+  type SlotOps,
+  type SlotOpsResult,
+  type WsEvent,
 } from "../shared/types.ts";
 import { persistSlot, removePersistedSlot } from "./session-store.ts";
 import { generateId } from "./ids.ts";
-import { broadcast, ensureSession, getSession } from "./sessions.ts";
+import {
+  broadcast,
+  ensureSession,
+  getSession,
+  type SessionRoom,
+  type WebSocketSubscriber,
+} from "./sessions.ts";
+
+// Slot ops hold the HTTP request open while one browser tab renders and
+// snapshots the slot — same budget as board ops.
+const SLOT_OPS_TIMEOUT_MS = 15_000;
 
 export type UpsertSlotInput = {
   sessionId: string;
@@ -26,6 +39,8 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
   const now = Date.now();
   const status = input.status ?? SlotStatus.Ready;
 
+  const seededState = seedInitialState(input.spec, input.state);
+
   if (input.slotId) {
     const existing = session.slots.find((slot) => slot.id === input.slotId);
     if (existing) {
@@ -35,7 +50,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
       existing.status = status;
       existing.origin = input.origin;
       existing.updatedAt = now;
-      if (input.state) existing.state = input.state;
+      if (seededState) existing.state = seededState;
       persistSlot(session.sessionId, existing);
       broadcast(session, { kind: "slot-updated", data: existing });
       return existing;
@@ -49,7 +64,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
     origin: input.origin,
     title: input.title,
     spec: input.spec,
-    state: input.state ?? {},
+    state: seededState ?? {},
     createdAt: now,
     updatedAt: now,
   };
@@ -86,4 +101,87 @@ export function removeSlot(sessionId: string, slotId: string): boolean {
 export function listSlots(sessionId: string): Slot[] {
   const session = getSession(sessionId);
   return session ? session.slots : [];
+}
+
+// Explicit state from the request body wins; otherwise the spec's own
+// declared initial state seeds the slot. Deep copy so later state mutations
+// never write back into the stored spec.
+function seedInitialState(
+  spec: JsonRenderSpec,
+  explicitState?: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (explicitState) return explicitState;
+  if (spec.state) return structuredClone(spec.state);
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Slot ops round-trip — mirrors the board ops machinery in board.ts.
+// ---------------------------------------------------------------------------
+
+type PendingSlotOps = {
+  resolve: (result: SlotOpsResult) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+const pendingSlotOps = new Map<string, PendingSlotOps>();
+
+// Per-session serialization, same rationale as board ops: overlapping ops in
+// the executing tab would race each other. The chain never rejects (results
+// are values), so one failure doesn't wedge the queue.
+const slotOpsQueues = new Map<string, Promise<SlotOpsResult>>();
+
+// Relay ops to ONE browser tab and hold the request until it reports back
+// under the same requestId. Exactly one tab: broadcasting would make every
+// connected tab render and respond, and only the first result would count.
+export function requestSlotOps(
+  session: SessionRoom,
+  ops: SlotOps,
+  canvasUrl: string,
+): Promise<SlotOpsResult> {
+  const previous = slotOpsQueues.get(session.sessionId) ?? Promise.resolve({ ok: true });
+  const run = previous.then(() => dispatchSlotOps(session, ops, canvasUrl));
+  slotOpsQueues.set(session.sessionId, run);
+  return run;
+}
+
+function dispatchSlotOps(
+  session: SessionRoom,
+  ops: SlotOps,
+  canvasUrl: string,
+): Promise<SlotOpsResult> {
+  const executor = firstSubscriber(session);
+  if (!executor) {
+    return Promise.resolve({
+      ok: false,
+      error: `no canvas tab is connected — ask the user to open ${canvasUrl}, then retry`,
+    });
+  }
+
+  const requestId = generateId("slotops");
+  return new Promise<SlotOpsResult>((resolve) => {
+    const timer = setTimeout(() => {
+      pendingSlotOps.delete(requestId);
+      resolve({ ok: false, error: "slot ops timed out — the canvas tab may be unresponsive" });
+    }, SLOT_OPS_TIMEOUT_MS);
+    pendingSlotOps.set(requestId, { resolve, timer });
+    const event: WsEvent = { kind: "slot-ops", data: { requestId, ops } };
+    executor.send(JSON.stringify(event));
+  });
+}
+
+function firstSubscriber(session: SessionRoom): WebSocketSubscriber | null {
+  for (const subscriber of session.subscribers) return subscriber;
+  return null;
+}
+
+// First result wins: resolving deletes the pending entry, so a duplicate or
+// late post for the same requestId is acknowledged as false and ignored.
+export function resolveSlotOps(requestId: string, result: SlotOpsResult): boolean {
+  const pending = pendingSlotOps.get(requestId);
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingSlotOps.delete(requestId);
+  pending.resolve(result);
+  return true;
 }
