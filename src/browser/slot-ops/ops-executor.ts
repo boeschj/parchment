@@ -58,9 +58,16 @@ async function exportSlotPng(sessionId: string, slotId: string): Promise<SlotOps
       return { ok: false, error: `slot render failed: ${describeError(renderError)}` };
     }
     await sleep(RENDER_SETTLE_MS);
+    flattenDisplayContentsWrappers(container);
 
     const rect = container.getBoundingClientRect();
     const backgroundColor = getComputedStyle(container).backgroundColor;
+    // html-to-image clones the root's inline styles, so a left:-20000px
+    // container paints its content 20000px outside the canvas and the capture
+    // comes out as pure background fill. Move to origin for the capture —
+    // the negative z-index hides it behind the opaque app root.
+    container.style.left = "0";
+    container.style.zIndex = "-2147483647";
     const dataUrl = await toPng(container, { backgroundColor, pixelRatio: 1 });
     if (!dataUrl.startsWith(PNG_DATA_URL_PREFIX)) {
       return { ok: false, error: "html-to-image did not return a PNG data URL" };
@@ -116,6 +123,19 @@ async function waitForContent(container: HTMLElement, hasFailed: () => boolean):
     if (hasFailed()) return;
     if (container.childElementCount > 0) return;
     await sleep(CONTENT_POLL_INTERVAL_MS);
+  }
+}
+
+// html-to-image rasterizes through an SVG foreignObject, which drops the
+// children of `display: contents` nodes — and json-render wraps every spec
+// element in one, so captures come out as an empty background. The offscreen
+// tree is disposable, so flatten the wrappers in place right before capture.
+function flattenDisplayContentsWrappers(container: HTMLElement): void {
+  const allNodes = container.querySelectorAll<HTMLElement>("*");
+  for (const node of allNodes) {
+    if (getComputedStyle(node).display === "contents") {
+      node.style.display = "block";
+    }
   }
 }
 

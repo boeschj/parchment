@@ -337,8 +337,11 @@ function SlotRenderer({ sessionId, slot }: { sessionId: string; slot: Slot }) {
     }, STATE_CHANGE_DEBOUNCE_MS);
   };
 
+  // key={slot.id}: without a remount, json-render's ActionProvider keeps the
+  // first-mounted slot's handler closures when the user switches tabs, so
+  // canvas.submit would record edits against the previous slot's id.
   return (
-    <SlotErrorBoundary slotId={slot.id}>
+    <SlotErrorBoundary key={slot.id} slotId={slot.id}>
       <SlotContextProvider sessionId={sessionId} slotId={slot.id}>
         <JSONUIProvider
           registry={registry}
