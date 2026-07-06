@@ -17,6 +17,7 @@ import { Terminal } from "./components/Terminal.tsx";
 import { FileChange } from "./components/FileChange.tsx";
 import { TestResults } from "./components/TestResults.tsx";
 import { Markdown } from "./components/Markdown.tsx";
+import { Scene3D } from "./components/Scene3D.tsx";
 import { canvasShadcnOverrides } from "./registry/canvas-shadcn.tsx";
 
 // Browser side: include both definitions + React implementations.
@@ -58,5 +59,6 @@ export const { registry } = defineRegistry(browserCatalog, {
     FileChange,
     TestResults,
     Markdown,
+    Scene3D,
   },
 });
