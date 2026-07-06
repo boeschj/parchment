@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
-import { autoFixSpec, formatSpecIssues, validateSpec, type Spec } from "@json-render/core";
+import { applySpecPatch, autoFixSpec, formatSpecIssues, validateSpec, type JsonPatch, type Spec } from "@json-render/core";
 import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
 import { canvasCatalog, CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
 import {
@@ -530,6 +530,74 @@ server.registerTool(
       return {
         content: [{ type: "image" as const, data: result.pngBase64, mimeType: "image/png" as const }],
       };
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_patch",
+  {
+    title: "Patch a Rendered Slot",
+    description:
+      "Surgically update an existing slot with RFC 6902 JSON Patch operations against its spec — ~10x cheaper than re-sending the whole spec for small changes. Paths are relative to the spec object: /elements/<key>/props/<prop>, /elements/<key> (add/remove whole elements — remember to also patch the parent's children array), /state/<path>, /root. Use for iterations: new chart data, added tiles, text fixes, theme/prop tweaks. The patched spec is re-validated; failures reject with an issue list and the slot keeps its previous state.",
+    inputSchema: z.object({
+      slotId: z.string().describe("The slot to patch."),
+      patches: z
+        .array(
+          z.object({
+            op: z.enum(["add", "replace", "remove", "move", "copy", "test"]),
+            path: z.string().describe("RFC 6901 pointer into the spec, e.g. /elements/chart/props/data"),
+            value: z.unknown().optional(),
+            from: z.string().optional(),
+          }),
+        )
+        .min(1),
+      title: z.string().optional().describe("Optionally retitle the slot."),
+    }),
+  },
+  async ({ slotId, patches, title }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const slotPath = join(STATE_DIR, "sessions", resolvedSessionId, "slots", `${slotId}.json`);
+      if (!existsSync(slotPath)) {
+        return errorText(new Error(`slot ${slotId} not found for session ${resolvedSessionId}`));
+      }
+      const slot = JSON.parse(readFileSync(slotPath, "utf8")) as {
+        title: string;
+        kind: SlotKind;
+        spec: JsonRenderSpec;
+      };
+      let patched = slot.spec as unknown as Spec;
+      for (const patch of patches) {
+        const patchOp: JsonPatch = {
+          op: patch.op,
+          path: patch.path,
+          ...(patch.value !== undefined ? { value: patch.value } : {}),
+          ...(patch.from !== undefined ? { from: patch.from } : {}),
+        };
+        patched = applySpecPatch(patched, patchOp);
+      }
+      const structural = validateSpec(patched, { checkOrphans: false });
+      const structuralIssues = structural.valid
+        ? []
+        : formatSpecIssues(structural.issues).split("\n").filter(Boolean);
+      const propIssues = validateElementProps(patched);
+      const allIssues = [...structuralIssues, ...propIssues];
+      if (allIssues.length > 0) {
+        return specRejection(allIssues);
+      }
+      const updated = await pushSlot({
+        sessionId: resolvedSessionId,
+        cwd,
+        kind: slot.kind,
+        title: title ?? slot.title,
+        spec: patched as unknown as JsonRenderSpec,
+        origin: SlotOrigin.McpTool,
+        slotId,
+      });
+      return okText(updated.id, resolvedSessionId);
     } catch (caught) {
       return errorText(caught);
     }
