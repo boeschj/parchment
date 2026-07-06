@@ -1,0 +1,375 @@
+/*
+ * Left rail — a resting 72px icon column that expands to a 220px labelled
+ * panel when the artifact stack overflows. Every colour reads from a theme
+ * token; the only fixed hues are the per-kind artifact tints (purple / amber /
+ * teal), for which the token set has no equivalent — per the design brief.
+ */
+
+.rail {
+  width: 72px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 8px 16px;
+  transition: width 200ms ease;
+  overflow: visible;
+}
+
+.rail--expanded {
+  width: 220px;
+  gap: 6px;
+}
+
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rail--expanded .rail-group {
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shared rail button — icon mode (resting) and row mode (expanded).
+ * ------------------------------------------------------------------ */
+
+.rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--sidebar-foreground);
+  border-radius: 9999px;
+  transition: background 120ms ease, color 120ms ease;
+  cursor: pointer;
+}
+
+.rail-item--icon {
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  align-self: center;
+}
+
+.rail-item--row {
+  width: 100%;
+  height: 36px;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: var(--radius-md, 10px);
+  justify-content: flex-start;
+}
+
+.rail-item:not(.rail-item--active):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.rail-item--active {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+
+.rail-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+/* Gold spine on the active row (the icon-mode equivalent is .rail-active-dot). */
+.rail-item--row.rail-item--active::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--sidebar-primary);
+}
+
+.rail-item__glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.rail-item__label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+/* Gold dot floating in the left gutter of the active resting icon. */
+.rail-active-dot {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--sidebar-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-kind artifact tint. --kind resolves the accent + glyph colour.
+ * ------------------------------------------------------------------ */
+
+.rail-artifact {
+  --kind: var(--muted-foreground);
+}
+.rail-artifact[data-kind="report"] {
+  --kind: var(--primary);
+}
+.rail-artifact[data-kind="dashboard"] {
+  --kind: var(--success);
+}
+.rail-artifact[data-kind="diagram"] {
+  --kind: #8b5cf6;
+}
+.rail-artifact[data-kind="diff"] {
+  --kind: #f59e0b;
+}
+.rail-artifact[data-kind="table"] {
+  --kind: #14b8a6;
+}
+.rail-artifact[data-kind="plan"] {
+  --kind: var(--muted-foreground);
+}
+.rail-artifact[data-kind="render"] {
+  --kind: var(--foreground);
+}
+
+/* Resting glyph is quietly tinted; hover and row modes bring it to full
+ * strength; the active gold treatment wins over all of them. */
+.rail-artifact__glyph {
+  color: color-mix(in srgb, var(--kind) 72%, var(--muted-foreground));
+}
+.rail-item--row .rail-artifact__glyph,
+.rail-artifact:hover .rail-artifact__glyph {
+  color: var(--kind);
+}
+/* Specificity matches the hover rule (three classes) and sits after it, so the
+ * active gold treatment wins even while the active artifact is hovered. */
+.rail-artifact.rail-item--active .rail-artifact__glyph {
+  color: var(--sidebar-accent-foreground);
+}
+
+/* The kind accent — a 3px rounded bar. In the gutter beside the resting icon,
+ * along the leading edge of the expanded row. Hidden once active (the gold
+ * spine/dot takes over). */
+.rail-artifact__accent {
+  position: absolute;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--kind);
+  opacity: 0.65;
+}
+.rail-item--icon .rail-artifact__accent {
+  left: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+}
+.rail-item--row .rail-artifact__accent {
+  left: 4px;
+  top: 9px;
+  bottom: 9px;
+  opacity: 0.7;
+}
+.rail-item--active .rail-artifact__accent {
+  display: none;
+}
+
+/* Unseen indicator — a gold pip that rides the icon until the slot is opened. */
+.rail-unseen-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--sidebar-primary);
+  box-shadow: 0 0 0 2px var(--background);
+}
+.rail-item--row .rail-unseen-dot {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+/* ------------------------------------------------------------------ *
+ * Separators, the "canvas" caption, and the overflow / collapse controls.
+ * ------------------------------------------------------------------ */
+
+.rail-divider,
+.rail-hairline {
+  height: 1px;
+  background: var(--border);
+  border-radius: 9999px;
+  align-self: center;
+  width: 16px;
+}
+
+.rail--expanded .rail-divider,
+.rail--expanded .rail-hairline {
+  align-self: stretch;
+  width: auto;
+  margin: 2px 6px;
+}
+
+.rail-spacer {
+  flex: 1 1 auto;
+}
+
+.rail-artifacts-header {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+.rail-artifacts-header--collapsed {
+  justify-content: center;
+}
+.rail-artifacts-header--expanded {
+  justify-content: space-between;
+  padding: 0 4px 0 12px;
+}
+
+.rail-caption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.rail-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.rail-collapse:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.rail-collapse:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+.rail-overflow {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.rail-overflow__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.rail-overflow:hover .rail-overflow__count {
+  color: var(--foreground);
+}
+
+/* ------------------------------------------------------------------ *
+ * The artifact list — resting height when collapsed, scrolling fill when
+ * expanded so the theme toggle stays pinned to the bottom.
+ * ------------------------------------------------------------------ */
+
+.rail-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rail-artifacts--expanded {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 4px;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
+}
+
+.rail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.rail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rail-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+.rail-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* ------------------------------------------------------------------ *
+ * Hover flyout — fixed to the viewport so it clears any clipping ancestor,
+ * anchored just right of the icon and clamped away from the viewport edge.
+ * ------------------------------------------------------------------ */
+
+.rail-flyout {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 140px;
+  max-width: 240px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--popover);
+  border: 1px solid var(--hairline);
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.35),
+    0 2px 8px -4px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  animation: rail-flyout-in 120ms ease both;
+}
+
+.rail-flyout__title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-flyout__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+@keyframes rail-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

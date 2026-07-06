@@ -108,6 +108,14 @@ export function MoonIcon(props: IconProps) {
   );
 }
 
+export function ChevronsLeftIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden {...props}>
+      <path d="M11 5l-4 5 4 5 M15 5l-4 5 4 5" {...STROKE} />
+    </svg>
+  );
+}
+
 const SLOT_KIND_ICON: Record<string, (props: IconProps) => React.JSX.Element> = {
   [SlotKind.Plan]: DocIcon,
   [SlotKind.Diagram]: FlowIcon,

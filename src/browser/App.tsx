@@ -94,6 +94,7 @@ export function App() {
             hasPlan={planSlot !== null}
             theme={theme}
             onToggleTheme={toggleTheme}
+            newestSeenUpdatedAt={viewChoice?.newestSeenUpdatedAt ?? newestSlotUpdatedAt(slots)}
           />
           <div className="flex-1 min-w-0 flex flex-col">
             <ViewContent
