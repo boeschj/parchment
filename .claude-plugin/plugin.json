@@ -1,8 +1,10 @@
 {
   "name": "clawd-canvas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Generative-UI canvas for Claude Code. Claude calls canvas_* MCP tools, your browser tab renders json-render specs (full shadcn catalog plus PlanFile, DiffViewer, MermaidEditor, Chart, DataTable extensions), and edits flow back into Claude's next turn via UserPromptSubmit.",
-  "author": { "name": "Jordan Boesch" },
+  "author": {
+    "name": "Jordan Boesch"
+  },
   "license": "MIT",
   "keywords": [
     "canvas",
@@ -18,7 +20,10 @@
   "mcpServers": {
     "canvas": {
       "command": "bun",
-      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/src/daemon/mcp-stdio.ts"],
+      "args": [
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}/src/daemon/mcp-stdio.ts"
+      ],
       "env": {
         "CANVAS_MCP_DEBUG": "1"
       }

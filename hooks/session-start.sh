@@ -9,30 +9,42 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib.sh"
 mkdir -p "${CANVAS_STATE_DIR}"
 
 # First-run self-build: a marketplace install drops the raw repo with no
-# node_modules and no dist/browser. Build once, guarded by a lock so parallel
-# session starts don't race. Subsequent starts cost two stat calls.
+# node_modules and no dist/browser. The build runs DETACHED so a cold-cache
+# install (which can exceed the SessionStart hook timeout) never gets killed
+# mid-build; the detached chain also boots the daemon when it finishes. A lock
+# guards against parallel session starts, and a stale lock (crashed or
+# timeout-killed builder) self-heals after 10 minutes.
+BUILD_LOCK_STALE_MINUTES=10
+
 if [[ ! -d "${CLAUDE_PLUGIN_ROOT}/node_modules" || ! -d "${CLAUDE_PLUGIN_ROOT}/dist/browser" ]]; then
   if ! command -v bun >/dev/null 2>&1; then
     echo "[clawd-canvas] bun not found in PATH — install bun (https://bun.sh) and re-run \`claude\`." >&2
     exit 0
   fi
   build_lock="${CANVAS_STATE_DIR}/first-run-build.lock"
-  if mkdir "${build_lock}" 2>/dev/null; then
-    echo "[clawd-canvas] first run — installing deps and building (one-time, ~30s)…" >&2
-    (
-      cd "${CLAUDE_PLUGIN_ROOT}" &&
-        bun install --silent &&
-        bun run build:browser
-    ) >>"${CANVAS_STATE_DIR}/first-run-build.log" 2>&1 || {
-      echo "[clawd-canvas] first-run build failed — see ${CANVAS_STATE_DIR}/first-run-build.log" >&2
-      rmdir "${build_lock}" 2>/dev/null || true
-      exit 0
-    }
+  if [[ -d "${build_lock}" ]] && [[ -n "$(find "${build_lock}" -maxdepth 0 -mmin +${BUILD_LOCK_STALE_MINUTES} 2>/dev/null)" ]]; then
+    echo "[clawd-canvas] clearing stale first-run build lock." >&2
     rmdir "${build_lock}" 2>/dev/null || true
-  else
-    echo "[clawd-canvas] another session is running the first-time build; canvas will be up shortly." >&2
-    exit 0
   fi
+  if mkdir "${build_lock}" 2>/dev/null; then
+    echo "[clawd-canvas] first run — installing deps and building in the background (~1 min on a cold cache). The canvas comes up automatically when it finishes." >&2
+    nohup bash -c '
+      set -uo pipefail
+      cd "$1" || exit 1
+      if bun install --silent && bun run build:browser; then
+        rmdir "$2" 2>/dev/null || true
+        CANVAS_PORT="$3" nohup bun run "$1/src/daemon/server.ts" >>"$4" 2>&1 &
+      else
+        echo "[clawd-canvas] first-run build failed" >>"$5"
+        rmdir "$2" 2>/dev/null || true
+      fi
+    ' first-run-build "${CLAUDE_PLUGIN_ROOT}" "${build_lock}" "${CANVAS_DEFAULT_PORT}" "${CANVAS_LOG_FILE}" "${CANVAS_STATE_DIR}/first-run-build.log" \
+      >>"${CANVAS_STATE_DIR}/first-run-build.log" 2>&1 &
+    disown || true
+  else
+    echo "[clawd-canvas] another session is running the first-time build; the canvas will be up shortly." >&2
+  fi
+  exit 0
 fi
 
 if ! canvas_server_alive; then

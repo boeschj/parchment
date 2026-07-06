@@ -41,19 +41,31 @@ The daemon never idles itself out. Every slot, edit, and board scene is persiste
 Two commands inside Claude Code (requires [Bun](https://bun.sh) ≥ 1.3 on PATH):
 
 ```
-/plugin marketplace add jboesch/clawd-canvas
+/plugin marketplace add boeschj/clawd-canvas
 /plugin install clawd-canvas@clawd-canvas
 ```
 
-The first session after install runs a one-time build (~30 s, see the
-`[clawd-canvas]` line at startup). The plugin ships its own MCP server, hooks,
-and statusline default — nothing else to configure.
+The first session after install builds the canvas in the background (~1 min
+on a cold cache — watch for the `[clawd-canvas]` line at startup). The plugin
+ships its own MCP server and hooks; every session start prints the canvas URL.
+
+Optional: for a persistent statusline link (Claude Code doesn't yet let
+plugins set `statusLine` themselves), add to your `~/.claude/settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "bash ~/.claude/plugins/cache/clawd-canvas/clawd-canvas/scripts/statusline.sh"
+}
+```
+
+(adjust the path to your plugin install location, shown by `/plugin`).
 
 <details>
 <summary>Dev install (working from a clone)</summary>
 
 ```bash
-git clone https://github.com/jboesch/clawd-canvas
+git clone https://github.com/boeschj/clawd-canvas
 cd clawd-canvas
 bun install
 bun run build       # produces dist/browser/
