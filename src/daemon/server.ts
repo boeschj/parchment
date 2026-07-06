@@ -42,6 +42,7 @@ import type {
 import {
   recordEdit,
   buildInjectionPayload,
+  consumeOneShotEdits,
   renderInjectionMarkup,
   clearOverlay,
 } from "./edits.ts";
@@ -316,6 +317,7 @@ async function handleSessionRoute(
     const payload = buildInjectionPayload(sessionId);
     const format = new URL(request.url).searchParams.get("format");
     if (format === "injection") {
+      consumeOneShotEdits(sessionId);
       return new Response(renderInjectionMarkup(payload), {
         headers: { "content-type": "text/plain; charset=utf-8" },
       });

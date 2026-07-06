@@ -59,6 +59,28 @@ export function buildInjectionPayload(sessionId: string): CanvasInjectionPayload
   return { count: entries.length, entries };
 }
 
+const ONE_SHOT_EDIT_KINDS: ReadonlySet<EditKind> = new Set([
+  EditKind.FormSubmit,
+  EditKind.MermaidComment,
+]);
+
+// Discrete events are commands, not state: re-injecting a form submit on every
+// subsequent prompt would make Claude re-execute the action (file the ticket
+// twice). Consume them at delivery; sticky state kinds keep re-injecting until
+// the user clears. Persisting immediately also keeps a daemon restart from
+// resurrecting an already-delivered command.
+export function consumeOneShotEdits(sessionId: string): void {
+  const session = getSession(sessionId);
+  if (!session) return;
+  let removedAny = false;
+  for (const [key, entry] of session.overlay) {
+    if (!ONE_SHOT_EDIT_KINDS.has(entry.kind)) continue;
+    session.overlay.delete(key);
+    removedAny = true;
+  }
+  if (removedAny) persistSessionEdits(session);
+}
+
 // Drain pending edits (one-shot list) without clearing the sticky overlay.
 // The hook reads the overlay payload; this helper is for diagnostics.
 export function drainPendingEdits(sessionId: string): Edit[] {

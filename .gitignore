@@ -7,3 +7,5 @@ bun.lock
 .env.local
 *.log
 .gstack/
+.claude/
+temp-context.txt
