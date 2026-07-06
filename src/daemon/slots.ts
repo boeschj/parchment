@@ -131,9 +131,12 @@ const pendingSlotOps = new Map<string, PendingSlotOps>();
 // are values), so one failure doesn't wedge the queue.
 const slotOpsQueues = new Map<string, Promise<SlotOpsResult>>();
 
-// Relay ops to ONE browser tab and hold the request until it reports back
-// under the same requestId. Exactly one tab: broadcasting would make every
-// connected tab render and respond, and only the first result would count.
+// Relay ops to EVERY connected tab and hold the request until the first one
+// reports back under the same requestId. Broadcast, not unicast: subscriber
+// iteration order is connection age, and a stale tab (pre-reload bundle, no
+// slot-ops listener) that happens to be oldest would swallow a unicast
+// forever. Redundant offscreen renders in other tabs are wasted but harmless —
+// resolveSlotOps takes the first result and acknowledges the rest as false.
 export function requestSlotOps(
   session: SessionRoom,
   ops: SlotOps,
@@ -150,8 +153,7 @@ function dispatchSlotOps(
   ops: SlotOps,
   canvasUrl: string,
 ): Promise<SlotOpsResult> {
-  const executor = firstSubscriber(session);
-  if (!executor) {
+  if (session.subscribers.size === 0) {
     return Promise.resolve({
       ok: false,
       error: `no canvas tab is connected — ask the user to open ${canvasUrl}, then retry`,
@@ -166,13 +168,11 @@ function dispatchSlotOps(
     }, SLOT_OPS_TIMEOUT_MS);
     pendingSlotOps.set(requestId, { resolve, timer });
     const event: WsEvent = { kind: "slot-ops", data: { requestId, ops } };
-    executor.send(JSON.stringify(event));
+    const frame = JSON.stringify(event);
+    for (const subscriber of session.subscribers) {
+      subscriber.send(frame);
+    }
   });
-}
-
-function firstSubscriber(session: SessionRoom): WebSocketSubscriber | null {
-  for (const subscriber of session.subscribers) return subscriber;
-  return null;
 }
 
 // First result wins: resolving deletes the pending entry, so a duplicate or
