@@ -6,6 +6,7 @@ import { TranscriptItemKind } from "../transcript/parse.ts";
 import { SystemSubtype } from "../../shared/trace/entry-types.ts";
 import { InspectableRow, JsonPanel, ToolCall } from "./ToolCall.tsx";
 import { ImageAttachments } from "./ImageAttachments.tsx";
+import { Terminal } from "./Terminal.tsx";
 import "./transcript.css";
 
 const RowKind = {
@@ -96,6 +97,8 @@ function TranscriptItemView({ item, timeLabel }: { item: TranscriptItem; timeLab
       );
     case TranscriptItemKind.Thinking:
       return <ThinkingBlock text={item.text} />;
+    case TranscriptItemKind.Bash:
+      return <BashCommandBlock command={item.command} output={item.output} timeLabel={timeLabel} />;
     case TranscriptItemKind.Tool:
       return <ToolCall item={item} />;
     case TranscriptItemKind.Compaction:
@@ -187,6 +190,29 @@ function ThinkingBlock({ text }: { text: string }) {
         {text}
       </div>
     </details>
+  );
+}
+
+// Inline `!command` bash. The Terminal component caps its own output height
+// and scrolls internally, so long install/build logs never blow out the
+// timeline the way a raw text bubble did.
+function BashCommandBlock({
+  command,
+  output,
+  timeLabel,
+}: {
+  command: string;
+  output: string;
+  timeLabel: string | null;
+}) {
+  return (
+    <div className="ml-12">
+      <div className="flex items-center justify-end gap-3 mb-1.5">
+        <span className="label">bash</span>
+        {timeLabel ? <span className="label tabular-nums">{timeLabel}</span> : null}
+      </div>
+      <Terminal props={{ command, output }} />
+    </div>
   );
 }
 
@@ -489,7 +515,9 @@ function buildTranscriptRows(items: TranscriptItem[]): TranscriptRow[] {
 
     let timeLabel: string | null = null;
     const isUserAuthored =
-      item.kind === TranscriptItemKind.User || item.kind === TranscriptItemKind.SlashCommand;
+      item.kind === TranscriptItemKind.User ||
+      item.kind === TranscriptItemKind.SlashCommand ||
+      item.kind === TranscriptItemKind.Bash;
     if (item.timestampMs !== null && isUserAuthored) {
       timeLabel = formatTimeOfDay(item.timestampMs);
       nextAssistantIsTurnAnchor = true;
