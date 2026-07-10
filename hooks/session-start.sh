@@ -8,6 +8,10 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib.sh"
 
 mkdir -p "${CANVAS_STATE_DIR}"
 
+# Refresh the stable statusline launcher so a user's settings.json path
+# (bash ~/.canvas/statusline.sh) keeps working across plugin updates.
+canvas_write_statusline_launcher
+
 # First-run self-build: a marketplace install drops the raw repo with no
 # node_modules and no dist/browser. The build runs DETACHED so a cold-cache
 # install (which can exceed the SessionStart hook timeout) never gets killed
@@ -66,15 +70,28 @@ fi
 hook_input="$(cat -)"
 session_id="default"
 transcript_path=""
+cwd=""
 if command -v jq >/dev/null 2>&1; then
   session_id="$(printf '%s' "${hook_input}" | jq -r '.session_id // "default"')"
   transcript_path="$(printf '%s' "${hook_input}" | jq -r '.transcript_path // ""')"
+  cwd="$(printf '%s' "${hook_input}" | jq -r '.cwd // ""')"
 else
   parsed="$(printf '%s' "${hook_input}" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   if [[ -n "${parsed}" ]]; then session_id="${parsed}"; fi
   transcript_path="$(printf '%s' "${hook_input}" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  cwd="$(printf '%s' "${hook_input}" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
+# The MCP server scopes its active-session lookup by CLAUDE_PROJECT_DIR, so
+# activate with that exact value when present — otherwise the new session's cwd
+# won't match the lookup and the old session still wins. Fall back to hook cwd.
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  cwd="${CLAUDE_PROJECT_DIR}"
+fi
+
+# Announce this session as the foreground one (with its cwd) so MCP artifacts
+# route here — the /clear misattribution fix. Must run every SessionStart.
+canvas_activate_session "${session_id}" "${cwd}"
 canvas_register_transcript "${session_id}" "${transcript_path}"
 
 url="$(canvas_session_full_href "${session_id}")"

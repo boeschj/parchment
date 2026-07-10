@@ -80,6 +80,18 @@ export function setSessionStatus(sessionId: string, status: SessionStatus): Sess
   return session;
 }
 
+// SessionStart establishes the foreground session authoritatively: it stamps
+// the room with this session's cwd AND a fresh lastPing. Both are load-bearing
+// for /api/sessions/active. Without the cwd, a session started by /clear stays
+// cwd-less and gets filtered out of the cwd-scoped active-session pick, so MCP
+// artifacts keep landing on the session /clear just replaced. The fresh ping
+// makes the new session outrank that predecessor immediately.
+export function activateSession(sessionId: string, cwd: string): SessionRoom {
+  const session = ensureSession(sessionId, cwd);
+  session.lastPing = Date.now();
+  return session;
+}
+
 function evictStalestIfFull(): void {
   if (sessions.size < MAX_RESIDENT_SESSIONS) return;
   let stalest: SessionRoom | null = null;
