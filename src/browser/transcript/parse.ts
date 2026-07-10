@@ -37,6 +37,7 @@ export const TranscriptItemKind = {
   User: "user",
   Assistant: "assistant",
   Thinking: "thinking",
+  Bash: "bash",
   Tool: "tool",
   Compaction: "compaction",
   CompactSummary: "compact-summary",
@@ -87,6 +88,14 @@ export type TranscriptItem =
       kind: typeof TranscriptItemKind.Thinking;
       id: string;
       text: string;
+      timestampMs: number | null;
+      raw: RawEntry;
+    }
+  | {
+      kind: typeof TranscriptItemKind.Bash;
+      id: string;
+      command: string;
+      output: string;
       timestampMs: number | null;
       raw: RawEntry;
     }
@@ -442,6 +451,22 @@ function appendUserItems(
     return carriesToolResults;
   }
 
+  // Inline `!command` bash carries its input/output in bash-* envelopes. Left
+  // as plain text they render as a giant bubble with visible tags, so route
+  // them to a terminal block (command + captured output) instead.
+  const bashCommand = parseBashCommand(entry.text);
+  if (bashCommand !== null) {
+    items.push({
+      kind: TranscriptItemKind.Bash,
+      id: entryId,
+      command: bashCommand.command,
+      output: bashCommand.output,
+      timestampMs,
+      raw: entry.raw,
+    });
+    return carriesToolResults;
+  }
+
   if (entry.origin !== UserOrigin.Human) {
     const subtype = injectedSubtypeForOrigin(entry.origin);
     return appendInjectedContextItem(entry, items, entryId, subtype) || carriesToolResults;
@@ -782,4 +807,21 @@ function parseSlashCommand(text: string): { command: string; args: string } | nu
   const argsMatch = COMMAND_ARGS_PATTERN.exec(text);
   const args = (argsMatch?.[1] ?? "").trim();
   return { command, args };
+}
+
+const BASH_INPUT_PATTERN = /<bash-input>([\s\S]*?)<\/bash-input>/;
+const BASH_STDOUT_PATTERN = /<bash-stdout>([\s\S]*?)<\/bash-stdout>/;
+const BASH_STDERR_PATTERN = /<bash-stderr>([\s\S]*?)<\/bash-stderr>/;
+
+function parseBashCommand(text: string): { command: string; output: string } | null {
+  const inputMatch = BASH_INPUT_PATTERN.exec(text);
+  if (inputMatch === null) return null;
+
+  const command = (inputMatch[1] ?? "").trim();
+  if (command.length === 0) return null;
+
+  const stdout = (BASH_STDOUT_PATTERN.exec(text)?.[1] ?? "").trim();
+  const stderr = (BASH_STDERR_PATTERN.exec(text)?.[1] ?? "").trim();
+  const output = [stdout, stderr].filter((part) => part.length > 0).join("\n");
+  return { command, output };
 }

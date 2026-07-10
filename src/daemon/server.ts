@@ -11,6 +11,7 @@ import {
 import { guardRequest, jsonResponse, errorResponse, ErrorCode, HttpStatus } from "./security.ts";
 import {
   ensureSession,
+  activateSession,
   pingSession,
   pingKnownSession,
   getSession,
@@ -205,6 +206,15 @@ async function handleSessionRoute(
     }
     const session = ensureSession(sessionId);
     return jsonResponse(sessionSnapshot(session));
+  }
+
+  // SessionStart calls this so the daemon knows the foreground session id and
+  // its cwd the instant a session begins — the fix that makes /clear route new
+  // artifacts to the new session instead of the one it replaced.
+  if (subPath === "/activate" && method === "POST") {
+    const body = (await request.json()) as { cwd?: string };
+    const session = activateSession(sessionId, body.cwd ?? "");
+    return jsonResponse({ ok: true, sessionId: session.sessionId, cwd: session.cwd });
   }
 
   if (subPath === "/slots" && method === "POST") {

@@ -9,3 +9,5 @@ bun.lock
 .gstack/
 .claude/
 temp-context.txt
+docs/pr-assets/
+docs/pr-slides/

@@ -55,11 +55,25 @@ plugins set `statusLine` themselves), add to your `~/.claude/settings.json`:
 ```json
 "statusLine": {
   "type": "command",
-  "command": "bash ~/.claude/plugins/cache/clawd-canvas/clawd-canvas/scripts/statusline.sh"
+  "command": "bash ~/.canvas/statusline.sh"
 }
 ```
 
-(adjust the path to your plugin install location, shown by `/plugin`).
+`~/.canvas/statusline.sh` is a small launcher the plugin regenerates on every
+session start so it always points at your installed version. Use it rather than
+a path into `~/.claude/plugins/cache/…/<version>/scripts/…` — that path is
+version-stamped and dangles the next time the plugin updates.
+
+The launcher is written the first time a session starts with the plugin
+installed. Confirm it before restarting:
+
+```bash
+echo '{}' | bash ~/.canvas/statusline.sh
+```
+
+That prints `◐ canvas …` (or `◐ canvas: not running` if the daemon is down).
+If instead you see `No such file`, start one Claude Code session so the plugin
+can generate the launcher, then re-run the check.
 
 <details>
 <summary>Dev install (working from a clone)</summary>
