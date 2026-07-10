@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { SessionStatus, type SessionSummary } from "../../shared/types.ts";
 import { shortSessionLabel } from "../session.ts";
 
@@ -44,9 +45,7 @@ export function SessionSwitcher({
         <span className={`w-1.5 h-1.5 rounded-full ${currentMeta.dot}`} />
         <span className="max-w-[14rem] truncate text-foreground">{currentName}</span>
         <span className="font-mono text-[11px] opacity-70">{currentShortId}</span>
-        <span className="text-[10px] opacity-70" aria-hidden>
-          ▾
-        </span>
+        <ChevronDown size={13} className="opacity-70" aria-hidden />
       </button>
 
       {open ? (

@@ -1,122 +1,51 @@
-// Minimal line icons from the clawd-canvas mockups — 20px viewBox, 1.4
-// stroke, round caps. Sized by the consumer via width/height props.
+// Icon vocabulary — a thin adapter over lucide-react so the app shares one
+// visual language with the genui widgets (24-grid, 2px stroke, ~83% optical
+// fill). Exported names are the app's stable vocabulary; consumers size via
+// width/height (or lucide's size prop).
 
-import type { SVGProps } from "react";
+import {
+  ChartColumn,
+  ChevronsLeft,
+  CircleDollarSign,
+  FileDiff,
+  FileText,
+  FolderOpen,
+  Gauge,
+  MessageSquare,
+  Moon,
+  Network,
+  Presentation,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  Table,
+  Waypoints,
+  type LucideIcon,
+  type LucideProps,
+} from "lucide-react";
 
 import { SlotKind } from "../../shared/types.ts";
 
-type IconProps = SVGProps<SVGSVGElement>;
+export type IconProps = LucideProps;
 
-const STROKE = {
-  stroke: "currentColor",
-  strokeWidth: 1.4,
-  fill: "none",
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-} as const;
+export const DocIcon = FileText;
+export const FlowIcon = Waypoints;
+export const TableIcon = Table;
+export const ChartIcon = ChartColumn;
+export const DiffIcon = FileDiff;
+export const SparkleIcon = Sparkles;
+export const TranscriptIcon = MessageSquare;
+export const BoardIcon = Presentation;
+export const SunIcon = Sun;
+export const MoonIcon = Moon;
+export const ChevronsLeftIcon = ChevronsLeft;
+export const ExplorerIcon = FolderOpen;
+export const GraphIcon = Network;
+export const CostIcon = CircleDollarSign;
+export const ContextIcon = Gauge;
+export const ShieldIcon = ShieldCheck;
 
-export function DocIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M5 3h7l3 3v11H5z M12 3v3h3 M7 9h6 M7 12h6 M7 15h4" {...STROKE} />
-    </svg>
-  );
-}
-
-export function FlowIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <circle cx="5" cy="5" r="2" {...STROKE} />
-      <circle cx="15" cy="5" r="2" {...STROKE} />
-      <circle cx="10" cy="15" r="2" {...STROKE} />
-      <path d="M6.5 6.5 9 13.5 M13.5 6.5 11 13.5" {...STROKE} />
-    </svg>
-  );
-}
-
-export function TableIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <rect x="3" y="4" width="14" height="12" rx="1.5" {...STROKE} />
-      <path d="M3 8h14 M3 12h14 M10 4v12" {...STROKE} />
-    </svg>
-  );
-}
-
-export function ChartIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M3 16h14 M6 13V8 M10 13V5 M14 13v-4" {...STROKE} />
-    </svg>
-  );
-}
-
-export function DiffIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M6 4v12 M6 4l-2 2 M6 4l2 2 M14 16V4 M14 16l-2-2 M14 16l2-2" {...STROKE} />
-    </svg>
-  );
-}
-
-export function SparkleIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path
-        d="M10 3v3 M10 14v3 M3 10h3 M14 10h3 M5.5 5.5l2 2 M12.5 12.5l2 2 M14.5 5.5l-2 2 M7.5 12.5l-2 2"
-        {...STROKE}
-      />
-    </svg>
-  );
-}
-
-export function TranscriptIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3V5a1 1 0 0 1 1-1z" {...STROKE} />
-      <path d="M7 8h6 M7 11h4" {...STROKE} />
-    </svg>
-  );
-}
-
-export function BoardIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <rect x="3" y="3" width="14" height="14" rx="3" {...STROKE} />
-      <path d="M7 13l2.5-5 2 3.5L13 9" {...STROKE} />
-    </svg>
-  );
-}
-
-export function SunIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <circle cx="10" cy="10" r="3.2" {...STROKE} />
-      <path
-        d="M10 2.5v2 M10 15.5v2 M2.5 10h2 M15.5 10h2 M4.6 4.6l1.4 1.4 M14 14l1.4 1.4 M15.4 4.6 14 6 M6 14l-1.4 1.4"
-        {...STROKE}
-      />
-    </svg>
-  );
-}
-
-export function MoonIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z" {...STROKE} />
-    </svg>
-  );
-}
-
-export function ChevronsLeftIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M11 5l-4 5 4 5 M15 5l-4 5 4 5" {...STROKE} />
-    </svg>
-  );
-}
-
-const SLOT_KIND_ICON: Record<string, (props: IconProps) => React.JSX.Element> = {
+const SLOT_KIND_ICON: Record<string, LucideIcon> = {
   [SlotKind.Plan]: DocIcon,
   [SlotKind.Diagram]: FlowIcon,
   [SlotKind.Diff]: DiffIcon,
@@ -129,52 +58,4 @@ const SLOT_KIND_ICON: Record<string, (props: IconProps) => React.JSX.Element> = 
 export function SlotKindIcon({ kind, ...props }: IconProps & { kind: string }) {
   const Icon = SLOT_KIND_ICON[kind] ?? SparkleIcon;
   return <Icon {...props} />;
-}
-
-export function ExplorerIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3l1.5 2h6.5A1.5 1.5 0 0 1 17 7.5v7A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5z" {...STROKE} />
-      <path d="M6.5 12.5h7" {...STROKE} />
-    </svg>
-  );
-}
-
-export function GraphIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <circle cx="6" cy="4" r="1.8" {...STROKE} />
-      <circle cx="6" cy="16" r="1.8" {...STROKE} />
-      <circle cx="14" cy="10" r="1.8" {...STROKE} />
-      <path d="M6 5.8v8.4 M7.4 5.2c3.2 1.2 6.6 1 6.6 3 M7.4 14.8c3.2-1.2 6.6-1 6.6-3" {...STROKE} />
-    </svg>
-  );
-}
-
-export function CostIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <circle cx="10" cy="10" r="7" {...STROKE} />
-      <path d="M12.3 7.6c-.5-.7-1.3-1.1-2.3-1.1-1.4 0-2.4.8-2.4 1.9 0 2.6 5 1.2 5 3.9 0 1.2-1.1 2-2.6 2-1.1 0-2-.5-2.5-1.2 M10 5v10" {...STROKE} />
-    </svg>
-  );
-}
-
-export function ContextIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M4 16c0-6.6 2.7-12 6-12s6 5.4 6 12" {...STROKE} />
-      <path d="M4 16h12 M10 16v-4.5" {...STROKE} />
-      <circle cx="10" cy="10.5" r="1.2" {...STROKE} />
-    </svg>
-  );
-}
-
-export function ShieldIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden {...props}>
-      <path d="M10 3 4.5 5v5c0 3.6 2.3 6 5.5 7 3.2-1 5.5-3.4 5.5-7V5z" {...STROKE} />
-      <path d="M7.8 10.2l1.6 1.6 2.8-3" {...STROKE} />
-    </svg>
-  );
 }
