@@ -4,9 +4,8 @@ import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
-import { applySpecPatch, autoFixSpec, formatSpecIssues, validateSpec, type JsonPatch, type Spec } from "@json-render/core";
-import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
-import { canvasCatalog, CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
+import { applySpecPatch, type JsonPatch, type Spec } from "@json-render/core";
+import { canvasCatalog } from "../shared/catalog/index.ts";
 import {
   PlanFilePropsSchema,
 } from "../shared/catalog/extensions/PlanFile.ts";
@@ -30,7 +29,7 @@ import {
   sendSlotOps,
 } from "./canvas-client.ts";
 import { LiveSourceInputSchema } from "./live/types.ts";
-import { extractIntentMenu } from "./intents.ts";
+import { prepareSpec } from "./spec-validation.ts";
 import { STATE_DIR } from "./state.ts";
 import { ensureLibrarySeeded, listLibraryEntryNames, readLibraryEntry, writeLibraryEntry } from "./library.ts";
 
@@ -168,53 +167,7 @@ const SpecInputSchema = z
   })
   .describe("json-render spec: flat element tree + optional initial state.");
 
-const ComponentPropSchemas: Record<string, z.ZodType> = Object.fromEntries([
-  ...Object.entries(shadcnComponentDefinitions).map(([name, definition]) => {
-    const propsSchema = definition.props as unknown as z.ZodObject;
-    // shadcn definitions mark optional props .nullable() (not .optional());
-    // partial() tolerates omission while still catching wrong types and enums.
-    return [name, propsSchema.partial()] as const;
-  }),
-  ...Object.entries(CanvasExtensionDefinitions).map(
-    ([name, definition]) => [name, definition.props as z.ZodType] as const,
-  ),
-]);
-
-// Expression-valued props ({$state}, {$bindState}, {$template}, ...) resolve at
-// render time, so their static type never matches the prop schema — skip them.
-function isExpressionValue(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(isExpressionValue);
-  if (typeof value !== "object" || value === null) return false;
-  return Object.keys(value).some((key) => key.startsWith("$"));
-}
-
-function staticPropsOnly(props: Record<string, unknown>): Record<string, unknown> {
-  const entries = Object.entries(props).filter(([, value]) => !isExpressionValue(value));
-  return Object.fromEntries(entries);
-}
-
-type SpecIssueList = string[];
-
-function validateElementProps(spec: Spec): SpecIssueList {
-  const issues: SpecIssueList = [];
-  for (const [key, element] of Object.entries(spec.elements)) {
-    const schema = ComponentPropSchemas[element.type];
-    if (!schema) {
-      const known = canvasCatalog.componentNames.join(", ");
-      issues.push(`elements/${key}: unknown component type "${element.type}". Known types: ${known}`);
-      continue;
-    }
-    const parsed = schema.safeParse(staticPropsOnly(element.props ?? {}));
-    if (parsed.success) continue;
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.length > 0 ? `props/${issue.path.join("/")}` : "props";
-      issues.push(`elements/${key}/${path}: ${issue.message}`);
-    }
-  }
-  return issues;
-}
-
-function specRejection(issues: SpecIssueList): ReturnType<typeof errorText> {
+function specRejection(issues: string[]): ReturnType<typeof errorText> {
   const bulleted = issues.map((issue) => `- ${issue}`).join("\n");
   return errorText(
     new Error(
@@ -372,23 +325,16 @@ server.registerTool(
   async ({ title, kind, spec, slotId }) => {
     try {
       const resolvedSessionId = await resolveSessionId();
-      const { spec: fixedSpec } = autoFixSpec(spec as unknown as Spec);
-      const structural = validateSpec(fixedSpec, { checkOrphans: false });
-      const structuralIssues = structural.valid
-        ? []
-        : formatSpecIssues(structural.issues).split("\n").filter(Boolean);
-      const propIssues = validateElementProps(fixedSpec);
-      const intentIssues = extractIntentMenu(fixedSpec as unknown as JsonRenderSpec).issues;
-      const allIssues = [...structuralIssues, ...propIssues, ...intentIssues];
-      if (allIssues.length > 0) {
-        return specRejection(allIssues);
+      const { spec: preparedSpec, issues } = prepareSpec(spec as unknown as JsonRenderSpec);
+      if (issues.length > 0) {
+        return specRejection(issues);
       }
       const slot = await pushSlot({
         sessionId: resolvedSessionId,
         cwd,
         kind: kind ?? SlotKind.Render,
         title,
-        spec: fixedSpec as unknown as JsonRenderSpec,
+        spec: preparedSpec,
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
@@ -585,7 +531,7 @@ server.registerTool(
   {
     title: "Patch a Rendered Slot",
     description:
-      "Surgically update an existing slot with RFC 6902 JSON Patch operations against its spec — ~10x cheaper than re-sending the whole spec for small changes. Paths are relative to the spec object: /elements/<key>/props/<prop>, /elements/<key> (add/remove whole elements — remember to also patch the parent's children array), /state/<path>, /root. Use for iterations: new chart data, added tiles, text fixes, theme/prop tweaks. The patched spec is re-validated; failures reject with an issue list and the slot keeps its previous state.",
+      "PATCH-FIRST: for any SMALL change to a slot already on the canvas — a new metric value, an added row, a toggled visibility, an appended chart point, a retitle — patch it here instead of re-sending the whole spec with canvas_render. Surgical RFC 6902 JSON Patch against the slot's spec, ~10x cheaper than a full re-render. Paths are relative to the spec object: /elements/<key>/props/<prop>, /elements/<key> (add/remove whole elements — remember to also patch the parent's children array), /state/<path>, /root; append to an array with the '-' token (/elements/tbl/props/rows/-). The patched spec is re-validated; failures reject with an issue list and the slot keeps its previous state. Worked examples: canvas-tools skill, references/patch-cookbook.md.",
     inputSchema: z.object({
       slotId: z.string().describe("The slot to patch."),
       patches: z
@@ -623,22 +569,16 @@ server.registerTool(
         };
         patched = applySpecPatch(patched, patchOp);
       }
-      const structural = validateSpec(patched, { checkOrphans: false });
-      const structuralIssues = structural.valid
-        ? []
-        : formatSpecIssues(structural.issues).split("\n").filter(Boolean);
-      const propIssues = validateElementProps(patched);
-      const intentIssues = extractIntentMenu(patched as unknown as JsonRenderSpec).issues;
-      const allIssues = [...structuralIssues, ...propIssues, ...intentIssues];
-      if (allIssues.length > 0) {
-        return specRejection(allIssues);
+      const { spec: preparedSpec, issues } = prepareSpec(patched as unknown as JsonRenderSpec);
+      if (issues.length > 0) {
+        return specRejection(issues);
       }
       const updated = await pushSlot({
         sessionId: resolvedSessionId,
         cwd,
         kind: slot.kind,
         title: title ?? slot.title,
-        spec: patched as unknown as JsonRenderSpec,
+        spec: preparedSpec,
         origin: SlotOrigin.McpTool,
         slotId,
       });

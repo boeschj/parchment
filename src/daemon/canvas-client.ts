@@ -14,8 +14,10 @@ import type {
 const FETCH_TIMEOUT_MS = 5000;
 // Slot ops wait on a browser round-trip (daemon holds them up to 15s).
 const BROWSER_ROUNDTRIP_TIMEOUT_MS = 20_000;
-const HEALTH_WAIT_ATTEMPTS = 25;
-const HEALTH_WAIT_INTERVAL_MS = 200;
+// The daemon reaches health in well under 100ms, so poll fine (50ms) rather
+// than coarse (200ms) to shave the cold first-render wait. Same 5s ceiling.
+const HEALTH_WAIT_ATTEMPTS = 100;
+const HEALTH_WAIT_INTERVAL_MS = 50;
 const DAEMON_ENTRY = join(import.meta.dir, "server.ts");
 
 export class CanvasDaemonError extends Error {
