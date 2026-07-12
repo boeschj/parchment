@@ -16,6 +16,13 @@ const ChartKindSchema = z.enum([
   ChartKind.Scatter,
 ]);
 
+export const ChartXScale = {
+  Category: "category",
+  Time: "time",
+} as const;
+
+const ChartXScaleSchema = z.enum([ChartXScale.Category, ChartXScale.Time]);
+
 export const ChartPropsSchema = z.object({
   kind: ChartKindSchema.describe(
     "Chart type. 'line' / 'area' for time series; 'bar' for categorical comparisons; 'pie' for parts-of-whole; 'scatter' for two-dimensional points.",
@@ -44,6 +51,9 @@ export const ChartPropsSchema = z.object({
     .describe(
       "Chart height in pixels. Default 320. Set 480 for a full-section chart, 240 for compact.",
     ),
+  xScale: ChartXScaleSchema.optional().describe(
+    "'time' treats x values as epoch-milliseconds: continuous numeric axis pinned to the data window, HH:MM:SS ticks, per-point dots and reanimation off so streaming extends smoothly. Use for line/area fed by canvas_live (points carry `t`). Default 'category'.",
+  ),
 });
 
 export const ChartDefinition = {

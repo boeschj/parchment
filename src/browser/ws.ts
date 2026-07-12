@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Slot, WsEvent } from "../shared/types.ts";
+import { immutableSetByPath } from "@json-render/core/store-utils";
+import type { Slot, SlotStateChange, WsEvent } from "../shared/types.ts";
 import { appendEntries, emptyTranscript, type TranscriptModel } from "./transcript/parse.ts";
 
 const CONNECT_BASE_DELAY_MS = 500;
@@ -29,6 +30,13 @@ function reduceEvent(state: CanvasState, event: WsEvent): CanvasState {
       };
     case "slot-removed":
       return { ...state, slots: state.slots.filter((slot) => slot.id !== event.data.slotId) };
+    case "slot-state":
+      return {
+        ...state,
+        slots: state.slots.map((slot) =>
+          slot.id === event.data.slotId ? withStateChanges(slot, event.data.changes) : slot,
+        ),
+      };
     case "edit-recorded":
       return state;
     case "reset":
@@ -40,6 +48,19 @@ function reduceEvent(state: CanvasState, event: WsEvent): CanvasState {
     default:
       return state;
   }
+}
+
+// Fold daemon-pushed live data into the slot's state with structural sharing.
+// The new state object reaches JSONUIProvider as `initialState`; json-render's
+// StateProvider diffs it against the previous one and writes only the changed
+// paths into its store — no remount, no full-spec re-render, and no echo back
+// through onStateChange (the diff bypasses it by design).
+function withStateChanges(slot: Slot, changes: SlotStateChange[]): Slot {
+  let nextState = slot.state;
+  for (const change of changes) {
+    nextState = immutableSetByPath(nextState, change.path, change.value);
+  }
+  return { ...slot, state: nextState };
 }
 
 export function useCanvasWebSocket(

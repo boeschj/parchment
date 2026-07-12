@@ -24,9 +24,11 @@ import {
   canvasSessionUrl,
   closeSlot,
   pushSlot,
+  putLiveSources,
   resolveActiveSessionId,
   sendSlotOps,
 } from "./canvas-client.ts";
+import { LiveSourceInputSchema } from "./live/types.ts";
 import { STATE_DIR } from "./state.ts";
 
 const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
@@ -309,7 +311,7 @@ server.registerTool(
   {
     title: "Compose a Generative UI",
     description:
-      "DEFAULT TOOL for rich content — anything you'd otherwise explain in more than a paragraph of terminal text. Composes UI from a 49-component catalog: layout (Stack, Grid, Card, Tabs, Separator, Accordion), coding-agent widgets (Metric, Steps, CodeBlock, Callout, Terminal, FileChange, TestResults, Markdown, MermaidEditor, DiffViewer, Chart, DataTable, PlanFile), forms (Input, Select, Switch, Button, ...). Specs support initial `state`, $state/$bindState/$template expressions, repeat-over-state lists, and `on` event bindings — Button on.press → canvas.submit delivers form payloads back to your next turn, which lets you build working forms and mini-apps over MCP tools. Consult the canvas-tools skill for composition patterns and the canvas-spec skill for grammar. Invalid specs are REJECTED with an issue list — fix the issues and re-push with the same slotId. After substantial renders, verify visually with canvas_snapshot.",
+      "DEFAULT TOOL for rich content — anything you'd otherwise explain in more than a paragraph of terminal text. Composes UI from a 50-component catalog: layout (Stack, Grid, Card, Tabs, Separator, Accordion), coding-agent widgets (Metric, Steps, CodeBlock, Callout, Terminal, FileChange, TestResults, Markdown, MermaidEditor, DiffViewer, Chart, Sparkline, DataTable, PlanFile), forms (Input, Select, Switch, Button, ...). Specs support initial `state`, $state/$bindState/$template expressions, repeat-over-state lists, and `on` event bindings — Button on.press → canvas.submit delivers form payloads back to your next turn, which lets you build working forms and mini-apps over MCP tools. For dashboards that should keep updating after you're done, pair with canvas_live. Consult the canvas-tools skill for composition patterns and the canvas-spec skill for grammar. Invalid specs are REJECTED with an issue list — fix the issues and re-push with the same slotId. After substantial renders, verify visually with canvas_snapshot.",
     inputSchema: z.object({
       title: z.string().describe("Slot title shown in the tab strip."),
       kind: z
@@ -347,6 +349,44 @@ server.registerTool(
         ...(slotId !== undefined ? { slotId } : {}),
       });
       return okText(slot.id, resolvedSessionId);
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_live",
+  {
+    title: "Stream Live Data into a Slot",
+    description:
+      "Attach data sources to a rendered slot so its state updates continuously with ZERO further tool calls — compose the dashboard once, the daemon keeps it alive. Pattern: canvas_render a spec whose components bind to state ({\"$state\": \"/series\"}, seed \"/series\": [] in state), then register sources here targeting those paths. Kinds: 'file-tail' (follow a file; per-line jsonl/regex/number), 'command-poll' (run a shell command every N seconds), 'http-poll' (GET a URL), 'claude-sessions' (built-in fleet scanner of this machine's Claude Code sessions — writes {sessions: [{sessionId, project, title, status, model, turns, tokensIn, tokensOut, costUsd (estimated), lastActivityAt, ...}], totals, scannedAt} — one call = a live fleet+cost dashboard). append mode pushes time-stamped points ({t: epochMs, ...fields} — scalars become {t, value}) onto a bounded array; replace overwrites the path. For streaming charts set Chart xScale: 'time' with x: 't'. Each call replaces the slot's full source set; [] stops streaming; sources also die with canvas_close. Verify with canvas_snapshot after a few seconds.",
+    inputSchema: z.object({
+      slotId: z.string().describe("Slot to feed, from a prior canvas_render."),
+      sources: z
+        .array(LiveSourceInputSchema)
+        .describe("The slot's complete desired source set — replaces any previous registration."),
+    }),
+  },
+  async ({ slotId, sources }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const { sourceIds } = await putLiveSources(resolvedSessionId, slotId, sources);
+      if (sourceIds.length === 0) {
+        return {
+          content: [
+            { type: "text" as const, text: `Stopped live streaming for slot ${slotId}.` },
+          ],
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Streaming ${sourceIds.join(", ")} into slot ${slotId}. State updates flow with no further tool calls. View: ${canvasSessionUrl(resolvedSessionId)}`,
+          },
+        ],
+      };
     } catch (caught) {
       return errorText(caught);
     }

@@ -19,7 +19,7 @@ import {
   YAxis,
 } from "recharts";
 import type { z } from "zod/v4";
-import { ChartKind, ChartPropsSchema } from "../../shared/catalog/extensions/Chart.ts";
+import { ChartKind, ChartPropsSchema, ChartXScale } from "../../shared/catalog/extensions/Chart.ts";
 
 type ChartProps = z.infer<typeof ChartPropsSchema>;
 type RenderProps = { props: ChartProps };
@@ -52,6 +52,43 @@ function formatCompactNumber(value: unknown): string {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return String(value);
   return COMPACT_NUMBER.format(numeric);
+}
+
+function formatClockTime(value: unknown): string {
+  const epochMs = Number(value);
+  if (!Number.isFinite(epochMs)) return String(value);
+  return new Date(epochMs).toLocaleTimeString(undefined, { hour12: false });
+}
+
+// Streaming behavior for xScale 'time': a continuous numeric axis pinned to
+// the data window slides as points arrive, and recharts' restart-the-whole-
+// line animation plus per-point dots are disabled — both thrash on live data.
+function isTimeScale(props: ChartProps): boolean {
+  return props.xScale === ChartXScale.Time;
+}
+
+function timeXAxisProps(props: ChartProps) {
+  if (!isTimeScale(props)) return {};
+  return {
+    type: "number",
+    domain: ["dataMin", "dataMax"],
+    tickFormatter: formatClockTime,
+  } as const;
+}
+
+function timeTooltipProps(props: ChartProps) {
+  if (!isTimeScale(props)) return {};
+  return { labelFormatter: formatClockTime } as const;
+}
+
+function seriesMotionProps(props: ChartProps) {
+  if (!isTimeScale(props)) return {};
+  return { isAnimationActive: false } as const;
+}
+
+function lineDotFor(props: ChartProps): { r: number } | false {
+  if (isTimeScale(props)) return false;
+  return { r: 3 };
 }
 
 function colorAt(index: number): string {
@@ -108,14 +145,20 @@ function renderChart(
       return (
         <LineChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={AXIS_FONT_SIZE} tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey={props.x}
+            fontSize={AXIS_FONT_SIZE}
+            tickLine={false}
+            axisLine={false}
+            {...timeXAxisProps(props)}
+          />
           <YAxis
             fontSize={AXIS_FONT_SIZE}
             tickLine={false}
             axisLine={false}
             tickFormatter={formatCompactNumber}
           />
-          <Tooltip />
+          <Tooltip {...timeTooltipProps(props)} />
           {showLegend ? <Legend /> : null}
           {seriesKeys.map((key, index) => (
             <Line
@@ -124,7 +167,8 @@ function renderChart(
               dataKey={key}
               stroke={colorAt(index)}
               strokeWidth={2}
-              dot={{ r: 3 }}
+              dot={lineDotFor(props)}
+              {...seriesMotionProps(props)}
             />
           ))}
         </LineChart>
@@ -163,14 +207,20 @@ function renderChart(
       return (
         <AreaChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-          <XAxis dataKey={props.x} fontSize={AXIS_FONT_SIZE} tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey={props.x}
+            fontSize={AXIS_FONT_SIZE}
+            tickLine={false}
+            axisLine={false}
+            {...timeXAxisProps(props)}
+          />
           <YAxis
             fontSize={AXIS_FONT_SIZE}
             tickLine={false}
             axisLine={false}
             tickFormatter={formatCompactNumber}
           />
-          <Tooltip />
+          <Tooltip {...timeTooltipProps(props)} />
           {showLegend ? <Legend /> : null}
           {seriesKeys.map((key, index) => (
             <Area
@@ -180,6 +230,7 @@ function renderChart(
               stroke={colorAt(index)}
               fill={colorAt(index)}
               fillOpacity={0.3}
+              {...seriesMotionProps(props)}
             />
           ))}
         </AreaChart>

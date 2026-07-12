@@ -129,11 +129,18 @@ export type SlotOpsResult = {
   height?: number;
 };
 
+// One JSON Pointer write the daemon's live data engine applied to a slot's
+// state. The browser folds these into slot.state; json-render's StateProvider
+// diffs the new state object and updates only the touched paths, so live data
+// never re-renders the whole spec.
+export type SlotStateChange = { path: string; value: unknown };
+
 export type WsEvent =
   | { kind: "snapshot"; data: { sessionId: string; slots: Slot[] } }
   | { kind: "slot-added"; data: Slot }
   | { kind: "slot-updated"; data: Slot }
   | { kind: "slot-removed"; data: { slotId: string } }
+  | { kind: "slot-state"; data: { slotId: string; changes: SlotStateChange[] } }
   | { kind: "edit-recorded"; data: Edit }
   | { kind: "reset"; data: { sessionId: string } }
   | { kind: "transcript-snapshot"; data: { entries: TranscriptEntry[] } }

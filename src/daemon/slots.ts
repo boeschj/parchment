@@ -10,6 +10,7 @@ import {
 } from "../shared/types.ts";
 import { persistSlot, removePersistedSlot } from "./session-store.ts";
 import { generateId } from "./ids.ts";
+import { stopSlotLiveSources } from "./live/engine.ts";
 import {
   broadcast,
   ensureSession,
@@ -93,6 +94,7 @@ export function removeSlot(sessionId: string, slotId: string): boolean {
   const before = session.slots.length;
   session.slots = session.slots.filter((slot) => slot.id !== slotId);
   if (session.slots.length === before) return false;
+  stopSlotLiveSources(sessionId, slotId);
   removePersistedSlot(sessionId, slotId);
   broadcast(session, { kind: "slot-removed", data: { slotId } });
   return true;

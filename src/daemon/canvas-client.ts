@@ -162,6 +162,27 @@ export async function closeSlot(sessionId: string, slotId: string): Promise<void
   }
 }
 
+// Replace a slot's full live-source set. The daemon validates and answers
+// 400 with a per-source issue list; surfacing that text verbatim lets the
+// model fix the exact problem and retry.
+export async function putLiveSources(
+  sessionId: string,
+  slotId: string,
+  sources: unknown[],
+): Promise<{ sourceIds: string[] }> {
+  await ensureDaemonAlive();
+  const response = await authorizedFetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/live`,
+    { method: "PUT", body: JSON.stringify({ slotId, sources }) },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new CanvasDaemonError(`registering live sources failed (${response.status}): ${text}`);
+  }
+  const payload = (await response.json()) as { sourceIds: string[] };
+  return { sourceIds: payload.sourceIds ?? [] };
+}
+
 export async function sendSlotOps(sessionId: string, ops: SlotOps): Promise<SlotOpsResult> {
   await ensureDaemonAlive();
   const response = await authorizedFetch(
