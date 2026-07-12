@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "e862afb9-18b2-4e94-8eb9-83e34295b742",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment--claude-worktrees-agent-af647c12b66c3b772-bench--runs-2026-07-12T06-31-15-061Z-status-dashboard-html-rep-2/e862afb9-18b2-4e94-8eb9-83e34295b742.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0825476,
+    "durationMs": 74174,
+    "sessionId": "e862afb9-18b2-4e94-8eb9-83e34295b742",
+    "resultText": "Created `dashboard.html` with a fully self-contained CI status dashboard. It includes:\n\n- **KPI Row**: Three styled cards displaying Build Pass Rate (94%), Avg Build Time (4m12s), and Open Incidents (2)\n- **Bar Chart**: Build durations for the last 7 days with green bars (red for Friday's 20-minute spike)\n- **Line Chart**: Daily deploy counts with a blue line connecting the data points\n\nAll styling is inline, charts use SVG with proper axes and grid lines, and the file opens standalone from disk with no external dependencies. The layout is responsive and includes hover effects on KPI cards."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 25000,
+    "totalCompletionTokens": 9418,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 16994,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T06:34:15.605Z"
+}
