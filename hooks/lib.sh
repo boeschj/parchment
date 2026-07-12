@@ -192,13 +192,16 @@ canvas_set_status() {
   disown $! 2>/dev/null || true
 }
 
+# Poll fine (50ms) rather than coarse (200ms): the daemon boots in well under
+# 100ms, so a 200ms interval more than doubled the observed cold time-to-first
+# -canvas. Same 4s ceiling (80 * 0.05s), just detected sooner.
 canvas_wait_for_health() {
-  local attempts=20
+  local attempts=80
   while (( attempts > 0 )); do
     if canvas_server_alive; then
       return 0
     fi
-    sleep 0.2
+    sleep 0.05
     attempts=$((attempts - 1))
   done
   return 1
