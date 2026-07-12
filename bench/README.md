@@ -154,16 +154,25 @@ Notes on flags that mattered:
   almost the entire system prompt and tool schemas arrive as cache reads. Using `input_tokens`
   alone under-reports by ~1000x on some turns (verified: a run showing 34 "prompt tokens" cost
   $0.055 — obviously wrong; the same run recomputed with cache tokens included showed ~54k).
-- **tokens-per-live-update** (metric c): not measured end-to-end by this harness version. See
-  `bench/scenarios/live-update-plan.ts` — the interface is built (20 synthetic log-line updates,
-  a static capability probe for the not-yet-landed `canvas_live` MCP tool, an HTML-arm update
-  prompt builder), but running the real 20-update HTML sweep costs 20 `claude -p` calls per
-  arm/model/rep and was out of tonight's approved smoke-spend cap. Wire a `bench live-update`
-  subcommand around `buildHtmlLiveUpdatePlan` for the moderate suite.
-- **time-to-first-canvas** (metric d, daemon cold vs warm): not measured by this harness version.
-  `daemon-harness.ts`'s `startBenchDaemon` already times its own health-poll loop — wrap two
-  calls (one against a fresh `HOME`, one reusing a warm one) and diff `Date.now()` around
-  `waitForDaemonHealth` to measure this without spending any `claude -p` tokens at all.
+- **tokens-per-live-update** (metric c): measured by `bun run bench/live-update.ts` (10 updates
+  per arm, 1 rep, haiku). The parchment arm makes ONE `claude -p` call (canvas_render seeding
+  chart state + canvas_live registering a file-tail source), after which the script appends
+  lines directly to the tailed file and polls the daemon's own `/api/sessions/<id>/state`
+  endpoint to watch the slot's state array grow — proving the zero-token claim by observation,
+  not assumption. The HTML arm makes 1 create call + 10 `--resume`d update calls, each a real
+  billable turn, priced from that call's own usage block (never the cumulative session JSONL,
+  which would double-count earlier calls).
+- **time-to-first-canvas** (metric d, daemon cold vs warm): measured by
+  `bun run bench/time-to-first-canvas.ts` — 5 iterations of a cold boot (fresh HOME) followed
+  by a warm boot (same HOME, state already initialized), timing `startBenchDaemon`'s own
+  health-poll loop. Zero LLM cost.
+- **skills delta**: `bun run bench/skills-delta.ts` re-runs status-dashboard/parchment/haiku
+  with the canvas-tools + canvas-spec SKILL.md cores passed via `--append-system-prompt`
+  (2 reps). Every other run uses `--setting-sources ""`, which never loads plugin skills, so
+  the main suite is the no-skills control this compares against.
+- **report rebuild**: `bun run bench/cli.ts report --dir bench/results/<timestamp>` regenerates
+  a results directory's report.md from its raw/*.json records at zero cost — useful after a
+  report-format change.
 
 ## Cost estimates
 
@@ -185,12 +194,18 @@ first re-measuring at N=1.
 
 ## Known gaps in this version
 
-- Metric (c) and (d) are designed (interfaces exist) but not measured end-to-end — see above.
 - The HTML validators are regex-based, not a real DOM parse (`node-html-parser` was considered
   and explicitly not added, to keep the harness dependency-free — every requirement here reduces
   to "does this tag/text appear," which a parser would not make meaningfully more reliable).
-- Only one scenario (`status-dashboard`) has been run for real; the other five are built and
-  unit-testable (their `parchmentRequirement`/`htmlRequirements` are exercised by
-  `bench/validators/validators.test.ts`'s pattern, though not yet against a live `claude -p` run)
-  but have not been smoke-tested against a real model. Run them before publishing numbers that
-  depend on them.
+- The two arms' pass/fail checks are not equally strict: the parchment daemon rejects
+  structurally invalid specs before they ever render, while the HTML regex check only asserts
+  that required tags/text exist — a file can pass it while rendering poorly.
+- `live-update.ts` checks each update's log line by its distinctive fragment (without the
+  `[INFO] ` prefix), because models legitimately render the level in its own styled table cell.
+  The final-file retention count can also legitimately be 3/N: the scenario's own spec says the
+  table shows the 3 most recent lines. Use the per-step column, plus the chart series length,
+  as the correctness signals.
+
+All six scenarios have now been exercised against live `claude -p` runs (see
+`bench/results/2026-07-12T07-53-15-666Z/` for the full 36-run haiku suite); the published
+numbers live in `docs/benchmarks.md`.
