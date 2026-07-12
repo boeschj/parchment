@@ -10,7 +10,11 @@ import {
 } from "node:fs";
 import { randomBytes } from "node:crypto";
 
-export const STATE_DIR = join(homedir(), ".parchment");
+// The test suite points this at a throwaway temp dir (via bunfig.toml's
+// [test].preload, before any module evaluates) so tests never read or write
+// the user's real ~/.parchment. Unset in every real daemon process.
+const STATE_DIR_OVERRIDE = process.env.PARCHMENT_STATE_DIR;
+export const STATE_DIR = STATE_DIR_OVERRIDE ?? join(homedir(), ".parchment");
 export const PID_FILE = join(STATE_DIR, "server.pid");
 export const PORT_FILE = join(STATE_DIR, "server.port");
 export const TOKEN_FILE = join(STATE_DIR, "server.token");

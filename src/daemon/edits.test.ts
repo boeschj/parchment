@@ -1,31 +1,20 @@
-import { describe, it, expect, mock } from "bun:test";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, it, expect } from "bun:test";
 import { randomUUID } from "node:crypto";
-
-// edits.ts transitively imports sessions.ts -> session-store.ts -> state.ts,
-// and state.ts computes STATE_DIR = join(homedir(), ".parchment") once, at
-// module-load time. Bun's os.homedir() does NOT pick up a runtime
-// `process.env.HOME = ...` assignment (only $HOME set before the process
-// starts), so the only reliable way to redirect it is to mock the node:os
-// module before that chain is ever imported. Bun caches modules by resolved
-// path across test files, so this must happen via a dynamic import (never a
-// static one, which ESM hoists ahead of the mock.module call below) — see
-// slots.test.ts for the same pattern.
-const fakeHome = mkdtempSync(join(tmpdir(), "parchment-edits-"));
-const realOs = await import("node:os");
-mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));
-
-const { EditKind } = await import("../shared/types.ts");
-const {
+import { EditKind } from "../shared/types.ts";
+import {
   recordEdit,
   buildInjectionPayload,
   consumeOneShotEdits,
   drainPendingEdits,
   clearOverlay,
   renderInjectionMarkup,
-} = await import("./edits.ts");
+} from "./edits.ts";
+
+// edits.ts transitively imports state.ts, whose STATE_DIR is redirected to a
+// temp dir by src/daemon/test-preload.ts (bunfig.toml [test].preload) before
+// any module loads. That injection replaces the old per-file node:os homedir
+// mock, so these tests use plain static imports and never touch the real
+// ~/.parchment.
 
 // Every test gets its own sessionId so the module-level session map (shared
 // across every test in this file, and every other file that touches it) can

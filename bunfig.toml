@@ -1,0 +1,4 @@
+[test]
+# Redirects STATE_DIR to a temp dir before any test module loads, so daemon
+# tests never touch the real ~/.parchment. See src/daemon/test-preload.ts.
+preload = ["./src/daemon/test-preload.ts"]
