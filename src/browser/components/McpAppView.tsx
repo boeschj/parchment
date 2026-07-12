@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppRenderer, type SandboxConfig } from "@mcp-ui/client";
 import type { z } from "zod/v4";
 import {
@@ -46,8 +46,14 @@ export function McpAppView({ props }: RenderProps) {
   const theme = useTheme();
   const [bridgeError, setBridgeError] = useState<string | null>(null);
 
-  const parsedToolResult = CallToolResultSchema.safeParse(props.toolResult);
-  const toolResult = parsedToolResult.success ? parsedToolResult.data : undefined;
+  // Identity-stable protocol inputs: AppRenderer/AppFrame effects key on prop
+  // identity, so a fresh object every render would re-send tool-result and
+  // host-context notifications into the app on every canvas re-render.
+  const toolResult = useMemo(() => {
+    const parsed = CallToolResultSchema.safeParse(props.toolResult);
+    return parsed.success ? parsed.data : undefined;
+  }, [props.toolResult]);
+  const hostContext = useMemo(() => ({ theme }), [theme]);
   const toolName = props.toolName ?? props.resourceUri;
   const sandboxCsp = toSandboxCsp(props.csp);
 
@@ -76,7 +82,7 @@ export function McpAppView({ props }: RenderProps) {
             ...(sandboxCsp !== undefined ? { csp: sandboxCsp } : {}),
           }}
           hostInfo={HOST_INFO}
-          hostContext={{ theme }}
+          hostContext={hostContext}
           {...(props.toolInput !== undefined ? { toolInput: props.toolInput } : {})}
           {...(toolResult !== undefined ? { toolResult } : {})}
           onCallTool={async (params) =>
