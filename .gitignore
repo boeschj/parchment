@@ -11,3 +11,7 @@ bun.lock
 temp-context.txt
 docs/pr-assets/
 docs/pr-slides/
+
+# Ephemeral per-run scratch (mcp-config.json, HTML output files) — regenerated
+# on every bench invocation. Aggregated results (bench/results/) ARE committed.
+bench/.runs/
