@@ -325,6 +325,7 @@ type BashStreamPair = { stdout: string; stderr: string };
 function bashStreamsOf(item: ToolItem): BashStreamPair | null {
   if (item.name !== ToolName.Bash) return null;
   if (item.toolUseResult === null) return null;
+  if (Array.isArray(item.toolUseResult)) return null;
 
   const stdout = str(item.toolUseResult, "stdout");
   const stderr = str(item.toolUseResult, "stderr");
@@ -367,8 +368,9 @@ type TaskStats = {
   totalToolUseCount: number | null;
 };
 
-function taskStatsOf(result: Record<string, unknown> | null): TaskStats | null {
+function taskStatsOf(result: ToolItem["toolUseResult"]): TaskStats | null {
   if (result === null) return null;
+  if (Array.isArray(result)) return null;
 
   const stats: TaskStats = {
     totalTokens: num(result, "totalTokens"),
@@ -432,8 +434,9 @@ function ScrollCode({ copyText, children }: { copyText: string; children: React.
 
 type PatchHunk = { header: string; lines: string[] };
 
-function structuredPatchOf(result: Record<string, unknown> | null): PatchHunk[] | null {
+function structuredPatchOf(result: ToolItem["toolUseResult"]): PatchHunk[] | null {
   if (result === null) return null;
+  if (Array.isArray(result)) return null;
   const rawHunks = result["structuredPatch"];
   if (!Array.isArray(rawHunks) || rawHunks.length === 0) return null;
 
