@@ -33,6 +33,10 @@ export const CanvasTool = {
   Plan: "mcp__canvas__canvas_plan",
   Patch: "mcp__canvas__canvas_patch",
   Snapshot: "mcp__canvas__canvas_snapshot",
+  // Registered after this harness's original 6 scenarios were built (see
+  // bench/live-update.ts, metric (c)): streams file-tail/command-poll/http-poll
+  // updates into a slot's state with zero further tool calls.
+  Live: "mcp__canvas__canvas_live",
 } as const;
 
 export type CanvasTool = (typeof CanvasTool)[keyof typeof CanvasTool];

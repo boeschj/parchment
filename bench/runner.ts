@@ -28,6 +28,9 @@ export type RunOneRepOptions = {
   runsRootDir: string;
   // Required for the parchment arm; unused for the HTML arm.
   daemon?: BenchDaemon;
+  // Skills-delta appendix only: appended to the default system prompt via
+  // --append-system-prompt (see bench/skills-delta.ts).
+  appendSystemPrompt?: string;
 };
 
 const HTML_OUTPUT_FILENAME_PATTERN = /\.\/(\S+\.html)/;
@@ -65,7 +68,14 @@ async function buildClaudeInvocationInput(
   runDir: string,
 ): Promise<Parameters<typeof runClaudeHeadless>[0]> {
   const prompt = options.arm === Arm.Parchment ? options.scenario.parchmentPrompt : options.scenario.htmlPrompt;
-  const shared = { prompt, model: options.model, sessionId, cwd: runDir, arm: options.arm };
+  const shared = {
+    prompt,
+    model: options.model,
+    sessionId,
+    cwd: runDir,
+    arm: options.arm,
+    ...(options.appendSystemPrompt ? { appendSystemPrompt: options.appendSystemPrompt } : {}),
+  };
 
   if (options.arm === Arm.Html) return shared;
 

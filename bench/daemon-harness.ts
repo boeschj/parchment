@@ -27,16 +27,23 @@ export type BenchDaemon = {
 
 export type StartBenchDaemonOptions = {
   port: number;
+  // Metric (d), time-to-first-canvas only: reuse an existing HOME instead of
+  // minting a fresh one. Passing this is how the cold/warm boot comparison
+  // shares one ~/.parchment between a "cold" first boot and a "warm" second
+  // boot against already-initialized state. When set, stop() leaves this
+  // directory on disk — the caller created it and owns its cleanup.
+  homeDir?: string;
 };
 
-export async function startBenchDaemon({ port }: StartBenchDaemonOptions): Promise<BenchDaemon> {
-  const homeDir = mkdtempSync(join(tmpdir(), "parchment-bench-home-"));
-  const parchmentStateDir = join(homeDir, ".parchment");
+export async function startBenchDaemon({ port, homeDir }: StartBenchDaemonOptions): Promise<BenchDaemon> {
+  const ownsHomeDir = homeDir === undefined;
+  const resolvedHomeDir = homeDir ?? mkdtempSync(join(tmpdir(), "parchment-bench-home-"));
+  const parchmentStateDir = join(resolvedHomeDir, ".parchment");
   mkdirSync(parchmentStateDir, { recursive: true });
 
   const daemonProcess = Bun.spawn({
     cmd: ["bun", "run", DAEMON_ENTRY],
-    env: { ...process.env, HOME: homeDir, CANVAS_PORT: String(port) },
+    env: { ...process.env, HOME: resolvedHomeDir, CANVAS_PORT: String(port) },
     stdout: "ignore",
     stderr: "ignore",
   });
@@ -48,10 +55,10 @@ export async function startBenchDaemon({ port }: StartBenchDaemonOptions): Promi
   const stop = async (): Promise<void> => {
     daemonProcess.kill();
     await daemonProcess.exited;
-    rmSync(homeDir, { recursive: true, force: true });
+    if (ownsHomeDir) rmSync(resolvedHomeDir, { recursive: true, force: true });
   };
 
-  return { baseUrl, token, homeDir, stop };
+  return { baseUrl, token, homeDir: resolvedHomeDir, stop };
 }
 
 async function waitForDaemonHealth(baseUrl: string): Promise<void> {

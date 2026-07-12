@@ -30,6 +30,18 @@ export type RunClaudeHeadlessOptions = {
   // --mcp-config file wiring the canvas MCP server into this run.
   allowedCanvasTools?: readonly CanvasTool[];
   mcpConfigPath?: string;
+  // Metric (c), HTML arm only: continue a prior call's session instead of
+  // starting a fresh one, so a later "patch the file" turn has the earlier
+  // turn's Write already in its own context (no Read tool is granted, so
+  // this is the only way an Edit call can know the file's current content).
+  // When set, this replaces --session-id with --resume <resumeSessionId>;
+  // the transcript file is unchanged (Claude Code keeps writing to the same
+  // <sessionId>.jsonl), so session-locator.ts needs no changes.
+  resumeSessionId?: string;
+  // Skills-delta appendix only: the canvas-tools + canvas-spec SKILL.md cores,
+  // appended to the default system prompt via --append-system-prompt to
+  // measure what the plugin's skills add over bare tool descriptions.
+  appendSystemPrompt?: string;
 };
 
 export type ClaudeInvocation = {
@@ -66,8 +78,7 @@ function buildClaudeArgs(options: RunClaudeHeadlessOptions): string[] {
     options.prompt,
     "--model",
     options.model,
-    "--session-id",
-    options.sessionId,
+    ...buildSessionArgs(options),
     "--output-format",
     "json",
     "--setting-sources",
@@ -75,11 +86,22 @@ function buildClaudeArgs(options: RunClaudeHeadlessOptions): string[] {
     "--permission-mode",
     "bypassPermissions",
     "--strict-mcp-config",
+    ...buildAppendSystemPromptArgs(options),
   ];
 
   return options.arm === Arm.Parchment
     ? [...sharedArgs, ...buildParchmentArmArgs(options)]
     : [...sharedArgs, ...buildHtmlArmArgs()];
+}
+
+function buildSessionArgs(options: RunClaudeHeadlessOptions): string[] {
+  return options.resumeSessionId
+    ? ["--resume", options.resumeSessionId]
+    : ["--session-id", options.sessionId];
+}
+
+function buildAppendSystemPromptArgs(options: RunClaudeHeadlessOptions): string[] {
+  return options.appendSystemPrompt ? ["--append-system-prompt", options.appendSystemPrompt] : [];
 }
 
 function buildParchmentArmArgs(options: RunClaudeHeadlessOptions): string[] {
