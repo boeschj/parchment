@@ -7,6 +7,7 @@ import { SlotContextProvider } from "./SlotContext.tsx";
 import { LeftRail } from "./components/LeftRail.tsx";
 import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
+import { SlotExportMenu } from "./components/SlotExportMenu.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
 import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
@@ -234,6 +235,7 @@ function SlotHeader({
       <StatusPill text={status.text} dotClass={status.dotClass} />
       {connected ? null : <StatusPill text="reconnecting" dotClass="bg-amber-500" />}
       <div className="flex-1" />
+      <SlotExportMenu sessionId={sessionId} slot={slot} />
       <button
         type="button"
         onClick={() => {

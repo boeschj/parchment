@@ -51,6 +51,8 @@ export type UIElement = {
   children?: string[];
   on?: Record<string, ActionBinding | ActionBinding[]>;
   visible?: unknown;
+  repeat?: { statePath: string; key?: string };
+  watch?: Record<string, unknown>;
 };
 
 export type ActionBinding = {
