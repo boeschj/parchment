@@ -8,7 +8,7 @@
 // runner.ts, archives each run's raw JSONL + metrics, and writes an
 // aggregated report.md. See bench/README.md for full usage and cost guidance.
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { startBenchDaemon } from "./daemon-harness.ts";
 import { BENCH_RESULTS_DIR, BENCH_RUNS_DIR, DEFAULT_BENCH_PORT, DEFAULT_REPETITIONS } from "./config.ts";
@@ -33,8 +33,57 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "report") {
+    reportCommand(rest);
+    return;
+  }
+
   printUsage();
   process.exitCode = command === undefined ? 0 : 1;
+}
+
+// Rebuilds report.md for an existing results directory from its raw/*.json
+// run records — no daemon, no claude -p, zero cost. Lets a report-format
+// improvement (like the Spread section) be applied to already-paid-for runs.
+function reportCommand(args: string[]): void {
+  const flags = parseFlags(args);
+  const resultsDir = flags.get("dir");
+  if (!resultsDir) throw new Error("usage: bun run bench/cli.ts report --dir bench/results/<timestamp>");
+
+  const records = readRawRunRecords(resultsDir);
+  if (records.length === 0) throw new Error(`no raw run records found under ${resultsDir}/raw`);
+
+  const reportPath = writeReport(records, resultsDir, {
+    generatedAt: new Date().toISOString(),
+    claudeVersions: [...new Set(records.map((record) => record.claudeVersion))],
+    scenarioTitlesById: scenarioTitlesForRecords(records),
+  });
+  process.stderr.write(`[bench] rebuilt ${reportPath} from ${records.length} raw record(s)\n`);
+}
+
+function readRawRunRecords(resultsDir: string): RunRecord[] {
+  const rawDir = join(resultsDir, "raw");
+  const rawFilenames = readdirSync(rawDir).filter((filename) => filename.endsWith(".json"));
+  const records = rawFilenames.map(
+    (filename) => JSON.parse(readFileSync(join(rawDir, filename), "utf8")) as RunRecord,
+  );
+  return records.sort(byScenarioArmModelRep);
+}
+
+function byScenarioArmModelRep(a: RunRecord, b: RunRecord): number {
+  const keyOf = (record: RunRecord): string => `${record.scenarioId}:${record.arm}:${record.model}`;
+  const keyCompare = keyOf(a).localeCompare(keyOf(b));
+  if (keyCompare !== 0) return keyCompare;
+  return a.repetition - b.repetition;
+}
+
+function scenarioTitlesForRecords(records: RunRecord[]): Map<string, string> {
+  const titles = new Map<string, string>();
+  for (const record of records) {
+    const known = SCENARIOS.find((scenario) => scenario.id === record.scenarioId);
+    titles.set(record.scenarioId, known?.title ?? record.scenarioId);
+  }
+  return titles;
 }
 
 async function runCommand(options: RunCommandOptions): Promise<void> {
@@ -133,14 +182,17 @@ function timestampForDirName(): string {
 function printUsage(): void {
   process.stdout.write(
     [
-      "Usage: bun run bench/cli.ts run [options]",
+      "Usage: bun run bench/cli.ts <run|report> [options]",
       "",
-      "Options:",
+      "run options:",
       "  --scenario <id|all>     Scenario id from bench/scenarios/index.ts, or 'all' (default: all)",
       "  --arms <list>           Comma-separated: parchment,html (default: parchment,html)",
       "  --models <list>         Comma-separated: haiku,sonnet (default: haiku)",
       "  --reps <n>              Repetitions per (scenario, arm, model) (default: 3)",
       "  --port <n>              Bench daemon port (default: 7811)",
+      "",
+      "report options:",
+      "  --dir <path>            Rebuild report.md from an existing results dir's raw/*.json (zero cost)",
       "",
     ].join("\n"),
   );

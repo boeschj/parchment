@@ -43,6 +43,7 @@ export function buildReportMarkdown(records: RunRecord[], meta: ReportMeta): str
     buildHeader(meta),
     buildMethodologySection(),
     buildSummarySection(records, meta),
+    buildSpreadSection(records, meta),
     buildRawRunsSection(records),
   ];
   return sections.join("\n\n");
@@ -140,6 +141,55 @@ function buildSummaryRow(group: RunRecord[], meta: ReportMeta): string {
     formatNumber(renderAttemptsStats.mean),
     "|",
   ].join(" ");
+}
+
+// Full distribution per group — the summary table above reports means only,
+// and per-run variance is real (2x cost swings within one arm/scenario/model
+// were observed in the very first smoke run), so publishable numbers need the
+// spread, not just the center.
+function buildSpreadSection(records: RunRecord[], meta: ReportMeta): string {
+  const groups = groupRecords(records);
+  const rows = [...groups.values()].map((group) => buildSpreadRow(group, meta));
+  const header =
+    "| Scenario | Arm | Model | N | Cost $ (mean / median / min / max) | Tokens (mean / median / min / max) | Tokens to first paint (mean / median / min / max) |";
+  const divider = "|---|---|---|---|---|---|---|";
+  return ["## Spread (mean / median / min / max)", "", header, divider, ...rows].join("\n");
+}
+
+function buildSpreadRow(group: RunRecord[], meta: ReportMeta): string {
+  const first = group[0];
+  if (!first) return "";
+
+  const scenarioTitle = meta.scenarioTitlesById.get(first.scenarioId) ?? first.scenarioId;
+  const costStats = statsOf(group, (record) => record.claudeResult.totalCostUsd);
+  const tokenStats = statsOf(
+    group,
+    (record) => record.transcript.totalPromptTokens + record.transcript.totalCompletionTokens,
+  );
+  const tokensToFirstPaintStats = statsOf(group, (record) => record.transcript.tokensToFirstPaint ?? Number.NaN);
+
+  return [
+    "|",
+    scenarioTitle,
+    "|",
+    first.arm,
+    "|",
+    first.model,
+    "|",
+    String(group.length),
+    "|",
+    formatStatsSpread(costStats, formatDollars),
+    "|",
+    formatStatsSpread(tokenStats, formatNumber),
+    "|",
+    formatStatsSpread(tokensToFirstPaintStats, formatNumber),
+    "|",
+  ].join(" ");
+}
+
+function formatStatsSpread(stats: Stats, formatOne: (value: number) => string): string {
+  if (stats.n === 0) return "never";
+  return [stats.mean, stats.median, stats.min, stats.max].map(formatOne).join(" / ");
 }
 
 function buildRawRunsSection(records: RunRecord[]): string {
