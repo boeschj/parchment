@@ -112,7 +112,7 @@ export type TranscriptItem =
       endedAtMs: number | null;
       raw: RawEntry;
       resultRaw: RawEntry | null;
-      toolUseResult: RawEntry | null;
+      toolUseResult: RawEntry | RawEntry[] | null;
     }
   | {
       kind: typeof TranscriptItemKind.Compaction;
@@ -626,8 +626,9 @@ function stopHookSummary(
 
   const totalDurationMs = payload.hooks.reduce((total, hook) => total + (hook.durationMs ?? 0), 0);
   if (totalDurationMs > 0) parts.push(formatSeconds(totalDurationMs));
-  if (payload.hookErrors !== null && payload.hookErrors > 0) {
-    parts.push(pluralize(payload.hookErrors, "error"));
+  const hookErrorCount = payload.hookErrors === null ? 0 : payload.hookErrors.length;
+  if (hookErrorCount > 0) {
+    parts.push(pluralize(hookErrorCount, "error"));
   }
   if (payload.preventedContinuation) parts.push("blocked continuation");
   return parts.join(" · ");
