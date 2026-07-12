@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "36e92c16-0d43-4097-8a76-f5ffa4113f70",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-live-log-dashboard-html-rep-2/36e92c16-0d43-4097-8a76-f5ffa4113f70.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0349325,
+    "durationMs": 22755,
+    "sessionId": "36e92c16-0d43-4097-8a76-f5ffa4113f70",
+    "resultText": "Done! I've created `./log-dashboard.html` with:\n\n- **SVG line chart** showing error-rate-per-minute with your 5 data points (2, 3, 1, 4, 2) plotted with a grid, axes, and labeled points\n- **Styled table** with the 3 log lines, color-coded by level (red for ERROR, yellow for WARN, blue for INFO)\n- **Fully self-contained**: inline styles, SVG, and no external dependencies\n\nThe dashboard has a modern gradient background, clean typography, and responsive layout. You can open it directly in a browser."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 18343,
+    "totalCompletionTokens": 2572,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 10277,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T08:05:05.307Z"
+}

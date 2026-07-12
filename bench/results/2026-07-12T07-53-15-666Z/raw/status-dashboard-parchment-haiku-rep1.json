@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "a4e8bd7d-bbf0-4852-b57b-6f7616f6c541",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-status-dashboard-parchment-rep-1/a4e8bd7d-bbf0-4852-b57b-6f7616f6c541.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0303721,
+    "durationMs": 16304,
+    "sessionId": "a4e8bd7d-bbf0-4852-b57b-6f7616f6c541",
+    "resultText": "Done! I've created a CI status dashboard with:\n\n**KPI Row** — 3 metrics displayed horizontally:\n- Build Pass Rate: 94% (green, with uptrend indicator)\n- Avg Build Time: 4m12s (blue)\n- Open Incidents: 2 (orange)\n\n**Charts Row** — 2 side-by-side visualizations:\n- **Bar chart** — Build durations for the last 7 days (Mon–Sun: 12, 8, 15, 9, 20, 7, 11 minutes)\n- **Line chart** — Daily deploy counts (Mon–Sun: 3, 5, 2, 6, 4, 7, 3 deploys)\n\nThe layout uses a vertical Stack containing the metrics Grid (3 columns) on top and a charts Grid (2 columns) below."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 29342,
+    "totalCompletionTokens": 2708,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 15879,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:53:32.695Z"
+}

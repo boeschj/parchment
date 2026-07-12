@@ -1,0 +1,72 @@
+{
+  "sessionId": "03f59108-6f11-4620-bd51-3f13cf56f00c",
+  "calls": [
+    {
+      "index": 0,
+      "costUsd": 0.035404,
+      "promptCompletionTokens": 21164,
+      "containsThisStepsLogLine": null
+    },
+    {
+      "index": 1,
+      "costUsd": 0.0026376,
+      "promptCompletionTokens": 10993,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 2,
+      "costUsd": 0.0022787,
+      "promptCompletionTokens": 11204,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 3,
+      "costUsd": 0.0024626,
+      "promptCompletionTokens": 11462,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 4,
+      "costUsd": 0.0035177000000000003,
+      "promptCompletionTokens": 11908,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 5,
+      "costUsd": 0.0194444,
+      "promptCompletionTokens": 54372,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 6,
+      "costUsd": 0.0296284,
+      "promptCompletionTokens": 97690,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 7,
+      "costUsd": 0.028945000000000002,
+      "promptCompletionTokens": 114657,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 8,
+      "costUsd": 0.0313885,
+      "promptCompletionTokens": 131893,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 9,
+      "costUsd": 0.034028,
+      "promptCompletionTokens": 149804,
+      "containsThisStepsLogLine": false
+    },
+    {
+      "index": 10,
+      "costUsd": 0.0368126,
+      "promptCompletionTokens": 168519,
+      "containsThisStepsLogLine": false
+    }
+  ],
+  "finalFileContainsAllLogLines": false
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "f46a16d7-761c-46af-ad4c-1e1d01536146",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-validated-form-parchment-rep-2/f46a16d7-761c-46af-ad4c-1e1d01536146.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 3,
+    "totalCostUsd": 0.028508199999999997,
+    "durationMs": 24012,
+    "sessionId": "f46a16d7-761c-46af-ad4c-1e1d01536146",
+    "resultText": "Done. The form is now rendered with controlled inputs for name, email, and password (minimum 8 characters enforced). The \"Sign up\" button is wired to `canvas.submit`, which will send the form data back to the next turn."
+  },
+  "transcript": {
+    "assistantTurnCount": 3,
+    "totalPromptTokens": 44307,
+    "totalCompletionTokens": 2105,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 30658,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T08:01:24.757Z"
+}

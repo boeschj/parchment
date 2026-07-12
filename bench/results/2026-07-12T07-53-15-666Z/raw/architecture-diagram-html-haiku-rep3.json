@@ -1,0 +1,30 @@
+{
+  "scenarioId": "architecture-diagram",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 3,
+  "sessionId": "5fb876c5-6ef5-4dc7-94ec-4fd80775523a",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-architecture-diagram-html-rep-3/5fb876c5-6ef5-4dc7-94ec-4fd80775523a.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.024646299999999996,
+    "durationMs": 7071,
+    "sessionId": "5fb876c5-6ef5-4dc7-94ec-4fd80775523a",
+    "resultText": "Done! I've created `./architecture.html` with a clean 3-tier architecture diagram. It has three boxes (\"Client\", \"API\", \"Database\") arranged horizontally with arrows showing the connections between them. Everything is inline—no external dependencies."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 16975,
+    "totalCompletionTokens": 1052,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 8909,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:58:26.876Z"
+}

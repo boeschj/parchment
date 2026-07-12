@@ -1,0 +1,62 @@
+{
+  "sessionId": "d43a7f4c-754b-4afb-98d3-cf0c57b79b17",
+  "composeCostUsd": 0.0488226,
+  "composePromptCompletionTokens": 48592,
+  "slotId": "slot_mrhwim0d_sbwau1",
+  "baselineSeriesLength": 5,
+  "observations": [
+    {
+      "afterAppendCount": 1,
+      "elapsedMsSinceFirstAppend": 1203,
+      "seriesLength": 6
+    },
+    {
+      "afterAppendCount": 2,
+      "elapsedMsSinceFirstAppend": 2410,
+      "seriesLength": 7
+    },
+    {
+      "afterAppendCount": 3,
+      "elapsedMsSinceFirstAppend": 3613,
+      "seriesLength": 8
+    },
+    {
+      "afterAppendCount": 4,
+      "elapsedMsSinceFirstAppend": 4817,
+      "seriesLength": 9
+    },
+    {
+      "afterAppendCount": 5,
+      "elapsedMsSinceFirstAppend": 6019,
+      "seriesLength": 10
+    },
+    {
+      "afterAppendCount": 6,
+      "elapsedMsSinceFirstAppend": 7223,
+      "seriesLength": 11
+    },
+    {
+      "afterAppendCount": 7,
+      "elapsedMsSinceFirstAppend": 8426,
+      "seriesLength": 12
+    },
+    {
+      "afterAppendCount": 8,
+      "elapsedMsSinceFirstAppend": 9629,
+      "seriesLength": 13
+    },
+    {
+      "afterAppendCount": 9,
+      "elapsedMsSinceFirstAppend": 10831,
+      "seriesLength": 14
+    },
+    {
+      "afterAppendCount": 10,
+      "elapsedMsSinceFirstAppend": 12034,
+      "seriesLength": 15
+    }
+  ],
+  "finalSeriesLength": 15,
+  "grewByExpectedAmount": true,
+  "claudeCallsDuringUpdates": 0
+}

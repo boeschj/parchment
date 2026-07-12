@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 3,
+  "sessionId": "8bdd607a-ed90-42ae-a365-ed066027e90e",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-status-dashboard-parchment-rep-3/8bdd607a-ed90-42ae-a365-ed066027e90e.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 3,
+    "totalCostUsd": 0.037648600000000004,
+    "durationMs": 29470,
+    "sessionId": "8bdd607a-ed90-42ae-a365-ed066027e90e",
+    "resultText": "Dashboard built and rendered! Your CI status dashboard now includes:\n\n- **KPI Row**: Three metrics tiles displaying Build Pass Rate (94%), Avg Build Time (4m12s), and Open Incidents (2)\n- **Build Durations Chart**: Bar chart showing build times in minutes across the 7-day period (Mon-Sun)\n- **Deploy Counts Chart**: Line chart showing daily deploy counts across the same period\n\nAll components are arranged in a Stack with the metrics in a 3-column Grid at the top, followed by the two charts in Cards below. The dashboard is ready to view at the canvas URL."
+  },
+  "transcript": {
+    "assistantTurnCount": 3,
+    "totalPromptTokens": 46893,
+    "totalCompletionTokens": 3424,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 16700,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:54:42.812Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "incident-report",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "dbb514ed-3bcd-4378-b3bc-8b0026dd44fa",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-incident-report-html-rep-1/dbb514ed-3bcd-4378-b3bc-8b0026dd44fa.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.029440299999999996,
+    "durationMs": 16641,
+    "sessionId": "dbb514ed-3bcd-4378-b3bc-8b0026dd44fa",
+    "resultText": "Done. I've created a self-contained HTML incident report at `./incident.html` with:\n\n- **Summary** highlighting the database connection pool exhaustion issue\n- **Timeline** with all 5 events in order (deploy → traffic spike → alerts → revert → recovery)\n- **Root Cause** section explaining the deployment configuration change and its cascading effects\n- **2 Action Items** focused on preventing similar incidents through pre-deployment validation and pool monitoring\n\nAll styling is inline with no external dependencies. The report uses a professional layout with color-coded sections for quick scanning."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 17641,
+    "totalCompletionTokens": 1760,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 9507,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:59:41.553Z"
+}

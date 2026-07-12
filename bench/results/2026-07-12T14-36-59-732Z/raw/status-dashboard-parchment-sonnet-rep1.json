@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 1,
+  "sessionId": "42df4e68-5c4d-4f6c-bbfa-85bb171e1ccd",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T14-36-59-732Z-status-dashboard-parchment-rep-1/42df4e68-5c4d-4f6c-bbfa-85bb171e1ccd.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.1773967,
+    "durationMs": 21091,
+    "sessionId": "42df4e68-5c4d-4f6c-bbfa-85bb171e1ccd",
+    "resultText": "The dashboard rendered successfully — the canvas tab just isn't connected for a visual snapshot. Open http://localhost:7812/?session=42df4e68-5c4d-4f6c-bbfa-85bb171e1ccd to view it: a KPI row (Build Pass Rate 94%, Avg Build Time 4m12s, Open Incidents 2) above a two-column grid with the build-duration bar chart and deploy-count line chart, both Mon–Sun."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 78017,
+    "totalCompletionTokens": 2429,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 39381,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T14:37:21.739Z"
+}

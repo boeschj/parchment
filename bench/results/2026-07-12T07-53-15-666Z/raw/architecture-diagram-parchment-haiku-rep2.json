@@ -1,0 +1,30 @@
+{
+  "scenarioId": "architecture-diagram",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "77de6264-474a-4ae2-82a4-16888e4cf8d9",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-architecture-diagram-parchment-rep-2/77de6264-474a-4ae2-82a4-16888e4cf8d9.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0153699,
+    "durationMs": 8314,
+    "sessionId": "77de6264-474a-4ae2-82a4-16888e4cf8d9",
+    "resultText": "Done! I've rendered a 3-tier architecture diagram with Client, API, and Database nodes, showing the call flow from Client → API → Database."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 27544,
+    "totalCompletionTokens": 428,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 13902,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:57:46.390Z"
+}

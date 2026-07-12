@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "39a57994-dcc4-4729-9495-e203063e1e6d",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-validated-form-parchment-rep-1/39a57994-dcc4-4729-9495-e203063e1e6d.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 3,
+    "totalCostUsd": 0.042272800000000006,
+    "durationMs": 38324,
+    "sessionId": "39a57994-dcc4-4729-9495-e203063e1e6d",
+    "resultText": "Done! I've built a signup form with all the requested elements. The form includes:\n- **Name** input (required)\n- **Email** input (required, type email)\n- **Password** input (required, type password, minimum 8 characters)\n- **Sign up** button wired to `canvas.submit`\n\nAll inputs are controlled via state bindings, so their values are seeded from the form state and update as the user types. When you click \"Sign up\", the current form data will be delivered back via `canvas.submit`."
+  },
+  "transcript": {
+    "assistantTurnCount": 3,
+    "totalPromptTokens": 48146,
+    "totalCompletionTokens": 4059,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 34494,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T08:00:59.884Z"
+}

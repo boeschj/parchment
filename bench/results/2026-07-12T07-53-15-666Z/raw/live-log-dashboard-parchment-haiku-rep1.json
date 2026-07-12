@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "58581bb8-82a6-4cbf-8322-79f575f56d18",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-live-log-dashboard-parchment-rep-1/58581bb8-82a6-4cbf-8322-79f575f56d18.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.0310583,
+    "durationMs": 27450,
+    "sessionId": "58581bb8-82a6-4cbf-8322-79f575f56d18",
+    "resultText": "Dashboard built! I've created a log monitoring dashboard with:\n\n- **Error Rate Chart**: A line chart plotting error-rate-per-minute with your 5 initial points (2, 3, 1, 4, 2), bound to `/errorRateData` in state\n- **Recent Logs Table**: A DataTable with the 3 most recent log lines (ERROR db timeout, WARN slow query, INFO cache cleared), bound to `/logLines` in state\n\nBoth components reference state paths, so you can later append new data via `canvas_patch` (add a single point) or `canvas_live` (stream continuous updates) by targeting `/errorRateData` and `/logLines`.\n\nView it at: http://localhost:7811/?session=58581bb8-82a6-4cbf-8322-79f575f56d18"
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 59685,
+    "totalCompletionTokens": 2268,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 30339,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T08:02:51.064Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "incident-report",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "d484e725-1baa-4a01-9e63-7da75698924a",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-incident-report-parchment-rep-2/d484e725-1baa-4a01-9e63-7da75698924a.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.021920000000000002,
+    "durationMs": 14379,
+    "sessionId": "d484e725-1baa-4a01-9e63-7da75698924a",
+    "resultText": "Your incident postmortem report is ready. It includes the error verdict at the top, a detailed timeline of the 12-minute incident from the initial deploy through recovery, and the two action items to prevent recurrence."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 28577,
+    "totalCompletionTokens": 1361,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 14938,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:59:01.638Z"
+}

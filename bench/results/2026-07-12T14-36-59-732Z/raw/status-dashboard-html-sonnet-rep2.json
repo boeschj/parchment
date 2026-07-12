@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "html",
+  "model": "sonnet",
+  "repetition": 2,
+  "sessionId": "4ab71444-ffe2-468d-b5b6-5ec5371e78b0",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T14-36-59-732Z-status-dashboard-html-rep-2/4ab71444-ffe2-468d-b5b6-5ec5371e78b0.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.1176904,
+    "durationMs": 27190,
+    "sessionId": "4ab71444-ffe2-468d-b5b6-5ec5371e78b0",
+    "resultText": "Created `dashboard.html` — a standalone file with inline `<style>`/`<script>`, no external resources. It renders three KPI cards (94% pass rate, 4m 12s avg build time, 2 open incidents), an SVG bar chart of the 7-day build durations, and an SVG line chart of daily deploy counts, both built at load time via inline JS with gridlines and value labels."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 24802,
+    "totalCompletionTokens": 3620,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 14099,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T14:38:40.730Z"
+}

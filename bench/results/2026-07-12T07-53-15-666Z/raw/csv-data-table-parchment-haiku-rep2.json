@@ -1,0 +1,30 @@
+{
+  "scenarioId": "csv-data-table",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 2,
+  "sessionId": "f2255cdc-c7e2-4339-8075-81037ab241cb",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-csv-data-table-parchment-rep-2/f2255cdc-c7e2-4339-8075-81037ab241cb.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0170219,
+    "durationMs": 8737,
+    "sessionId": "f2255cdc-c7e2-4339-8075-81037ab241cb",
+    "resultText": "Done! I've rendered your CSV as a sortable data table. You can click any column header to sort by that column, and there's a CSV export button in the table header if you need it."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 27743,
+    "totalCompletionTokens": 684,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 14174,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:56:47.971Z"
+}

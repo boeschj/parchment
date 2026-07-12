@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "d382c94a-2242-422a-ac02-61063eeb4640",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T14-49-25-121Z-skills-delta-status-dashboard-parchment-rep-1/d382c94a-2242-422a-ac02-61063eeb4640.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.10575250000000001,
+    "durationMs": 77117,
+    "sessionId": "d382c94a-2242-422a-ac02-61063eeb4640",
+    "resultText": "Done! I've built a CI status dashboard with:\n\n**KPI Row** — 3 metrics showing Build Pass Rate (94%, trending up ✓), Avg Build Time (4m12s, trending down ✓), and Open Incidents (2, warning ⚠️).\n\n**Build Durations Chart** — Bar chart displaying the last 7 days' build times in minutes (Mon 12, Tue 8, Wed 15, Thu 9, Fri 20, Sat 7, Sun 11).\n\n**Deploy Counts Chart** — Line chart showing daily deploy counts for the same period (3, 5, 2, 6, 4, 7, 3).\n\nAll composed in a single Stack/Grid layout. The dashboard is live at the URL in the slot above — open it to view the full visualization."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 97168,
+    "totalCompletionTokens": 8887,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 52372,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T14:50:43.603Z"
+}

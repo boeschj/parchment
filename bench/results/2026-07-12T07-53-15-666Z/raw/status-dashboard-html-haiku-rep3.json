@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 3,
+  "sessionId": "c725ad8b-7544-4caa-a307-2a36c0401663",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-status-dashboard-html-rep-3/c725ad8b-7544-4caa-a307-2a36c0401663.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0461593,
+    "durationMs": 34406,
+    "sessionId": "c725ad8b-7544-4caa-a307-2a36c0401663",
+    "resultText": "Created `./dashboard.html` with a complete CI status dashboard. The file includes:\n\n**KPI Row:**\n- Build Pass Rate: 94% (green)\n- Avg Build Time: 4m12s (orange)\n- Open Incidents: 2 (red)\n\n**Bar Chart (Build Durations):**\n- SVG-based with 7 bars for Mon-Sun\n- Data: 12, 8, 15, 9, 20, 7, 11 minutes\n- Friday's 20-minute build highlighted in red\n- Grid lines and axis labels\n\n**Line Chart (Deploy Counts):**\n- SVG polyline with data points for Mon-Sun\n- Data: 3, 5, 2, 6, 4, 7, 3 deploys\n- Responsive grid layout\n\nEverything is self-contained with inline CSS and SVG—just open the file in any browser and it renders immediately with no external dependencies."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 19841,
+    "totalCompletionTokens": 4218,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11749,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:56:29.770Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 2,
+  "sessionId": "421dc035-3ed4-4b64-bd56-193d8e06a515",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T14-36-59-732Z-status-dashboard-parchment-rep-2/421dc035-3ed4-4b64-bd56-193d8e06a515.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.1081584,
+    "durationMs": 20683,
+    "sessionId": "421dc035-3ed4-4b64-bd56-193d8e06a515",
+    "resultText": "The dashboard is rendered on the canvas. Open http://localhost:7812/?session=421dc035-3ed4-4b64-bd56-193d8e06a515 to view it — I couldn't snapshot to visually verify since no browser tab is connected yet, but the spec built successfully with the KPI row (Pass Rate 94%, Avg Build Time 4m12s, Open Incidents 2) plus the bar chart of build durations and line chart of deploy counts side by side."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 78099,
+    "totalCompletionTokens": 2370,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 39423,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T14:37:43.246Z"
+}

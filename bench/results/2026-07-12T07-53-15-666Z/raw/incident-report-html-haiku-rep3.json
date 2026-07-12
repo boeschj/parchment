@@ -1,0 +1,30 @@
+{
+  "scenarioId": "incident-report",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 3,
+  "sessionId": "d85c99ab-b954-4fdb-8029-a796d58d2e9f",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-incident-report-html-rep-3/d85c99ab-b954-4fdb-8029-a796d58d2e9f.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0314613,
+    "durationMs": 19364,
+    "sessionId": "d85c99ab-b954-4fdb-8029-a796d58d2e9f",
+    "resultText": "Done! I've created a self-contained incident postmortem report at `./incident.html` with all the requested sections: summary, a 5-step timeline, root cause analysis, and 2 action items. The file includes inline CSS styling with a professional layout and color-coded sections, with no external dependencies."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 17954,
+    "totalCompletionTokens": 2039,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 9854,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T08:00:20.761Z"
+}

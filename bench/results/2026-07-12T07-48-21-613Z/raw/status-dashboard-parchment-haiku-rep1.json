@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "5c8a5e72-c6b1-448e-acd4-f1ba6f4d62d1",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-48-21-613Z-status-dashboard-parchment-rep-1/5c8a5e72-c6b1-448e-acd4-f1ba6f4d62d1.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.060315299999999995,
+    "durationMs": 38060,
+    "sessionId": "5c8a5e72-c6b1-448e-acd4-f1ba6f4d62d1",
+    "resultText": "Dashboard created with all three sections:\n\n1. **KPI Row** — 3 metrics in a grid:\n   - Build Pass Rate: 94%\n   - Avg Build Time: 4m12s\n   - Open Incidents: 2\n\n2. **Build Durations Chart** — Bar chart showing last 7 days (Mon-Sun): 12, 8, 15, 9, 20, 7, 11 minutes\n\n3. **Daily Deploys Chart** — Line chart showing last 7 days (Mon-Sun): 3, 5, 2, 6, 4, 7, 3 deploys\n\nAll composed in a single canvas_render call with a Stack layout containing a 3-column Grid for metrics and Cards for the charts."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 64783,
+    "totalCompletionTokens": 3990,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 33759,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:49:00.446Z"
+}

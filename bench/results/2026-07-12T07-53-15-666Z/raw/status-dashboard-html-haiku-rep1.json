@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "html",
+  "model": "haiku",
+  "repetition": 1,
+  "sessionId": "e017b84c-7679-4276-9503-82ad9874d5c2",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T07-53-15-666Z-status-dashboard-html-rep-1/e017b84c-7679-4276-9503-82ad9874d5c2.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0441947,
+    "durationMs": 36821,
+    "sessionId": "e017b84c-7679-4276-9503-82ad9874d5c2",
+    "resultText": "Done! I've created a self-contained `dashboard.html` file at `./dashboard.html` with:\n\n**Features:**\n- **KPI Row**: Three cards displaying Build Pass Rate (94%), Avg Build Time (4m12s), and Open Incidents (2)\n- **Bar Chart**: Build durations in minutes for Mon-Sun with axis labels and values on bars\n- **Line Chart**: Daily deploy counts for Mon-Sun with connecting line, data points, and labels\n\n**Technical:**\n- All styling is inline with CSS (gradient background, card hover effects, responsive grid)\n- Both charts are drawn with inline SVG and JavaScript (no external libraries)\n- Fully self-contained—opens and renders immediately from disk with no external dependencies\n- Responsive design that adapts to mobile/tablet screens\n\nThe file is ready to open in any browser. The charts render on page load with proper scaling, axis labels, and data value annotations."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 19547,
+    "totalCompletionTokens": 3929,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11487,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T07:55:20.354Z"
+}
