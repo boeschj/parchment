@@ -2,13 +2,18 @@
  * parchment — custom theme starter
  * ------------------------------------
  * Copy this file to ~/.parchment/theme.css, edit the tokens, and refresh the
- * canvas tab. No rebuild — the daemon serves it and it loads last, so your
- * values override the defaults. Delete any line to fall back to the default.
+ * canvas tab (or pick "Custom" in the in-canvas theme picker — the palette
+ * icon in the left rail). No rebuild — the daemon serves it live and it
+ * loads last, so your values override the defaults. Delete any line to fall
+ * back to the default.
  *
- * The full token contract is documented in
- * src/browser/theme-default.css. You only need to define what you change.
+ * The full token contract is documented in src/browser/theme-default.css.
+ * You only need to define what you change. For three fully-designed,
+ * ready-to-copy alternatives, see themes/manuscript.css, themes/terminal.css,
+ * and themes/slate.css (themes/README.md explains all four).
  *
- * This example: a violet accent with a cooler neutral ramp.
+ * This example: a violet accent with a cooler neutral ramp, plus a worked
+ * example of reshaping corners app-wide.
  */
 
 :root {
@@ -17,8 +22,17 @@
   --ring: #7C3AED;
   --chart-1: #7C3AED;
 
-  /* Optional: soften or sharpen the corner radius everywhere. */
-  /* --radius: 12px; */
+  /* Optional: reshape corners everywhere. --radius alone only affects a
+     handful of components that read it directly — the six -token values
+     below are what every button, input, and card actually uses, so change
+     the whole scale together (this example sharpens things slightly). */
+  /* --radius: 18px; */
+  /* --radius-sm-token: 4px; */
+  /* --radius-md-token: 7px; */
+  /* --radius-lg-token: 11px; */
+  /* --radius-xl-token: 18px; */
+  /* --radius-2xl-token: 24px; */
+  /* --radius-3xl-token: 30px; */
 
   /* Optional: taller/shorter top scroll fade. */
   /* --scroll-fade: 3rem; */

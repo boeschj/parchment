@@ -6,13 +6,19 @@
  * The app never hardcodes a color — every component reads the CSS custom
  * properties below. That makes this list the public theming contract.
  *
- * To retheme parchment WITHOUT forking or rebuilding:
- *   1. Create  ~/.parchment/theme.css
- *   2. Redefine any tokens you want under :root (and .dark for the dark
- *      ramp). Override only what you want to change — the rest fall back
- *      to the defaults here.
- *   3. Refresh the canvas tab. The daemon serves your file at /theme.css
- *      and it loads last, so your values win. No build step.
+ * Three ways to change the look, all with NO rebuild:
+ *   1. Drop a theme straight from themes/ (manuscript.css, terminal.css,
+ *      slate.css) into ~/.parchment/theme.css, or write your own — start
+ *      from themes/custom-theme.example.css. See themes/README.md.
+ *   2. Pick a theme from the in-canvas picker (the palette icon in the left
+ *      rail, next to the light/dark toggle). It covers the same three
+ *      built-ins plus "Default" and "Custom" (your ~/.parchment/theme.css).
+ *      Your choice is remembered per-browser (localStorage).
+ *   3. Hand-edit ~/.parchment/theme.css yourself: redefine any tokens you
+ *      want under :root (and .dark for the dark ramp) — override only what
+ *      you want to change, the rest fall back to the defaults here. The
+ *      daemon serves it live at /theme.css, loaded after this file, so your
+ *      values win in the cascade. Refresh the tab to see an edit.
  *
  * Example ~/.parchment/theme.css (make it violet):
  *   :root { --primary: #7C3AED; --ring: #7C3AED; --chart-1: #7C3AED; }
@@ -29,9 +35,21 @@
  *             --sidebar-primary-foreground --sidebar-accent
  *             --sidebar-accent-foreground --sidebar-border --sidebar-ring
  *   Detail    --hairline --dot --user-bubble
- *   Radius    --radius (+ --radius-sm-token … --radius-3xl-token)
+ *   Radius    --radius-sm-token --radius-md-token --radius-lg-token
+ *             --radius-xl-token --radius-2xl-token --radius-3xl-token — this
+ *             SIX-VALUE SCALE is what every Tailwind rounded-* class and most
+ *             components read. Also set --radius itself (a handful of
+ *             components read it directly) to the same value as
+ *             --radius-xl-token so both surfaces agree. Overriding --radius
+ *             alone reshapes only those few components, NOT buttons, inputs,
+ *             or cards — always change the whole scale together.
  *   Motion    --scroll-fade   (height of the soft top scroll fade)
- *   Type      set --font-sans / --font-mono in styles.css @theme block
+ *   Type      --font-sans / --font-mono (the base stacks, set in styles.css's
+ *             @theme block — themeable the same way as any token above,
+ *             since Tailwind v4 emits them as real custom properties) and
+ *             --font-serif (optional; unset by default, so headings inherit
+ *             --font-sans exactly as before — set it to give h-display
+ *             headings and plan-document H1/H2 a distinct display face).
  * ============================================================
  */
 

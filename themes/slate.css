@@ -1,0 +1,99 @@
+/*
+ * parchment — SLATE
+ * ------------------------------------
+ * Cool, minimal dev-tool gray with a crisp blue accent — the register of
+ * Linear, Vercel, and VS Code's own chrome. Tight, modern corners; the
+ * default Geist type stays as-is (this theme is about color and geometry,
+ * not voice).
+ *
+ * Use it: copy this file to ~/.parchment/theme.css, or pick "Slate" in
+ * the in-canvas theme picker (palette icon, left rail). No rebuild —
+ * refresh the tab to see a hand edit. See themes/README.md.
+ */
+
+:root {
+  --radius-sm-token: 4px;
+  --radius-md-token: 6px;
+  --radius-lg-token: 8px;
+  --radius-xl-token: 10px;
+  --radius-2xl-token: 14px;
+  --radius-3xl-token: 18px;
+  --radius: 10px;
+
+  --scroll-fade: 2rem;
+
+  --background: #F3F4F6;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E7EAF0;
+  --secondary-foreground: #0F172A;
+  --muted: #E7EAF0;
+  --muted-foreground: #64748B;
+  --accent: #E7EAF0;
+  --accent-foreground: #0F172A;
+  --destructive: #DC2626;
+  --success: #059669;
+  --border: rgba(15, 23, 42, 0.09);
+  --input: rgba(15, 23, 42, 0.09);
+  --ring: #2563EB;
+  --chart-1: #2563EB;
+  --chart-2: #64748B;
+  --chart-3: #7C3AED;
+  --chart-4: #0EA5E9;
+  --chart-5: #94A3B8;
+  --sidebar: transparent;
+  --sidebar-foreground: #64748B;
+  --sidebar-primary: #2563EB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FFFFFF;
+  --sidebar-accent-foreground: #2563EB;
+  --sidebar-border: transparent;
+  --sidebar-ring: #2563EB;
+  --hairline: rgba(15, 23, 42, 0.07);
+  --dot: rgba(15, 23, 42, 0.05);
+  --user-bubble: rgba(37, 99, 235, 0.12);
+}
+
+/* Dark — deep slate-blue-black, the same crisp blue lightened for contrast. */
+.dark {
+  --background: #0B1120;
+  --foreground: #E2E8F0;
+  --card: #111827;
+  --card-foreground: #E2E8F0;
+  --popover: #151E30;
+  --popover-foreground: #E2E8F0;
+  --primary: #3B82F6;
+  --primary-foreground: #0B1120;
+  --secondary: #1B2536;
+  --secondary-foreground: #E2E8F0;
+  --muted: #1B2536;
+  --muted-foreground: #8493AB;
+  --accent: #1B2536;
+  --accent-foreground: #E2E8F0;
+  --destructive: #F87171;
+  --success: #34D399;
+  --border: rgba(226, 232, 240, 0.10);
+  --input: rgba(226, 232, 240, 0.10);
+  --ring: #3B82F6;
+  --chart-1: #3B82F6;
+  --chart-2: #8493AB;
+  --chart-3: #A78BFA;
+  --chart-4: #38BDF8;
+  --chart-5: #64748B;
+  --sidebar: transparent;
+  --sidebar-foreground: #8493AB;
+  --sidebar-primary: #3B82F6;
+  --sidebar-primary-foreground: #0B1120;
+  --sidebar-accent: #151E30;
+  --sidebar-accent-foreground: #3B82F6;
+  --sidebar-border: transparent;
+  --sidebar-ring: #3B82F6;
+  --hairline: rgba(226, 232, 240, 0.08);
+  --dot: rgba(226, 232, 240, 0.06);
+  --user-bubble: rgba(59, 130, 246, 0.16);
+}

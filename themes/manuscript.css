@@ -1,0 +1,104 @@
+/*
+ * parchment — MANUSCRIPT
+ * ------------------------------------
+ * Warm paper and an editorial serif accent — the parchment name, taken
+ * literally. Cream page, ink-brown type, a terracotta accent standing in
+ * for a wax-seal red. Headings pick up a serif display face (system
+ * stack, no font download) via --font-serif; body copy stays on the
+ * app's regular sans so long-form UI (tables, forms, code) stays crisp.
+ *
+ * Use it: copy this file to ~/.parchment/theme.css, or pick "Manuscript"
+ * in the in-canvas theme picker (palette icon, left rail). No rebuild —
+ * refresh the tab to see a hand edit. See themes/README.md.
+ */
+
+:root {
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+
+  /* A touch softer than the default scale — a hand-bound-book feel. */
+  --radius-sm-token: 8px;
+  --radius-md-token: 12px;
+  --radius-lg-token: 18px;
+  --radius-xl-token: 26px;
+  --radius-2xl-token: 34px;
+  --radius-3xl-token: 42px;
+  --radius: 26px;
+
+  --scroll-fade: 2.5rem;
+
+  --background: #F6F1E7;
+  --foreground: #2B2013;
+  --card: #FFFDF8;
+  --card-foreground: #2B2013;
+  --popover: #FFFCF5;
+  --popover-foreground: #2B2013;
+  --primary: #B24B28;
+  --primary-foreground: #FFF8EF;
+  --secondary: #EDE3D0;
+  --secondary-foreground: #2B2013;
+  --muted: #EFE6D6;
+  --muted-foreground: #7A6C56;
+  --accent: #EFE6D6;
+  --accent-foreground: #2B2013;
+  --destructive: #B3261E;
+  --success: #4B7F52;
+  --border: rgba(43, 32, 19, 0.12);
+  --input: rgba(43, 32, 19, 0.12);
+  --ring: #B24B28;
+  --chart-1: #B24B28;
+  --chart-2: #4B7F52;
+  --chart-3: #C9A227;
+  --chart-4: #5B7A99;
+  --chart-5: #7A6C56;
+  --sidebar: transparent;
+  --sidebar-foreground: #7A6C56;
+  --sidebar-primary: #B24B28;
+  --sidebar-primary-foreground: #FFF8EF;
+  --sidebar-accent: #FFFDF8;
+  --sidebar-accent-foreground: #B24B28;
+  --sidebar-border: transparent;
+  --sidebar-ring: #B24B28;
+  --hairline: rgba(43, 32, 19, 0.08);
+  --dot: rgba(43, 32, 19, 0.06);
+  --user-bubble: rgba(178, 75, 40, 0.14);
+}
+
+/* Dark — reading by lamplight: deep warm brown, cream ink, the same
+ * terracotta accent lightened for contrast. Same tokens, inverted surfaces. */
+.dark {
+  --background: #1C140D;
+  --foreground: #EFE3CC;
+  --card: #241A11;
+  --card-foreground: #EFE3CC;
+  --popover: #2A1F14;
+  --popover-foreground: #EFE3CC;
+  --primary: #E08553;
+  --primary-foreground: #1C140D;
+  --secondary: #2E2216;
+  --secondary-foreground: #EFE3CC;
+  --muted: #2E2216;
+  --muted-foreground: #B5A488;
+  --accent: #2E2216;
+  --accent-foreground: #EFE3CC;
+  --destructive: #D46A5A;
+  --success: #7FAE7A;
+  --border: rgba(239, 227, 204, 0.10);
+  --input: rgba(239, 227, 204, 0.10);
+  --ring: #E08553;
+  --chart-1: #E08553;
+  --chart-2: #7FAE7A;
+  --chart-3: #D9B65A;
+  --chart-4: #7FA0BD;
+  --chart-5: #B5A488;
+  --sidebar: transparent;
+  --sidebar-foreground: #B5A488;
+  --sidebar-primary: #E08553;
+  --sidebar-primary-foreground: #1C140D;
+  --sidebar-accent: #2A1F14;
+  --sidebar-accent-foreground: #E08553;
+  --sidebar-border: transparent;
+  --sidebar-ring: #E08553;
+  --hairline: rgba(239, 227, 204, 0.08);
+  --dot: rgba(239, 227, 204, 0.06);
+  --user-bubble: rgba(224, 133, 83, 0.18);
+}

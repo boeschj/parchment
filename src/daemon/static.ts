@@ -2,8 +2,13 @@ import { file } from "bun";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { isBuiltInTheme } from "../shared/themes.ts";
 
 const UI_DIR = join(import.meta.dir, "..", "..", "dist", "browser");
+// Shipped alongside the repo (not part of the vite bundle) so editing a theme
+// file or adding a new one never requires a rebuild — same live-from-disk
+// contract as the user's own ~/.parchment/theme.css below.
+const THEMES_DIR = join(import.meta.dir, "..", "..", "themes");
 
 // Set by the SessionStart first-run builder (hooks/session-start.sh). Present
 // only while the initial `bun install && bun run build:browser` is in flight,
@@ -18,6 +23,20 @@ const CSS_HEADERS = { "content-type": "text/css; charset=utf-8" } as const;
 
 export async function serveUserTheme(): Promise<Response> {
   const handle = file(USER_THEME_PATH);
+  if (await handle.exists()) {
+    return new Response(handle, { headers: CSS_HEADERS });
+  }
+  return new Response("", { headers: CSS_HEADERS });
+}
+
+// One of the shipped alternate themes (themes/<name>.css) — validated against
+// the shared BuiltInTheme allowlist so the path segment can never escape
+// THEMES_DIR, regardless of what a request sends.
+export async function serveBuiltInTheme(name: string): Promise<Response> {
+  if (!isBuiltInTheme(name)) {
+    return new Response("", { headers: CSS_HEADERS, status: 404 });
+  }
+  const handle = file(join(THEMES_DIR, `${name}.css`));
   if (await handle.exists()) {
     return new Response(handle, { headers: CSS_HEADERS });
   }

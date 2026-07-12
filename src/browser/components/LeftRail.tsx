@@ -7,11 +7,15 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type { Slot } from "../../shared/types.ts";
-import { Theme } from "../theme.ts";
+import { Theme, type ThemeChoice } from "../theme.ts";
+import { formatRelativeAge } from "../time.ts";
 import { Surface, type CanvasView } from "../view.ts";
+import { RAIL_ICON_SIZE, RailButton, railItemClass } from "./RailButton.tsx";
+import { ThemePicker } from "./ThemePicker.tsx";
 import {
   ChevronsLeftIcon,
   DocIcon,
+  LibraryIcon,
   MoonIcon,
   SlotKindIcon,
   SunIcon,
@@ -29,17 +33,14 @@ const VIEWPORT_MARGIN_PX = 12;
 const ARTIFACT_OVERFLOW_THRESHOLD = 6;
 const ARTIFACT_COLLAPSED_COUNT = 5;
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
-const ICON_SIZE = 19;
+const ICON_SIZE = RAIL_ICON_SIZE;
 
 type FixedItem = { surface: Surface; label: string; icon: ReactNode };
 
 const SURFACE_ITEMS: FixedItem[] = [
   { surface: Surface.Transcript, label: "Transcript", icon: <TranscriptIcon width={ICON_SIZE} height={ICON_SIZE} /> },
   { surface: Surface.Plan, label: "Plan", icon: <DocIcon width={ICON_SIZE} height={ICON_SIZE} /> },
+  { surface: Surface.Library, label: "Library", icon: <LibraryIcon width={ICON_SIZE} height={ICON_SIZE} /> },
 ];
 
 type FlyoutTarget = { slotId: string; top: number; left: number };
@@ -51,6 +52,8 @@ type LeftRailProps = {
   hasPlan: boolean;
   theme: Theme;
   onToggleTheme: () => void;
+  themeChoice: ThemeChoice;
+  onSelectThemeChoice: (choice: ThemeChoice) => void;
   newestSeenUpdatedAt: number;
 };
 
@@ -61,6 +64,8 @@ export function LeftRail({
   hasPlan,
   theme,
   onToggleTheme,
+  themeChoice,
+  onSelectThemeChoice,
   newestSeenUpdatedAt,
 }: LeftRailProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -140,6 +145,8 @@ export function LeftRail({
 
       {showAll ? null : <div className="rail-spacer" />}
 
+      <ThemePicker expanded={showAll} themeChoice={themeChoice} onSelectThemeChoice={onSelectThemeChoice} />
+
       <RailButton
         icon={themeIcon}
         label={themeLabel}
@@ -150,33 +157,6 @@ export function LeftRail({
 
       {flyout && flyoutSlot ? <Flyout slot={flyoutSlot} top={flyout.top} left={flyout.left} /> : null}
     </nav>
-  );
-}
-
-type RailButtonProps = {
-  icon: ReactNode;
-  label: string;
-  isActive: boolean;
-  expanded: boolean;
-  onSelect: () => void;
-};
-
-function RailButton({ icon, label, isActive, expanded, onSelect }: RailButtonProps) {
-  const className = railItemClass(expanded, isActive);
-
-  return (
-    <button
-      type="button"
-      title={expanded ? undefined : label}
-      aria-label={label}
-      aria-current={isActive ? "page" : undefined}
-      onClick={onSelect}
-      className={className}
-    >
-      <span className="rail-item__glyph">{icon}</span>
-      {expanded ? <span className="rail-item__label">{label}</span> : null}
-      {isActive && !expanded ? <span className="rail-active-dot" /> : null}
-    </button>
   );
 }
 
@@ -284,12 +264,6 @@ function Flyout({ slot, top, left }: { slot: Slot; top: number; left: number }) 
 
 // --- helpers ---------------------------------------------------------------
 
-function railItemClass(expanded: boolean, isActive: boolean): string {
-  const mode = expanded ? "rail-item--row" : "rail-item--icon";
-  const active = isActive ? " rail-item--active" : "";
-  return `rail-item ${mode}${active}`;
-}
-
 function sortArtifactsByNewest(slots: Slot[]): Slot[] {
   return [...slots].sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -304,12 +278,4 @@ function flyoutPosition(rect: DOMRect): { top: number; left: number } {
 
 function clearHoverTimer(timer: ReturnType<typeof setTimeout> | null): void {
   if (timer) clearTimeout(timer);
-}
-
-function formatRelativeAge(timestamp: number): string {
-  const elapsed = Date.now() - timestamp;
-  if (elapsed < MINUTE_MS) return "just now";
-  if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)}m ago`;
-  if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)}h ago`;
-  return `${Math.floor(elapsed / DAY_MS)}d ago`;
 }

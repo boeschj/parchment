@@ -1,9 +1,12 @@
 import type {
   EditKind,
+  LibraryEntry,
+  LibraryListing,
   SessionSummary,
   Slot,
   SlotOpsResult,
 } from "../shared/types.ts";
+import { SlotOrigin } from "../shared/types.ts";
 
 const TOKEN_HEADER = "x-canvas-token";
 
@@ -104,4 +107,50 @@ export async function resetSession(sessionId: string): Promise<void> {
     const text = await response.text();
     throw new Error(`resetSession failed (${response.status}): ${text}`);
   }
+}
+
+export async function fetchLibraryEntries(): Promise<LibraryListing[]> {
+  const response = await fetch("/api/library");
+  if (!response.ok) throw new Error(`fetchLibraryEntries failed: ${response.status}`);
+  const payload = (await response.json()) as { entries?: LibraryListing[] };
+  return payload.entries ?? [];
+}
+
+export async function deleteLibraryEntry(name: string): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/library/${encodeURIComponent(name)}`, { method: "DELETE", headers });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`deleteLibraryEntry failed (${response.status}): ${text}`);
+  }
+}
+
+// Loads a saved entry's full spec and pushes it into a new slot in the given
+// session — the browser-panel equivalent of the canvas_load MCP tool.
+export async function openLibraryEntryInSlot(sessionId: string, name: string): Promise<Slot> {
+  const entryResponse = await fetch(`/api/library/${encodeURIComponent(name)}`);
+  if (!entryResponse.ok) {
+    const text = await entryResponse.text();
+    throw new Error(`fetchLibraryEntry failed (${entryResponse.status}): ${text}`);
+  }
+  const { entry } = (await entryResponse.json()) as { entry: LibraryEntry };
+
+  const headers = await authorizedHeaders();
+  const slotResponse = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/slots`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      kind: entry.kind,
+      title: entry.title,
+      spec: entry.spec,
+      origin: SlotOrigin.SlashCommand,
+      ...(entry.state ? { state: entry.state } : {}),
+    }),
+  });
+  if (!slotResponse.ok) {
+    const text = await slotResponse.text();
+    throw new Error(`openLibraryEntryInSlot failed (${slotResponse.status}): ${text}`);
+  }
+  const payload = (await slotResponse.json()) as { slot: Slot };
+  return payload.slot;
 }

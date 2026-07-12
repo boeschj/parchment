@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -30,6 +30,12 @@ import {
 } from "./canvas-client.ts";
 import { LiveSourceInputSchema } from "./live/types.ts";
 import { STATE_DIR } from "./state.ts";
+import { ensureLibrarySeeded, listLibraryEntryNames, readLibraryEntry, writeLibraryEntry } from "./library.ts";
+
+// Fresh installs see the shipped starter templates in canvas_library from
+// the first tool call — cheap no-op on every call after the first (guarded
+// by the ~/.parchment/library/.seeded marker).
+ensureLibrarySeeded();
 
 const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const envSessionId =
@@ -489,28 +495,10 @@ server.registerTool(
 
 // ---- Saved UI library -----------------------------------------------------
 // Slots persist on disk as full Slot JSON; the library is a named copy of
-// {title, kind, spec, state} under ~/.parchment/library/. Users can also drop
-// hand-written spec files there — anything loadable by canvas_load.
-
-const LIBRARY_DIR = join(STATE_DIR, "library");
-
-function libraryNameToPath(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9-_]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (slug.length === 0) throw new Error(`invalid library name: "${name}"`);
-  return join(LIBRARY_DIR, `${slug}.json`);
-}
-
-type LibraryEntry = {
-  name: string;
-  savedAt: number;
-  title: string;
-  kind: SlotKind;
-  spec: JsonRenderSpec;
-  state?: Record<string, unknown>;
-};
+// {title, kind, spec, state} under ~/.parchment/library/ (src/daemon/library.ts
+// owns the file format and slugification, shared with the daemon's HTTP
+// routes for the browser's library panel). Users can also drop hand-written
+// spec files there — anything loadable by canvas_load.
 
 server.registerTool(
   "canvas_save",
@@ -536,17 +524,14 @@ server.registerTool(
         spec: JsonRenderSpec;
         state?: Record<string, unknown>;
       };
-      const entry: LibraryEntry = {
+      const target = writeLibraryEntry({
         name,
         savedAt: Date.now(),
         title: slot.title,
         kind: slot.kind,
         spec: slot.spec,
         ...(slot.state && Object.keys(slot.state).length > 0 ? { state: slot.state } : {}),
-      };
-      mkdirSync(LIBRARY_DIR, { recursive: true });
-      const target = libraryNameToPath(name);
-      writeFileSync(target, JSON.stringify(entry, null, 2));
+      });
       return {
         content: [{ type: "text" as const, text: `Saved "${slot.title}" to library as ${name} (${target}).` }],
       };
@@ -570,14 +555,11 @@ server.registerTool(
   async ({ name, slotId }) => {
     try {
       const resolvedSessionId = await resolveSessionId();
-      const target = libraryNameToPath(name);
-      if (!existsSync(target)) {
-        const available = existsSync(LIBRARY_DIR)
-          ? readdirSync(LIBRARY_DIR).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")).join(", ")
-          : "";
+      const entry = readLibraryEntry(name);
+      if (!entry) {
+        const available = listLibraryEntryNames().join(", ");
         return errorText(new Error(`no saved UI named "${name}". Available: ${available || "(library is empty)"}`));
       }
-      const entry = JSON.parse(readFileSync(target, "utf8")) as LibraryEntry;
       const spec: JsonRenderSpec = entry.state ? { ...entry.spec, state: entry.state } : entry.spec;
       const slot = await pushSlot({
         sessionId: resolvedSessionId,
@@ -604,22 +586,17 @@ server.registerTool(
   },
   async () => {
     try {
-      if (!existsSync(LIBRARY_DIR)) {
+      const names = listLibraryEntryNames();
+      if (names.length === 0) {
         return { content: [{ type: "text" as const, text: "Library is empty." }] };
       }
-      const lines = readdirSync(LIBRARY_DIR)
-        .filter((file) => file.endsWith(".json"))
-        .map((file) => {
-          try {
-            const entry = JSON.parse(readFileSync(join(LIBRARY_DIR, file), "utf8")) as LibraryEntry;
-            const saved = entry.savedAt ? new Date(entry.savedAt).toISOString().slice(0, 10) : "?";
-            return `- ${file.replace(/\.json$/, "")} — "${entry.title}" (${entry.kind}, saved ${saved})`;
-          } catch {
-            return `- ${file.replace(/\.json$/, "")} — (unreadable)`;
-          }
-        });
-      const text = lines.length > 0 ? `Saved UIs:\n${lines.join("\n")}` : "Library is empty.";
-      return { content: [{ type: "text" as const, text }] };
+      const lines = names.map((name) => {
+        const entry = readLibraryEntry(name);
+        if (!entry) return `- ${name} — (unreadable)`;
+        const saved = new Date(entry.savedAt).toISOString().slice(0, 10);
+        return `- ${name} — "${entry.title}" (${entry.kind}, saved ${saved})`;
+      });
+      return { content: [{ type: "text" as const, text: `Saved UIs:\n${lines.join("\n")}` }] };
     } catch (caught) {
       return errorText(caught);
     }

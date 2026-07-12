@@ -14,9 +14,12 @@
   <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
-    <!-- User theme override. The daemon serves ~/.parchment/theme.css here (empty
-         if absent). Loaded last so a dev's :root token redefinitions win over
-         theme-default.css with no rebuild. -->
-    <link rel="stylesheet" href="/theme.css" />
+    <!-- Theme override slot. main.tsx sets this href synchronously before the
+         first render, based on the stored theme choice (see theme.ts):
+         empty (default look), /theme.css (~/.parchment/theme.css, the custom
+         override), or /themes/<name>.css (a built-in theme). Placed after the
+         bundled stylesheet so its :root/.dark redefinitions win with no
+         rebuild — the whole point of the theming contract. -->
+    <link id="theme-override" rel="stylesheet" href="" />
   </body>
 </html>

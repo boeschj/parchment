@@ -194,6 +194,38 @@ you) writes the plan file to disk, the `PostToolUse` hook pushes it to the
 canvas as a `✎ plan` slot — no MCP call needed, and it updates again on
 every revision.
 
+## Templates
+
+The **Library** tab in the left rail (book icon) lists every saved canvas UI — a
+named copy of a rendered slot's spec, reloadable any time. A fresh install ships
+with five starter templates, seeded automatically the first time the daemon or
+the `canvas` MCP server starts, so the library is never empty:
+
+| Template | What it composes |
+|---|---|
+| `project-status-dashboard` | Sprint KPIs, a milestone timeline with the blocker called out, per-workstream health, backlog table. |
+| `pr-review` | What/why callout, size/risk metrics, per-file changes, an architecture-delta diagram, the crux diff, test results. |
+| `incident-timeline` | Impact metrics, the causal chain with the break point marked, the smoking-gun log line, the offending code, a fix callout. |
+| `cost-report` | Spend KPIs, a daily burn chart by model, a per-project breakdown table, an optimization callout. |
+| `agent-fleet-snapshot` | Active-session KPIs, a live-session table, a token-usage chart — the flagship "what is every Claude session doing right now" shape. |
+
+Ask Claude to save any rendered view for later — *"save this dashboard as
+perf-overview"* calls `canvas_save`, and it appears in the Library alongside
+the starters. From the panel, **Open** re-renders a saved UI into a slot;
+**Delete** removes it. The same actions are available to Claude as
+`canvas_save` / `canvas_load` / `canvas_library` MCP tools.
+
+## Themes
+
+The default look never changes — every alternate theme is opt-in. Pick one
+from the palette icon in the left rail (built-ins, "Custom", or "Default" —
+applies instantly, no refresh), or copy a file from `themes/` to
+`~/.parchment/theme.css` for a zero-config override the daemon serves live.
+Three fully-designed built-ins ship in `themes/`: **manuscript** (warm paper,
+editorial serif accents), **terminal** (high-contrast phosphor green),
+**slate** (cool, minimal dev-tool gray). Full variable contract and a
+starter for writing your own: [`themes/README.md`](themes/README.md).
+
 ## How it works
 
 ```

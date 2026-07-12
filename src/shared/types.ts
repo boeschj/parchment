@@ -151,3 +151,25 @@ export type CanvasInjectionPayload = {
   count: number;
   entries: OverlayEntry[];
 };
+
+// A saved slot under ~/.parchment/library/<name>.json — the full spec (and
+// state, when the slot had any) needed to re-render it later via canvas_load
+// or the browser's library panel.
+export type LibraryEntry = {
+  name: string;
+  savedAt: number;
+  title: string;
+  kind: SlotKind;
+  spec: JsonRenderSpec;
+  state?: Record<string, unknown>;
+};
+
+// The lightweight shape the library panel lists — everything a preview card
+// needs, without shipping the full spec (which can be large) over the wire.
+export type LibraryListing = {
+  name: string;
+  title: string;
+  kind: SlotKind;
+  savedAt: number;
+  elementCount: number;
+};

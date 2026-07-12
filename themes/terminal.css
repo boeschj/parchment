@@ -1,0 +1,104 @@
+/*
+ * parchment — TERMINAL
+ * ------------------------------------
+ * High-contrast phosphor green. Sets --font-sans to the mono stack
+ * (reusing Geist Mono, already loaded — no extra font download) so every
+ * label, not just code, reads like a terminal. Corners go near-square.
+ * Dark is the classic green-on-black CRT; light is the printed-receipt
+ * inverse — same accent, same contrast discipline, so both hold up.
+ *
+ * Use it: copy this file to ~/.parchment/theme.css, or pick "Terminal" in
+ * the in-canvas theme picker (palette icon, left rail). No rebuild —
+ * refresh the tab to see a hand edit. See themes/README.md.
+ */
+
+:root {
+  --font-sans: "Geist Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+
+  /* Near-square — a CRT doesn't round corners. */
+  --radius-sm-token: 2px;
+  --radius-md-token: 3px;
+  --radius-lg-token: 4px;
+  --radius-xl-token: 6px;
+  --radius-2xl-token: 8px;
+  --radius-3xl-token: 10px;
+  --radius: 6px;
+
+  --scroll-fade: 1rem;
+
+  --background: #F4FBF4;
+  --foreground: #06120A;
+  --card: #FFFFFF;
+  --card-foreground: #06120A;
+  --popover: #FFFFFF;
+  --popover-foreground: #06120A;
+  --primary: #0E8A3B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E4F2E6;
+  --secondary-foreground: #06120A;
+  --muted: #E4F2E6;
+  --muted-foreground: #4B6552;
+  --accent: #E4F2E6;
+  --accent-foreground: #06120A;
+  --destructive: #C4271C;
+  --success: #0E8A3B;
+  --border: rgba(6, 18, 10, 0.14);
+  --input: rgba(6, 18, 10, 0.14);
+  --ring: #0E8A3B;
+  --chart-1: #0E8A3B;
+  --chart-2: #B8860B;
+  --chart-3: #146C94;
+  --chart-4: #C4271C;
+  --chart-5: #4B6552;
+  --sidebar: transparent;
+  --sidebar-foreground: #4B6552;
+  --sidebar-primary: #0E8A3B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FFFFFF;
+  --sidebar-accent-foreground: #0E8A3B;
+  --sidebar-border: transparent;
+  --sidebar-ring: #0E8A3B;
+  --hairline: rgba(6, 18, 10, 0.10);
+  --dot: rgba(6, 18, 10, 0.08);
+  --user-bubble: rgba(14, 138, 59, 0.12);
+}
+
+/* Dark — the mode this theme is named for: green phosphor text on
+ * near-black, amber/cyan/red as the classic multi-tone terminal palette. */
+.dark {
+  --background: #050805;
+  --foreground: #C8FFC8;
+  --card: #0B120B;
+  --card-foreground: #C8FFC8;
+  --popover: #0E160E;
+  --popover-foreground: #C8FFC8;
+  --primary: #33FF66;
+  --primary-foreground: #050805;
+  --secondary: #101B10;
+  --secondary-foreground: #C8FFC8;
+  --muted: #101B10;
+  --muted-foreground: #6FA377;
+  --accent: #101B10;
+  --accent-foreground: #C8FFC8;
+  --destructive: #FF5555;
+  --success: #33FF66;
+  --border: rgba(200, 255, 200, 0.14);
+  --input: rgba(200, 255, 200, 0.14);
+  --ring: #33FF66;
+  --chart-1: #33FF66;
+  --chart-2: #FFD866;
+  --chart-3: #66D9FF;
+  --chart-4: #FF5555;
+  --chart-5: #6FA377;
+  --sidebar: transparent;
+  --sidebar-foreground: #6FA377;
+  --sidebar-primary: #33FF66;
+  --sidebar-primary-foreground: #050805;
+  --sidebar-accent: #0E160E;
+  --sidebar-accent-foreground: #33FF66;
+  --sidebar-border: transparent;
+  --sidebar-ring: #33FF66;
+  --hairline: rgba(200, 255, 200, 0.12);
+  --dot: rgba(200, 255, 200, 0.10);
+  --user-bubble: rgba(51, 255, 102, 0.16);
+}

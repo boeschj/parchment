@@ -144,10 +144,15 @@ button {
 }
 
 /*
- * Display headings — tighter tracking, lighter line-height.
+ * Display headings — tighter tracking, lighter line-height. font-family
+ * falls back to the body's --font-sans when a theme doesn't set
+ * --font-serif, so the default look is byte-identical to before this
+ * fallback existed — it only activates for a theme that opts in (e.g.
+ * themes/manuscript.css).
  * Apply as: <h1 class="h-display">…</h1>
  */
 .h-display {
+  font-family: var(--font-serif, var(--font-sans));
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.05;
@@ -172,6 +177,7 @@ button {
  * page background. Applied to the Tiptap surface inside PlanFile.
  */
 .plan-prose .ProseMirror h1 {
+  font-family: var(--font-serif, var(--font-sans));
   font-size: 3rem;
   font-weight: 700;
   letter-spacing: -0.035em;
@@ -180,6 +186,7 @@ button {
 }
 
 .plan-prose .ProseMirror h2 {
+  font-family: var(--font-serif, var(--font-sans));
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.012em;
