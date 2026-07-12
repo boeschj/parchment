@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { applySpecPatch, type JsonPatch, type Spec } from "@json-render/core";
 import { prepareSpec } from "./spec-validation.ts";
 import type { JsonRenderSpec } from "../shared/types.ts";
 
@@ -185,6 +186,63 @@ describe("prepareSpec — no false rejections", () => {
       }),
     );
     expect(issues).toEqual([]);
+  });
+});
+
+describe("canvas_patch cookbook — the five worked edits apply and validate", () => {
+  // Mirror of the canvas_patch tool: applySpecPatch loop -> prepareSpec. Locks
+  // the five examples in references/patch-cookbook.md (also verified live against
+  // a daemon slot on CANVAS_PORT=7813).
+  const base: JsonRenderSpec = {
+    root: "page",
+    elements: {
+      page: { type: "Stack", props: { gap: "lg" }, children: ["title", "m1", "tbl", "details", "chart"] },
+      title: { type: "Heading", props: { text: "Latency review", level: "h1" }, children: [] },
+      m1: { type: "Metric", props: { label: "p99", value: "412 ms" }, children: [] },
+      tbl: {
+        type: "DataTable",
+        props: {
+          columns: [{ key: "route", header: "Route" }, { key: "p99", header: "p99", type: "number" }],
+          rows: [{ route: "/api", p99: 120 }],
+        },
+        children: [],
+      },
+      details: { type: "Card", props: { title: "Details" }, visible: true, children: [] },
+      chart: { type: "Chart", props: { kind: "line", x: "day", y: "revenue", data: [{ day: "Mon", revenue: 1240 }] }, children: [] },
+    },
+  };
+
+  function applyCookbookPatch(patches: JsonPatch[]): JsonRenderSpec {
+    let patched = base as unknown as Spec;
+    for (const patch of patches) patched = applySpecPatch(patched, patch);
+    const { spec, issues } = prepareSpec(patched as unknown as JsonRenderSpec);
+    expect(issues).toEqual([]);
+    return spec;
+  }
+
+  it("1. change a metric value", () => {
+    const s = applyCookbookPatch([{ op: "replace", path: "/elements/m1/props/value", value: "388 ms" }]);
+    expect(s.elements.m1?.props.value).toBe("388 ms");
+  });
+
+  it("2. add a DataTable row", () => {
+    const s = applyCookbookPatch([{ op: "add", path: "/elements/tbl/props/rows/-", value: { route: "/checkout", p99: 512 } }]);
+    expect(s.elements.tbl?.props.rows).toEqual([{ route: "/api", p99: 120 }, { route: "/checkout", p99: 512 }]);
+  });
+
+  it("3. toggle visibility", () => {
+    const s = applyCookbookPatch([{ op: "replace", path: "/elements/details/visible", value: false }]);
+    expect(s.elements.details?.visible).toBe(false);
+  });
+
+  it("4. append a chart point", () => {
+    const s = applyCookbookPatch([{ op: "add", path: "/elements/chart/props/data/-", value: { day: "Tue", revenue: 1380 } }]);
+    expect(s.elements.chart?.props.data).toEqual([{ day: "Mon", revenue: 1240 }, { day: "Tue", revenue: 1380 }]);
+  });
+
+  it("5. retitle", () => {
+    const s = applyCookbookPatch([{ op: "replace", path: "/elements/title/props/text", value: "Q3 latency review" }]);
+    expect(s.elements.title?.props.text).toBe("Q3 latency review");
   });
 });
 
