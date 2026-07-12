@@ -1,5 +1,5 @@
 {
-  "name": "clawd-canvas",
+  "name": "parchment",
   "owner": {
     "name": "Jordan Boesch"
   },
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "clawd-canvas",
+      "name": "parchment",
       "source": "./",
       "description": "Generative-UI canvas for Claude Code via MCP + json-render.",
       "version": "0.3.0",

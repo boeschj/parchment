@@ -5,14 +5,14 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 // edits.ts transitively imports sessions.ts -> session-store.ts -> state.ts,
-// and state.ts computes STATE_DIR = join(homedir(), ".canvas") once, at
+// and state.ts computes STATE_DIR = join(homedir(), ".parchment") once, at
 // module-load time. Bun's os.homedir() does NOT pick up a runtime
 // `process.env.HOME = ...` assignment (only $HOME set before the process
 // starts), so the only reliable way to redirect it is to mock the node:os
 // module before that chain is ever imported. Bun caches modules by resolved
 // path across test files, so this must happen via a dynamic import (never a
 // static one, which ESM hoists ahead of the mock.module call below) — see
-// slots.test.ts and board.test.ts for the same pattern.
+// slots.test.ts for the same pattern.
 const fakeHome = mkdtempSync(join(tmpdir(), "clawd-canvas-edits-"));
 const realOs = await import("node:os");
 mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));

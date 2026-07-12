@@ -7,14 +7,14 @@
  * properties below. That makes this list the public theming contract.
  *
  * To retheme clawd-canvas WITHOUT forking or rebuilding:
- *   1. Create  ~/.canvas/theme.css
+ *   1. Create  ~/.parchment/theme.css
  *   2. Redefine any tokens you want under :root (and .dark for the dark
  *      ramp). Override only what you want to change — the rest fall back
  *      to the defaults here.
  *   3. Refresh the canvas tab. The daemon serves your file at /theme.css
  *      and it loads last, so your values win. No build step.
  *
- * Example ~/.canvas/theme.css (make it violet):
+ * Example ~/.parchment/theme.css (make it violet):
  *   :root { --primary: #7C3AED; --ring: #7C3AED; --chart-1: #7C3AED; }
  *   .dark { --primary: #A78BFA; --ring: #A78BFA; }
  *

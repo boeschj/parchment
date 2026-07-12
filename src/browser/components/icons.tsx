@@ -6,16 +6,10 @@
 import {
   ChartColumn,
   ChevronsLeft,
-  CircleDollarSign,
   FileDiff,
   FileText,
-  FolderOpen,
-  Gauge,
   MessageSquare,
   Moon,
-  Network,
-  Presentation,
-  ShieldCheck,
   Sparkles,
   Sun,
   Table,
@@ -35,15 +29,9 @@ export const ChartIcon = ChartColumn;
 export const DiffIcon = FileDiff;
 export const SparkleIcon = Sparkles;
 export const TranscriptIcon = MessageSquare;
-export const BoardIcon = Presentation;
 export const SunIcon = Sun;
 export const MoonIcon = Moon;
 export const ChevronsLeftIcon = ChevronsLeft;
-export const ExplorerIcon = FolderOpen;
-export const GraphIcon = Network;
-export const CostIcon = CircleDollarSign;
-export const ContextIcon = Gauge;
-export const ShieldIcon = ShieldCheck;
 
 const SLOT_KIND_ICON: Record<string, LucideIcon> = {
   [SlotKind.Plan]: DocIcon,

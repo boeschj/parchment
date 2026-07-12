@@ -8,7 +8,7 @@ import type { JsonRenderSpec } from "../shared/types.ts";
 import type { SessionRoom, WebSocketSubscriber } from "./sessions.ts";
 
 // slots.ts transitively imports sessions.ts -> session-store.ts -> state.ts,
-// and state.ts computes STATE_DIR = join(homedir(), ".canvas") once, at
+// and state.ts computes STATE_DIR = join(homedir(), ".parchment") once, at
 // module-load time. Bun's os.homedir() does NOT pick up a runtime
 // `process.env.HOME = ...` assignment (only $HOME set before the process
 // starts), so the only reliable way to redirect it is to mock the node:os

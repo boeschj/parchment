@@ -24,12 +24,9 @@ import {
   canvasSessionUrl,
   closeSlot,
   pushSlot,
-  readBoard,
   resolveActiveSessionId,
-  sendBoardOps,
   sendSlotOps,
 } from "./canvas-client.ts";
-import { summarizeBoardScene } from "./board.ts";
 import { STATE_DIR } from "./state.ts";
 
 const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
@@ -382,160 +379,6 @@ server.registerTool(
   },
 );
 
-// ---- Board tools ----------------------------------------------------------
-// The board is a shared Excalidraw scene: the user draws with the full
-// Excalidraw UI, Claude draws through these tools, both see the same scene
-// live. Conversion happens in the connected browser tab, so draw tools fail
-// fast (with the canvas URL) when no tab is open.
-
-const BOARD_OP_FALLBACK_ERROR = "board op failed";
-
-function boardOpFailure(result: { error?: string }): ReturnType<typeof errorText> {
-  return errorText(new Error(result.error ?? BOARD_OP_FALLBACK_ERROR));
-}
-
-const BOARD_SKELETON_GUIDE =
-  "Elements use Excalidraw's skeleton format: { type: 'rectangle'|'ellipse'|'diamond'|'text'|'line'|'arrow', x, y, width?, height?, label?: { text }, id?, strokeColor?, backgroundColor? }. " +
-  "Give shapes ids and connect them with arrows via start/end: { type: 'arrow', x, y, start: { id: 'a' }, end: { id: 'b' } } — attachment points are computed automatically. " +
-  "You must lay out x/y yourself (a column/grid plan works well); read the board first so new elements don't overlap existing ones.";
-
-server.registerTool(
-  "board_read",
-  {
-    title: "Read the Shared Board",
-    description:
-      "Read the shared Excalidraw board. Default 'summary' returns a compact structural list (type, id, position, text) — use it to plan edits and avoid overlap. 'full' returns raw element JSON; only request it when you need exact geometry.",
-    inputSchema: z.object({
-      format: z.enum(["summary", "full"]).optional(),
-    }),
-  },
-  async ({ format }) => {
-    try {
-      const resolvedSessionId = await resolveSessionId();
-      const scene = await readBoard(resolvedSessionId);
-      const text =
-        format === "full" ? JSON.stringify(scene.elements) : summarizeBoardScene(scene);
-      return { content: [{ type: "text", text }] };
-    } catch (caught) {
-      return errorText(caught);
-    }
-  },
-);
-
-server.registerTool(
-  "board_add_elements",
-  {
-    title: "Draw on the Shared Board",
-    description:
-      `Add elements to the shared Excalidraw board — the primary way to draw and to make targeted additions to an existing scene. ${BOARD_SKELETON_GUIDE}`,
-    inputSchema: z.object({
-      elements: z
-        .array(z.record(z.string(), z.unknown()))
-        .min(1)
-        .describe("Excalidraw skeleton elements to add."),
-    }),
-  },
-  async ({ elements }) => {
-    try {
-      const resolvedSessionId = await resolveSessionId();
-      const result = await sendBoardOps(resolvedSessionId, { addSkeletons: elements });
-      if (!result.ok) return boardOpFailure(result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Added ${elements.length} elements — board now has ${result.elementCount ?? "?"}. View: ${canvasSessionUrl(resolvedSessionId)}`,
-          },
-        ],
-      };
-    } catch (caught) {
-      return errorText(caught);
-    }
-  },
-);
-
-server.registerTool(
-  "board_draw_mermaid",
-  {
-    title: "Draw a Diagram onto the Board",
-    description:
-      "Convert mermaid syntax into hand-drawn Excalidraw elements on the shared board, with automatic layout. Best for drawing a whole diagram from scratch (flowchart, sequence, class, ER, state). The result is a one-shot insert — for follow-up tweaks, use board_add_elements / board_delete_elements instead of re-drawing.",
-    inputSchema: z.object({
-      mermaid: z.string().describe("Mermaid source, e.g. 'flowchart LR\\n  a[Client] --> b[API]'"),
-    }),
-  },
-  async ({ mermaid }) => {
-    try {
-      const resolvedSessionId = await resolveSessionId();
-      const result = await sendBoardOps(resolvedSessionId, { addMermaid: mermaid });
-      if (!result.ok) return boardOpFailure(result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Diagram drawn — board now has ${result.elementCount ?? "?"} elements. View: ${canvasSessionUrl(resolvedSessionId)}`,
-          },
-        ],
-      };
-    } catch (caught) {
-      return errorText(caught);
-    }
-  },
-);
-
-server.registerTool(
-  "board_delete_elements",
-  {
-    title: "Delete Board Elements",
-    description:
-      "Remove elements from the shared board by id (get ids from board_read). Deleting a shape also detaches its bound label.",
-    inputSchema: z.object({
-      elementIds: z.array(z.string()).min(1),
-    }),
-  },
-  async ({ elementIds }) => {
-    try {
-      const resolvedSessionId = await resolveSessionId();
-      const result = await sendBoardOps(resolvedSessionId, { deleteElementIds: elementIds });
-      if (!result.ok) return boardOpFailure(result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Deleted ${elementIds.length} elements — board now has ${result.elementCount ?? "?"}.`,
-          },
-        ],
-      };
-    } catch (caught) {
-      return errorText(caught);
-    }
-  },
-);
-
-server.registerTool(
-  "board_snapshot",
-  {
-    title: "See the Shared Board",
-    description:
-      "Export the current board as a PNG you can actually look at. Use after drawing to verify your work, or when the user says they've drawn/changed something on the board.",
-    inputSchema: z.object({}),
-  },
-  async () => {
-    try {
-      const resolvedSessionId = await resolveSessionId();
-      const result = await sendBoardOps(resolvedSessionId, { exportPng: true });
-      if (!result.ok || !result.pngBase64) {
-        return errorText(new Error(result.error ?? "board export failed"));
-      }
-      return {
-        content: [{ type: "image" as const, data: result.pngBase64, mimeType: "image/png" as const }],
-      };
-    } catch (caught) {
-      return errorText(caught);
-    }
-  },
-);
-
 server.registerTool(
   "canvas_patch",
   {
@@ -606,7 +449,7 @@ server.registerTool(
 
 // ---- Saved UI library -----------------------------------------------------
 // Slots persist on disk as full Slot JSON; the library is a named copy of
-// {title, kind, spec, state} under ~/.canvas/library/. Users can also drop
+// {title, kind, spec, state} under ~/.parchment/library/. Users can also drop
 // hand-written spec files there — anything loadable by canvas_load.
 
 const LIBRARY_DIR = join(STATE_DIR, "library");
@@ -634,7 +477,7 @@ server.registerTool(
   {
     title: "Save a Slot to the UI Library",
     description:
-      "Save a rendered slot's UI (spec + state) under a reusable name in the user's library (~/.canvas/library/). Use when the user says they like a view and wants to keep/reuse it. Reload later with canvas_load.",
+      "Save a rendered slot's UI (spec + state) under a reusable name in the user's library (~/.parchment/library/). Use when the user says they like a view and wants to keep/reuse it. Reload later with canvas_load.",
     inputSchema: z.object({
       slotId: z.string().describe("The slot id to save."),
       name: z.string().describe("Library name, e.g. 'perf-dashboard'. Lowercased and slugified."),
@@ -716,7 +559,7 @@ server.registerTool(
   "canvas_library",
   {
     title: "List Saved UIs",
-    description: "List the user's saved canvas UIs (name, title, saved date) from ~/.canvas/library/.",
+    description: "List the user's saved canvas UIs (name, title, saved date) from ~/.parchment/library/.",
     inputSchema: z.object({}),
   },
   async () => {

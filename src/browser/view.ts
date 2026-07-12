@@ -7,12 +7,6 @@ import { SlotKind } from "../shared/types.ts";
 export const Surface = {
   Transcript: "transcript",
   Plan: "plan",
-  Board: "board",
-  Explorer: "explorer",
-  Graph: "graph",
-  Costs: "costs",
-  Context: "context",
-  Safety: "safety",
 } as const;
 
 export type Surface = (typeof Surface)[keyof typeof Surface];

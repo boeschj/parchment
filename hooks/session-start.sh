@@ -9,7 +9,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib.sh"
 mkdir -p "${CANVAS_STATE_DIR}"
 
 # Refresh the stable statusline launcher so a user's settings.json path
-# (bash ~/.canvas/statusline.sh) keeps working across plugin updates.
+# (bash ~/.parchment/statusline.sh) keeps working across plugin updates.
 canvas_write_statusline_launcher
 
 # First-run self-build: a marketplace install drops the raw repo with no
@@ -49,6 +49,15 @@ if [[ ! -d "${CLAUDE_PLUGIN_ROOT}/node_modules" || ! -d "${CLAUDE_PLUGIN_ROOT}/d
     echo "[clawd-canvas] another session is running the first-time build; the canvas will be up shortly." >&2
   fi
   exit 0
+fi
+
+# Adopt a newer build automatically: if the daemon is alive but running code
+# older than what's on disk (a plugin update or rebuild), replace it. State is
+# persisted to disk, so the restart is lossless and the browser tab reconnects
+# on its own — the user never runs a command to pick up an update.
+if canvas_server_alive && canvas_daemon_is_stale; then
+  echo "[clawd-canvas] newer build detected — restarting the canvas daemon to adopt it." >&2
+  canvas_stop_daemon
 fi
 
 if ! canvas_server_alive; then

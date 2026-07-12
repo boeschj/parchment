@@ -3,7 +3,7 @@ import { StickToBottom } from "use-stick-to-bottom";
 import { Streamdown } from "streamdown";
 import type { TranscriptCoverage, TranscriptItem, TranscriptModel } from "../transcript/parse.ts";
 import { TranscriptItemKind } from "../transcript/parse.ts";
-import { SystemSubtype } from "../../shared/trace/entry-types.ts";
+import { SystemSubtype } from "@boeschj/claude-jsonl";
 import { InspectableRow, JsonPanel, ToolCall } from "./ToolCall.tsx";
 import { ImageAttachments } from "./ImageAttachments.tsx";
 import { Terminal } from "./Terminal.tsx";

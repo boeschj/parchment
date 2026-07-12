@@ -12,9 +12,8 @@ export type CanvasState = {
   connected: boolean;
 };
 
-// Transient events (board ops/updates) are commands, not state — components
-// that act on them imperatively subscribe here instead of going through the
-// reducer.
+// Transient events (slot ops) are commands, not state — components that act
+// on them imperatively subscribe here instead of going through the reducer.
 export type WsEventListener = (event: WsEvent) => void;
 
 function reduceEvent(state: CanvasState, event: WsEvent): CanvasState {

@@ -23,15 +23,15 @@ import type {
   ToolResultBlock,
   TraceEntry,
   UserTraceEntry,
-} from "../../shared/trace/entry-types.ts";
+} from "@boeschj/claude-jsonl";
 import {
   BlockKind,
   SessionMetaField,
   SystemSubtype,
   TraceEntryKind,
   UserOrigin,
-} from "../../shared/trace/entry-types.ts";
-import { parseTraceEntry } from "../../shared/trace/parse-entry.ts";
+  parseTraceEntry,
+} from "@boeschj/claude-jsonl";
 
 export const TranscriptItemKind = {
   User: "user",

@@ -3,9 +3,6 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { LOG_FILE, PORT_FILE, STATE_DIR, TOKEN_FILE, TOKEN_HEADER } from "./state.ts";
 import type {
-  BoardOps,
-  BoardOpsResult,
-  BoardScene,
   JsonRenderSpec,
   Slot,
   SlotKind,
@@ -15,7 +12,7 @@ import type {
 } from "../shared/types.ts";
 
 const FETCH_TIMEOUT_MS = 5000;
-// Board and slot ops wait on a browser round-trip (daemon holds them up to 15s).
+// Slot ops wait on a browser round-trip (daemon holds them up to 15s).
 const BROWSER_ROUNDTRIP_TIMEOUT_MS = 20_000;
 const HEALTH_WAIT_ATTEMPTS = 25;
 const HEALTH_WAIT_INTERVAL_MS = 200;
@@ -163,30 +160,6 @@ export async function closeSlot(sessionId: string, slotId: string): Promise<void
     const text = await response.text();
     throw new CanvasDaemonError(`closeSlot failed (${response.status}): ${text}`);
   }
-}
-
-export async function readBoard(sessionId: string): Promise<BoardScene> {
-  await ensureDaemonAlive();
-  const response = await authorizedFetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new CanvasDaemonError(`readBoard failed (${response.status}): ${text}`);
-  }
-  return (await response.json()) as BoardScene;
-}
-
-export async function sendBoardOps(sessionId: string, ops: BoardOps): Promise<BoardOpsResult> {
-  await ensureDaemonAlive();
-  const response = await authorizedFetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/board/ops`,
-    { method: "POST", body: JSON.stringify({ ops }) },
-    BROWSER_ROUNDTRIP_TIMEOUT_MS,
-  );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new CanvasDaemonError(`board ops failed (${response.status}): ${text}`);
-  }
-  return (await response.json()) as BoardOpsResult;
 }
 
 export async function sendSlotOps(sessionId: string, ops: SlotOps): Promise<SlotOpsResult> {

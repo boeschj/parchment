@@ -1,6 +1,6 @@
 // Disk persistence for session content so a daemon restart is lossless.
 //
-// Layout under ~/.canvas/sessions/<id>/:
+// Layout under ~/.parchment/sessions/<id>/:
 //   slots/<slotId>.json — one full Slot per file (spec + state included).
 //     The statusline reads these for its kind glyphs, so the top-level
 //     fields (id, kind, status, title) must stay stable.

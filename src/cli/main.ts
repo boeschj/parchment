@@ -20,7 +20,7 @@ import {
   type ClaudeSettings,
 } from "./settings.ts";
 
-const STATE_DIR = join(homedir(), ".canvas");
+const STATE_DIR = join(homedir(), ".parchment");
 const PID_FILE = join(STATE_DIR, "server.pid");
 const PORT_FILE = join(STATE_DIR, "server.port");
 const TOKEN_FILE = join(STATE_DIR, "server.token");
@@ -252,7 +252,7 @@ function cmdClean(): number {
       }
     }
   }
-  ok("cleaned ~/.canvas/ state files (sessions/ kept; rm -rf manually if desired)");
+  ok("cleaned ~/.parchment/ state files (sessions/ kept; rm -rf manually if desired)");
   return 0;
 }
 

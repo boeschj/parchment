@@ -1,6 +1,4 @@
 import type {
-  BoardOpsResult,
-  BoardScene,
   EditKind,
   SessionSummary,
   Slot,
@@ -60,49 +58,6 @@ export async function deleteSlot(sessionId: string, slotId: string): Promise<voi
   }
 }
 
-export async function fetchBoardScene(sessionId: string): Promise<BoardScene> {
-  const headers = await authorizedHeaders();
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`, { headers });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`fetchBoardScene failed (${response.status}): ${text}`);
-  }
-  return (await response.json()) as BoardScene;
-}
-
-export async function postBoardScene(
-  sessionId: string,
-  scene: BoardScene,
-  clientId: string,
-): Promise<void> {
-  const headers = await authorizedHeaders();
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/board`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ ...scene, clientId }),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`postBoardScene failed (${response.status}): ${text}`);
-  }
-}
-
-export async function postBoardOpsResult(
-  sessionId: string,
-  requestId: string,
-  result: BoardOpsResult,
-): Promise<void> {
-  const headers = await authorizedHeaders();
-  const response = await fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/board/ops-result`,
-    { method: "POST", headers, body: JSON.stringify({ requestId, result }) },
-  );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`postBoardOpsResult failed (${response.status}): ${text}`);
-  }
-}
-
 export async function postSlotOpsResult(
   sessionId: string,
   requestId: string,
@@ -149,59 +104,4 @@ export async function resetSession(sessionId: string): Promise<void> {
     const text = await response.text();
     throw new Error(`resetSession failed (${response.status}): ${text}`);
   }
-}
-
-// ---------------------------------------------------------------------------
-// Trace explorer endpoints (read-only GETs, no token required)
-// ---------------------------------------------------------------------------
-
-import type {
-  GlobalCostReport,
-  TraceProject,
-  TraceSessionDetail,
-  TraceSessionSummary,
-} from "../shared/trace/api-types.ts";
-
-export async function fetchTraceProjects(): Promise<TraceProject[]> {
-  const response = await fetch("/api/trace/projects");
-  if (!response.ok) throw new Error(`fetchTraceProjects failed: ${response.status}`);
-  const payload = (await response.json()) as { projects: TraceProject[] };
-  return payload.projects ?? [];
-}
-
-export async function fetchTraceSessions(projectId: string): Promise<TraceSessionSummary[]> {
-  const response = await fetch(`/api/trace/projects/${encodeURIComponent(projectId)}/sessions`);
-  if (!response.ok) throw new Error(`fetchTraceSessions failed: ${response.status}`);
-  const payload = (await response.json()) as { sessions: TraceSessionSummary[] };
-  return payload.sessions ?? [];
-}
-
-export async function fetchTraceSessionDetail(sessionId: string): Promise<TraceSessionDetail | null> {
-  const response = await fetch(`/api/trace/sessions/${encodeURIComponent(sessionId)}`);
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`fetchTraceSessionDetail failed: ${response.status}`);
-  return (await response.json()) as TraceSessionDetail;
-}
-
-export async function fetchGlobalCostReport(): Promise<GlobalCostReport> {
-  const response = await fetch("/api/trace/costs");
-  if (!response.ok) throw new Error(`fetchGlobalCostReport failed: ${response.status}`);
-  return (await response.json()) as GlobalCostReport;
-}
-
-export async function fetchSubagentEntries(
-  projectId: string,
-  sessionId: string,
-  agentId: string,
-): Promise<Record<string, unknown>[] | null> {
-  const encodedProjectId = encodeURIComponent(projectId);
-  const encodedSessionId = encodeURIComponent(sessionId);
-  const encodedAgentId = encodeURIComponent(agentId);
-  const response = await fetch(
-    `/api/trace/projects/${encodedProjectId}/sessions/${encodedSessionId}/subagents/${encodedAgentId}/entries`,
-  );
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`fetchSubagentEntries failed: ${response.status}`);
-  const payload = (await response.json()) as { entries: Record<string, unknown>[] };
-  return payload.entries ?? [];
 }

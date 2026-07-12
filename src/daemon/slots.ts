@@ -19,7 +19,7 @@ import {
 } from "./sessions.ts";
 
 // Slot ops hold the HTTP request open while one browser tab renders and
-// snapshots the slot — same budget as board ops.
+// snapshots the slot.
 const SLOT_OPS_TIMEOUT_MS = 15_000;
 
 export type UpsertSlotInput = {
@@ -116,7 +116,7 @@ function seedInitialState(
 }
 
 // ---------------------------------------------------------------------------
-// Slot ops round-trip — mirrors the board ops machinery in board.ts.
+// Slot ops round-trip.
 // ---------------------------------------------------------------------------
 
 type PendingSlotOps = {
@@ -126,9 +126,9 @@ type PendingSlotOps = {
 
 const pendingSlotOps = new Map<string, PendingSlotOps>();
 
-// Per-session serialization, same rationale as board ops: overlapping ops in
-// the executing tab would race each other. The chain never rejects (results
-// are values), so one failure doesn't wedge the queue.
+// Per-session serialization: overlapping ops in the executing tab would race
+// each other. The chain never rejects (results are values), so one failure
+// doesn't wedge the queue.
 const slotOpsQueues = new Map<string, Promise<SlotOpsResult>>();
 
 // Relay ops to EVERY connected tab and hold the request until the first one

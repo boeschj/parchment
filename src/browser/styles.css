@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 /* Default theme (color/radius/motion tokens). Kept separate from this
  * structural stylesheet so devs can retheme by overriding the tokens —
- * see theme-default.css for the contract and the ~/.canvas/theme.css hook. */
+ * see theme-default.css for the contract and the ~/.parchment/theme.css hook. */
 @import "./theme-default.css";
 @plugin "@tailwindcss/typography";
 
@@ -272,80 +272,4 @@ button {
 .transcript-prose pre code {
   background: transparent;
   padding: 0;
-}
-
-/*
- * Trace-graph level-of-detail. Every graph node/edge carries a reveal band
- * (--appear / --dissolve, in viewport-zoom units) set inline; useGraphZoom
- * writes the live zoom to --detail on the .trace-graph container. Opacity
- * cross-fades from those three numbers in pure CSS, so zooming reveals detail
- * with zero React re-renders and the camera never moves. A child's --appear
- * equals its parent's --dissolve, so exactly one cross-fade is ever in flight.
- */
-.trace-graph {
-  --fade-w: 0.16;
-  --fade-half: 0.08;
-}
-
-.lod-fade {
-  --lod-in: clamp(
-    0,
-    calc((var(--detail, 0.36) - var(--appear, -1) + var(--fade-half)) / var(--fade-w)),
-    1
-  );
-  --lod-out: clamp(
-    0,
-    calc((var(--dissolve, 99) + var(--fade-half) - var(--detail, 0.36)) / var(--fade-w)),
-    1
-  );
-  /*
-   * Replay factor: 1 once the playhead has reached this element's --reveal
-   * step, a faint ghost before then. --playhead defaults huge, so with no
-   * replay running every element reads as fully arrived.
-   */
-  --replay: clamp(0.12, calc((var(--playhead, 999999) - var(--reveal, 0) + 0.5) * 1000), 1);
-  opacity: calc(min(var(--lod-in), var(--lod-out)) * var(--dim, 1) * var(--replay));
-}
-
-/*
- * An invisible finer node must not intercept a click or drag meant for the
- * visible coarse node it overlaps: disable pointer events on any node not
- * legible at the current detail level. Each node carries hit{level} classes
- * for the levels it reads at; the container carries the current depth.
- */
-.trace-graph.depth-0 .react-flow__node:not(.hit0),
-.trace-graph.depth-1 .react-flow__node:not(.hit1),
-.trace-graph.depth-2 .react-flow__node:not(.hit2) {
-  pointer-events: none;
-}
-
-/*
- * React Flow's zoom/fit Controls ship with a hard-coded light palette (white
- * buttons, dark icons) that vanish in dark mode. Re-skin them onto the theme
- * tokens so they read in both.
- */
-.trace-graph .react-flow__controls {
-  box-shadow: none;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.trace-graph .react-flow__controls-button {
-  background: var(--card);
-  border-bottom: 1px solid var(--hairline);
-  color: var(--muted-foreground);
-}
-
-.trace-graph .react-flow__controls-button:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.trace-graph .react-flow__controls-button svg {
-  fill: currentColor;
-}
-
-.trace-graph .react-flow__controls-button:last-child {
-  border-bottom: none;
 }

@@ -8,12 +8,12 @@ const UI_DIR = join(import.meta.dir, "..", "..", "dist", "browser");
 // Set by the SessionStart first-run builder (hooks/session-start.sh). Present
 // only while the initial `bun install && bun run build:browser` is in flight,
 // so it distinguishes "still building" from "build never ran / failed".
-const BUILD_LOCK_DIR = join(homedir(), ".canvas", "first-run-build.lock");
+const BUILD_LOCK_DIR = join(homedir(), ".parchment", "first-run-build.lock");
 
 // Optional user theme. Devs override any design token by dropping a file here;
 // it's linked last in index.html so its :root redefinitions win with no rebuild.
 // Absent file → empty stylesheet (the app falls back to theme-default.css).
-const USER_THEME_PATH = join(homedir(), ".canvas", "theme.css");
+const USER_THEME_PATH = join(homedir(), ".parchment", "theme.css");
 const CSS_HEADERS = { "content-type": "text/css; charset=utf-8" } as const;
 
 export async function serveUserTheme(): Promise<Response> {

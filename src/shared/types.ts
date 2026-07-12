@@ -113,37 +113,10 @@ export type OverlayEntry = {
 // through untyped and the browser's parser narrows defensively.
 export type TranscriptEntry = Record<string, unknown>;
 
-// The shared Excalidraw board. Elements/files use Excalidraw's own JSON
-// shapes; the daemon treats them as opaque and persists them verbatim as a
-// standard .excalidraw file.
-export type BoardScene = {
-  elements: unknown[];
-  files: Record<string, unknown>;
-};
-
-// Operations Claude sends the board. Skeleton elements are Excalidraw's
-// LLM-friendly format (convertToExcalidrawElements fills in bindings,
-// seeds, text containers); mermaid is the auto-layout cold-start path.
-// Conversion needs a DOM, so the daemon relays ops to the browser tab and
-// the browser writes the resulting scene back.
-export type BoardOps = {
-  addSkeletons?: unknown[];
-  addMermaid?: string;
-  deleteElementIds?: string[];
-  exportPng?: boolean;
-};
-
-export type BoardOpsResult = {
-  ok: boolean;
-  error?: string;
-  elementCount?: number;
-  pngBase64?: string;
-};
-
-// Operations Claude sends a rendered slot. Like board ops, execution needs a
-// DOM (the slot renders through React + the component registry), so the
-// daemon relays ops to one browser tab and holds the HTTP request until the
-// tab posts the result back under the same requestId.
+// Operations Claude sends a rendered slot. Execution needs a DOM (the slot
+// renders through React + the component registry), so the daemon relays ops
+// to one browser tab and holds the HTTP request until the tab posts the
+// result back under the same requestId.
 export type SlotOps = {
   exportPng?: { slotId: string };
 };
@@ -165,8 +138,6 @@ export type WsEvent =
   | { kind: "reset"; data: { sessionId: string } }
   | { kind: "transcript-snapshot"; data: { entries: TranscriptEntry[] } }
   | { kind: "transcript-append"; data: { entries: TranscriptEntry[] } }
-  | { kind: "board-updated"; data: { clientId: string | null } }
-  | { kind: "board-ops"; data: { requestId: string; ops: BoardOps } }
   | { kind: "slot-ops"; data: { requestId: string; ops: SlotOps } };
 
 export type CanvasInjectionPayload = {

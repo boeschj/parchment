@@ -1,4 +1,4 @@
-// Left icon rail. The resting state is a 72px column: seven fixed surfaces up
+// Left icon rail. The resting state is a 72px column: the fixed surfaces up
 // top, then a hairline, a mono "canvas" caption, and the artifacts — newest
 // first, each carrying a per-kind icon and colour tint. Hovering a resting
 // artifact floats a title/age flyout to its right; once the stack overflows,
@@ -10,15 +10,9 @@ import type { Slot } from "../../shared/types.ts";
 import { Theme } from "../theme.ts";
 import { Surface, type CanvasView } from "../view.ts";
 import {
-  BoardIcon,
   ChevronsLeftIcon,
-  ContextIcon,
-  CostIcon,
   DocIcon,
-  ExplorerIcon,
-  GraphIcon,
   MoonIcon,
-  ShieldIcon,
   SlotKindIcon,
   SunIcon,
   TranscriptIcon,
@@ -46,16 +40,6 @@ type FixedItem = { surface: Surface; label: string; icon: ReactNode };
 const SURFACE_ITEMS: FixedItem[] = [
   { surface: Surface.Transcript, label: "Transcript", icon: <TranscriptIcon width={ICON_SIZE} height={ICON_SIZE} /> },
   { surface: Surface.Plan, label: "Plan", icon: <DocIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-  { surface: Surface.Board, label: "Board", icon: <BoardIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-];
-
-// The trace explorer group: read-only insight surfaces over ~/.claude.
-const TRACE_ITEMS: FixedItem[] = [
-  { surface: Surface.Explorer, label: "Sessions", icon: <ExplorerIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-  { surface: Surface.Graph, label: "Session graph", icon: <GraphIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-  { surface: Surface.Costs, label: "Cost center", icon: <CostIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-  { surface: Surface.Context, label: "Context explorer", icon: <ContextIcon width={ICON_SIZE} height={ICON_SIZE} /> },
-  { surface: Surface.Safety, label: "Safety", icon: <ShieldIcon width={ICON_SIZE} height={ICON_SIZE} /> },
 ];
 
 type FlyoutTarget = { slotId: string; top: number; left: number };
@@ -115,21 +99,6 @@ export function LeftRail({
     <nav className={showAll ? "rail rail--expanded" : "rail"} aria-label="Canvas navigation">
       <div className="rail-group">
         {surfaceItems.map((item) => (
-          <RailButton
-            key={item.surface}
-            icon={item.icon}
-            label={item.label}
-            expanded={showAll}
-            isActive={view.type === "surface" && view.surface === item.surface}
-            onSelect={() => onSelectView({ type: "surface", surface: item.surface })}
-          />
-        ))}
-      </div>
-
-      <div className="rail-divider" />
-
-      <div className="rail-group">
-        {TRACE_ITEMS.map((item) => (
           <RailButton
             key={item.surface}
             icon={item.icon}

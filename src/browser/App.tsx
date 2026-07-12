@@ -8,20 +8,12 @@ import { LeftRail } from "./components/LeftRail.tsx";
 import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
-import { BoardView } from "./components/BoardView.tsx";
-import { ExplorerView } from "./components/trace/ExplorerView.tsx";
-import { GraphView } from "./components/trace/GraphView.tsx";
-import { CostsView } from "./components/trace/CostsView.tsx";
-import { ContextView } from "./components/trace/ContextView.tsx";
-import { SafetyView } from "./components/trace/SafetyView.tsx";
 import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
 import type { SessionSummary } from "../shared/types.ts";
-import { createBoardOpsListener } from "./board/ops-listener.ts";
 import { createSlotOpsListener } from "./slot-ops/ops-listener.ts";
 import { useWsEventSubscription } from "./useWsEventSubscription.ts";
 import type { TranscriptModel } from "./transcript/parse.ts";
-import type { WsEventListener } from "./ws.ts";
 import { useCanvasWebSocket } from "./ws.ts";
 import { readSessionIdFromUrl, shortSessionLabel } from "./session.ts";
 import { deleteSlot, resetSession } from "./api.ts";
@@ -56,9 +48,8 @@ export function App() {
   const currentSession = sessions.find((session) => session.sessionId === sessionId);
   const isClaudeWorking = currentSession?.status === SessionStatus.Working;
 
-  // Claude's board and slot ops execute at app level so drawing and slot
-  // snapshots work no matter which surface is showing.
-  useWsEventSubscription(subscribeToEvents, createBoardOpsListener(sessionId));
+  // Claude's slot ops execute at app level so slot snapshots work no matter
+  // which surface is showing.
   useWsEventSubscription(subscribeToEvents, createSlotOpsListener(sessionId));
 
   // On the first snapshot, land on the transcript and mark every slot already
@@ -105,7 +96,6 @@ export function App() {
               transcript={transcript}
               connected={connected}
               isClaudeWorking={isClaudeWorking}
-              subscribeToEvents={subscribeToEvents}
             />
           </div>
         </div>
@@ -122,7 +112,6 @@ function ViewContent({
   transcript,
   connected,
   isClaudeWorking,
-  subscribeToEvents,
 }: {
   sessionId: string;
   view: CanvasView;
@@ -131,7 +120,6 @@ function ViewContent({
   transcript: TranscriptModel;
   connected: boolean;
   isClaudeWorking: boolean;
-  subscribeToEvents: (listener: WsEventListener) => () => void;
 }) {
   if (view.type === "slot") {
     const slot = slots.find((candidate) => candidate.id === view.slotId);
@@ -149,30 +137,6 @@ function ViewContent({
       );
     }
     return <SlotView sessionId={sessionId} slot={planSlot} connected={connected} />;
-  }
-
-  if (view.surface === Surface.Board) {
-    return <BoardView sessionId={sessionId} subscribeToEvents={subscribeToEvents} />;
-  }
-
-  if (view.surface === Surface.Explorer) {
-    return <ExplorerView sessionId={sessionId} />;
-  }
-
-  if (view.surface === Surface.Graph) {
-    return <GraphView sessionId={sessionId} />;
-  }
-
-  if (view.surface === Surface.Costs) {
-    return <CostsView sessionId={sessionId} />;
-  }
-
-  if (view.surface === Surface.Context) {
-    return <ContextView sessionId={sessionId} />;
-  }
-
-  if (view.surface === Surface.Safety) {
-    return <SafetyView sessionId={sessionId} />;
   }
 
   if (transcript.items.length === 0) {

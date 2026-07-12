@@ -1,5 +1,5 @@
 {
-  "name": "clawd-canvas",
+  "name": "parchment",
   "version": "0.2.0",
   "description": "Generative-UI canvas for Claude Code. Claude calls MCP tools, your browser tab renders json-render specs (shadcn + extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable), edits flow back via UserPromptSubmit.",
   "type": "module",
@@ -20,7 +20,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.1",
+    "@boeschj/claude-jsonl": "file:../claude-jsonl",
     "@json-render/core": "latest",
     "@json-render/mcp": "latest",
     "@json-render/react": "latest",
@@ -32,14 +32,11 @@
     "@tiptap/core": "^3.0.0",
     "@tiptap/react": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
-    "@xyflow/react": "^12.11.1",
     "dompurify": "latest",
-    "elkjs": "^0.11.1",
     "html-to-image": "^1.11.13",
     "lucide-react": "^1.24.0",
     "mermaid": "^11.0.0",
     "monaco-editor": "latest",
-    "motion": "^12.42.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.3.0",

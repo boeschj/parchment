@@ -27,19 +27,7 @@ import {
 import { upsertSlot, removeSlot, markSlotError, requestSlotOps, resolveSlotOps } from "./slots.ts";
 import { clearPersistedSlots } from "./session-store.ts";
 import { registerTranscriptPath, readTranscriptBacklog, firstHumanPrompt } from "./transcript.ts";
-import {
-  readBoardScene,
-  writeBoardScene,
-  requestBoardOps,
-  resolveBoardOps,
-} from "./board.ts";
-import type {
-  BoardOps,
-  BoardOpsResult,
-  BoardScene,
-  SlotOps,
-  SlotOpsResult,
-} from "../shared/types.ts";
+import type { SlotOps, SlotOpsResult } from "../shared/types.ts";
 import {
   recordEdit,
   buildInjectionPayload,
@@ -48,11 +36,10 @@ import {
   clearOverlay,
 } from "./edits.ts";
 import { serveStatic, serveUserTheme } from "./static.ts";
-import { handleTraceRoute } from "./trace/routes.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
 const MAX_PORT_ATTEMPTS = 10;
-// Board ops hold a request open up to 15s waiting on a browser round-trip;
+// Slot ops hold a request open up to 15s waiting on a browser round-trip;
 // Bun's default idleTimeout (10s) would kill them mid-wait.
 const REQUEST_IDLE_TIMEOUT_S = 30;
 
@@ -67,6 +54,7 @@ if (await isExistingDaemonHealthy()) {
 }
 
 const SERVER_TOKEN = generateToken();
+const SERVER_STARTED_AT = new Date().toISOString();
 
 type CanvasServer = ReturnType<typeof serve<WebSocketAttachment>>;
 
@@ -97,7 +85,12 @@ async function handleFetch(
   }
 
   if (path === "/api/health") {
-    return jsonResponse({ ok: true, port: srv.port, sessions: listSessions().length });
+    return jsonResponse({
+      ok: true,
+      port: srv.port,
+      sessions: listSessions().length,
+      startedAt: SERVER_STARTED_AT,
+    });
   }
 
   if (path === "/api/heartbeat") {
@@ -147,10 +140,6 @@ async function handleFetch(
     });
   }
 
-  if (path.startsWith("/api/trace/")) {
-    return handleTraceRoute(request, path);
-  }
-
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)(\/.*)?$/);
   if (sessionMatch) {
     const sessionId = decodeURIComponent(sessionMatch[1]!);
@@ -170,7 +159,7 @@ async function handleFetch(
     return new Response(null, { status: 302, headers: { location: target } });
   }
 
-  // User theme override, served from ~/.canvas/theme.css (empty if absent).
+  // User theme override, served from ~/.parchment/theme.css (empty if absent).
   if (path === "/theme.css") {
     return serveUserTheme();
   }
@@ -333,40 +322,6 @@ async function handleSessionRoute(
       });
     }
     return jsonResponse(payload);
-  }
-
-  if (subPath === "/board" && method === "GET") {
-    return jsonResponse(readBoardScene(sessionId));
-  }
-
-  if (subPath === "/board" && method === "POST") {
-    const body = (await request.json()) as Partial<BoardScene> & { clientId?: string };
-    if (!Array.isArray(body.elements)) {
-      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "elements[] required");
-    }
-    const session = ensureSession(sessionId);
-    const scene: BoardScene = { elements: body.elements, files: body.files ?? {} };
-    writeBoardScene(session, scene, body.clientId ?? null);
-    return jsonResponse({ ok: true });
-  }
-
-  if (subPath === "/board/ops" && method === "POST") {
-    const body = (await request.json()) as { ops?: BoardOps };
-    if (!body.ops) {
-      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "ops required");
-    }
-    const session = ensureSession(sessionId);
-    const result = await requestBoardOps(session, body.ops);
-    return jsonResponse(result);
-  }
-
-  if (subPath === "/board/ops-result" && method === "POST") {
-    const body = (await request.json()) as { requestId?: string; result?: BoardOpsResult };
-    if (typeof body.requestId !== "string" || !body.result) {
-      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "requestId and result required");
-    }
-    const resolved = resolveBoardOps(body.requestId, body.result);
-    return jsonResponse({ ok: resolved });
   }
 
   if (subPath === "/status" && method === "POST") {
