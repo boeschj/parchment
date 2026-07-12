@@ -1,6 +1,6 @@
 ---
 name: canvas-spec
-description: Reference for authoring clawd-canvas json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit), repeat lists, visibility, and the full 49-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
+description: Reference for authoring parchment json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit), repeat lists, visibility, and the full 49-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
 ---
 
 # Canvas spec reference

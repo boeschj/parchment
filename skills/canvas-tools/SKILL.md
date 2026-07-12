@@ -1,6 +1,6 @@
 ---
 name: canvas-tools
-description: Compose generative UI on the clawd-canvas browser canvas via canvas_* MCP tools. Use whenever presenting anything richer than a one-liner — explanations, investigations, PR walkthroughs, benchmarks, log analysis, dashboards, comparisons, prototypes, or interactive forms. Turns walls of terminal text into visuals the user understands in under 3 minutes.
+description: Compose generative UI on the parchment browser canvas via canvas_* MCP tools. Use whenever presenting anything richer than a one-liner — explanations, investigations, PR walkthroughs, benchmarks, log analysis, dashboards, comparisons, prototypes, or interactive forms. Turns walls of terminal text into visuals the user understands in under 3 minutes.
 ---
 
 # Canvas composition — the playbook

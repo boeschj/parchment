@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "description": "Generative-UI canvas for Claude Code. Claude calls canvas_* MCP tools, your browser tab renders json-render specs (full shadcn catalog plus PlanFile, DiffViewer, MermaidEditor, Chart, DataTable extensions), and edits flow back into Claude's next turn via UserPromptSubmit.",
   "author": {
     "name": "Jordan Boesch"
