@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as z from "zod/v4";
 import { STATE_DIR } from "../state.ts";
 
@@ -56,9 +56,16 @@ export function parseAppsConfig(raw: string): AppsConfig {
   return parsed.data;
 }
 
+// The *From/*To variants take an explicit file path so tests exercise the
+// real read/write logic against a temp file — never the user's apps.json.
+
+export function loadAppsConfigFrom(file: string): AppsConfig {
+  if (!existsSync(file)) return { servers: {} };
+  return parseAppsConfig(readFileSync(file, "utf8"));
+}
+
 export function loadAppsConfig(): AppsConfig {
-  if (!existsSync(APPS_CONFIG_FILE)) return { servers: {} };
-  return parseAppsConfig(readFileSync(APPS_CONFIG_FILE, "utf8"));
+  return loadAppsConfigFrom(APPS_CONFIG_FILE);
 }
 
 export function resolveAppServer(name: string): AppServerConfig | null {
@@ -72,7 +79,7 @@ export function listAppServerNames(): string[] {
 
 // Accepts unknown so HTTP/tool boundaries can hand the payload straight in;
 // the schema is the gatekeeper.
-export function saveAppServer(name: string, server: unknown): void {
+export function saveAppServerTo(file: string, name: string, server: unknown): void {
   const parsed = AppServerSchema.safeParse(server);
   if (!parsed.success) {
     const issueLines = parsed.error.issues
@@ -80,10 +87,14 @@ export function saveAppServer(name: string, server: unknown): void {
       .join("\n");
     throw new Error(`invalid app server config for "${name}":\n${issueLines}`);
   }
-  const config = loadAppsConfig();
+  const config = loadAppsConfigFrom(file);
   config.servers[name] = parsed.data;
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(APPS_CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+export function saveAppServer(name: string, server: unknown): void {
+  saveAppServerTo(APPS_CONFIG_FILE, name, server);
 }
 
 // Environment for a stdio app server: a minimal safe base (never the full

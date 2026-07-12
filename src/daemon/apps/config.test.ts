@@ -1,23 +1,20 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-// config.ts derives APPS_CONFIG_FILE from STATE_DIR (homedir-based, computed
-// at module load), so node:os must be mocked before the import chain runs —
-// same pattern as edits.test.ts / slots.test.ts.
-const fakeHome = mkdtempSync(join(tmpdir(), "clawd-canvas-apps-config-"));
-const realOs = await import("node:os");
-mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));
-
-const {
+import {
   parseAppsConfig,
   buildStdioEnv,
   isStdioAppServer,
-  saveAppServer,
-  resolveAppServer,
-  listAppServerNames,
-} = await import("./config.ts");
+  saveAppServerTo,
+  loadAppsConfigFrom,
+} from "./config.ts";
+
+// Round-trip tests use the explicit-path variants against a temp file — the
+// bun-test node:os homedir mock is unreliable across multi-file runs and has
+// leaked test writes into the real ~/.parchment before.
+const tempConfigDir = mkdtempSync(join(tmpdir(), "clawd-canvas-apps-config-"));
+const tempConfigFile = join(tempConfigDir, "apps.json");
 
 describe("parseAppsConfig", () => {
   it("parses a stdio server with defaults for args/env/inheritEnv", () => {
@@ -119,16 +116,34 @@ describe("buildStdioEnv", () => {
 });
 
 describe("apps.json round-trip", () => {
-  it("saves and resolves a server by name", () => {
-    saveAppServer("roundtrip", { command: "bun", args: ["server.ts"], env: {}, inheritEnv: [] });
+  it("saves and reloads a server by name", () => {
+    saveAppServerTo(tempConfigFile, "roundtrip", {
+      command: "bun",
+      args: ["server.ts"],
+      env: {},
+      inheritEnv: [],
+    });
 
-    const resolved = resolveAppServer("roundtrip");
-    expect(resolved).not.toBeNull();
-    expect(isStdioAppServer(resolved!)).toBe(true);
-    expect(listAppServerNames()).toContain("roundtrip");
+    const reloaded = loadAppsConfigFrom(tempConfigFile);
+    const server = reloaded.servers["roundtrip"];
+    expect(server).toBeDefined();
+    expect(isStdioAppServer(server!)).toBe(true);
   });
 
-  it("returns null for unknown server names", () => {
-    expect(resolveAppServer("never-configured")).toBeNull();
+  it("preserves existing entries when saving another server", () => {
+    saveAppServerTo(tempConfigFile, "second", { url: "http://localhost:3100/mcp" });
+
+    const reloaded = loadAppsConfigFrom(tempConfigFile);
+    expect(Object.keys(reloaded.servers).sort()).toEqual(["roundtrip", "second"]);
+  });
+
+  it("rejects invalid registration payloads", () => {
+    expect(() => saveAppServerTo(tempConfigFile, "broken", { nope: true })).toThrow(
+      'invalid app server config for "broken"',
+    );
+  });
+
+  it("returns an empty config for a missing file", () => {
+    expect(loadAppsConfigFrom(join(tempConfigDir, "absent.json"))).toEqual({ servers: {} });
   });
 });
