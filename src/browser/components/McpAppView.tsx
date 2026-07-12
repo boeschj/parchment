@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppRenderer, type SandboxConfig } from "@mcp-ui/client";
 import type { z } from "zod/v4";
 import {
@@ -46,13 +46,17 @@ export function McpAppView({ props }: RenderProps) {
   const theme = useTheme();
   const [bridgeError, setBridgeError] = useState<string | null>(null);
 
-  // Identity-stable protocol inputs: AppRenderer/AppFrame effects key on prop
-  // identity, so a fresh object every render would re-send tool-result and
-  // host-context notifications into the app on every canvas re-render.
+  // Identity-stable protocol inputs. json-render rebuilds element props on
+  // every render, and AppRenderer/AppFrame effects key on prop identity — an
+  // unstable toolResult/toolInput would re-deliver stale tool notifications
+  // into the running app on every canvas re-render (clobbering its state).
+  // Stability must therefore be by VALUE, not by reference.
+  const stableRawToolResult = useJsonStableValue(props.toolResult);
+  const stableToolInput = useJsonStableValue(props.toolInput);
   const toolResult = useMemo(() => {
-    const parsed = CallToolResultSchema.safeParse(props.toolResult);
+    const parsed = CallToolResultSchema.safeParse(stableRawToolResult);
     return parsed.success ? parsed.data : undefined;
-  }, [props.toolResult]);
+  }, [stableRawToolResult]);
   const hostContext = useMemo(() => ({ theme }), [theme]);
   const toolName = props.toolName ?? props.resourceUri;
   const sandboxCsp = toSandboxCsp(props.csp);
@@ -83,7 +87,7 @@ export function McpAppView({ props }: RenderProps) {
           }}
           hostInfo={HOST_INFO}
           hostContext={hostContext}
-          {...(props.toolInput !== undefined ? { toolInput: props.toolInput } : {})}
+          {...(stableToolInput !== undefined ? { toolInput: stableToolInput } : {})}
           {...(toolResult !== undefined ? { toolResult } : {})}
           onCallTool={async (params) =>
             CallToolResultSchema.parse(
@@ -210,6 +214,17 @@ async function forwardAlarmingLog(
     level: params.level,
     data: params.data ?? null,
   });
+}
+
+// Returns the previous reference while the value is deep-equal (by JSON),
+// giving downstream identity-keyed effects a stable input.
+function useJsonStableValue<T>(value: T): T {
+  const cacheRef = useRef<{ json: string | undefined; value: T } | null>(null);
+  const json = value === undefined ? undefined : JSON.stringify(value);
+  if (cacheRef.current === null || cacheRef.current.json !== json) {
+    cacheRef.current = { json, value };
+  }
+  return cacheRef.current.value;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
