@@ -27,6 +27,20 @@ export function buildCanvasActionHandlers(
         payload: params,
       });
     },
+    // SECURITY: only the opaque id crosses the wire. The daemon resolves it
+    // against the intent menu it recorded when the spec was pushed and
+    // rejects ids the agent never offered — the page cannot author or alter
+    // intent payloads.
+    "canvas.intent": async (params) => {
+      const intentId = typeof params.id === "string" ? params.id : "";
+      if (!intentId) return;
+      await postEdit(sessionId, {
+        slotId: slot.id,
+        elementId: intentId,
+        kind: EditKind.Intent,
+        payload: { id: intentId },
+      });
+    },
     "canvas.commentMermaid": async (params) => {
       const nodeId = String(params.nodeId ?? "");
       const body = String(params.body ?? "");

@@ -94,6 +94,52 @@ export async function fetchSessions(): Promise<SessionSummary[]> {
   return payload.sessions ?? [];
 }
 
+// Relay a whitelisted JSON-RPC call from an app iframe to its app server.
+// The daemon validates the method against the bridge whitelist again — this
+// function is a dumb pipe.
+export async function postAppBridgeCall(
+  serverName: string,
+  call: { method: string; params: Record<string, unknown> },
+): Promise<unknown> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/apps/${encodeURIComponent(serverName)}/bridge`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(call),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`app bridge call failed (${response.status}): ${text}`);
+  }
+  const payload = (await response.json()) as { result: unknown };
+  return payload.result;
+}
+
+// Ship file bytes to the daemon, which stores them under ~/.parchment/uploads
+// and records a file-upload edit carrying the PATH (never the contents).
+export async function uploadCanvasFile(
+  sessionId: string,
+  slotId: string,
+  elementId: string | null,
+  file: File,
+): Promise<{ savedPath: string }> {
+  const token = await ensureToken();
+  const formData = new FormData();
+  formData.set("file", file);
+  formData.set("slotId", slotId);
+  if (elementId) formData.set("elementId", elementId);
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/uploads`, {
+    method: "POST",
+    headers: { [TOKEN_HEADER]: token },
+    body: formData,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`upload failed (${response.status}): ${text}`);
+  }
+  return (await response.json()) as { savedPath: string };
+}
+
 export async function resetSession(sessionId: string): Promise<void> {
   const headers = await authorizedHeaders();
   const response = await fetch(
