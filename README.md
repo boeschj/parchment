@@ -30,10 +30,10 @@ pieces work together:
   back into Claude's next turn. The statusline flips from `◐ canvas` to
   `✎ view plan` so you never miss one.
 - **Generative slots** — Claude composes UI on demand via `canvas_*` MCP
-  tools (`canvas_diagram`, `canvas_diff`, `canvas_table`, `canvas_render` for
-  everything else, plus `canvas_snapshot` / `canvas_patch` for reviewing and
-  iterating on what's already rendered, and `canvas_save` / `canvas_load` /
-  `canvas_library` for reusable views). Each call is a
+  tools (`canvas_render` for any rich content — diagrams, diffs, tables,
+  documents, dashboards — plus `canvas_snapshot` / `canvas_patch` for reviewing
+  and iterating on what's already rendered, and `canvas_library` for saving,
+  loading, and listing reusable views). Each call is a
   [json-render](https://github.com/vercel-labs/json-render) spec, validated
   against a catalog of 36 shadcn/ui components plus 14 purpose-built
   extensions (Metric, Steps, CodeBlock, Callout, Terminal, FileChange,
@@ -165,20 +165,21 @@ worked — no copy/paste, no `/resume`.
 > Show me a mermaid sequence diagram of the OAuth login flow,
   render it editable in the canvas.
 ```
-→ `canvas_diagram` slot with side-by-side source + live mermaid render.
-Click any node to leave a comment.
+→ `canvas_render` slot with a `MermaidEditor`: side-by-side source + live
+mermaid render. Click any node to leave a comment.
 
 ```
 > Propose a refactor for src/users/handler.ts: extract the validation
   into a helper. Render the diff in the canvas so I can tweak it.
 ```
-→ `canvas_diff` slot with Monaco side-by-side diff, "after" side editable.
+→ `canvas_render` slot with a `DiffViewer`: Monaco side-by-side diff, "after"
+side editable.
 
 ```
 > Pull the top 10 slowest queries from pg_stat_statements
   and render as a sortable table in the canvas.
 ```
-→ `canvas_table` slot with sortable columns + CSV export.
+→ `canvas_render` slot with a `DataTable`: sortable columns + CSV export.
 
 ```
 > Render a dashboard with 3 cards (revenue, MRR, churn) and a
@@ -210,10 +211,10 @@ the `canvas` MCP server starts, so the library is never empty:
 | `agent-fleet-snapshot` | Active-session KPIs, a live-session table, a token-usage chart — the flagship "what is every Claude session doing right now" shape. |
 
 Ask Claude to save any rendered view for later — *"save this dashboard as
-perf-overview"* calls `canvas_save`, and it appears in the Library alongside
-the starters. From the panel, **Open** re-renders a saved UI into a slot;
-**Delete** removes it. The same actions are available to Claude as
-`canvas_save` / `canvas_load` / `canvas_library` MCP tools.
+perf-overview"* calls `canvas_library` with `action: "save"`, and it appears in
+the Library alongside the starters. From the panel, **Open** re-renders a saved
+UI into a slot; **Delete** removes it. The same actions are available to Claude
+as the `canvas_library` MCP tool (`action: "save"` / `"load"` / `"list"`).
 
 ## Themes
 
@@ -244,10 +245,10 @@ starter for writing your own: [`themes/README.md`](themes/README.md).
 │     - PostToolUse(Write/Edit/ExitPlanMode) → auto-pushes     │
 │       plans                                                 │
 │   • MCP server `canvas` registered in settings.json:        │
-│     - canvas_plan, canvas_diagram, canvas_diff,             │
-│       canvas_table, canvas_render (kind: render/dashboard/   │
-│       report), canvas_snapshot, canvas_patch, canvas_save,  │
-│       canvas_load, canvas_library, canvas_close             │
+│     - canvas_render (kind: render/dashboard/report),         │
+│       canvas_live, canvas_app, canvas_plan, canvas_patch,    │
+│       canvas_snapshot, canvas_library (save/load/list),      │
+│       canvas_close                                          │
 │   • Statusline: OSC-8 link with per-kind slot glyphs         │
 │                                                             │
 └──────────────────────────┬──────────────────────────────────┘
@@ -316,7 +317,7 @@ State at `~/.parchment/`:
 | `server.log` | Daemon stdout/stderr |
 | `sessions/<id>/slots/<slotId>.json` | Per-slot content (spec + state), read by the statusline for its kind glyphs |
 | `sessions/<id>/edits.json` | Pending edits + the sticky overlay |
-| `library/<name>.json` | Saved UIs from `canvas_save`, reloaded with `canvas_load` |
+| `library/<name>.json` | Saved UIs from `canvas_library` (`action: "save"`), reloaded with `action: "load"` |
 | `theme.css` | Optional user theme override (see `themes/custom-theme.example.css`) |
 
 ## Development

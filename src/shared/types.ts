@@ -175,8 +175,8 @@ export type CanvasInjectionPayload = {
 };
 
 // A saved slot under ~/.parchment/library/<name>.json — the full spec (and
-// state, when the slot had any) needed to re-render it later via canvas_load
-// or the browser's library panel.
+// state, when the slot had any) needed to re-render it later via canvas_library
+// (action "load") or the browser's library panel.
 export type LibraryEntry = {
   name: string;
   savedAt: number;

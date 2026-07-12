@@ -10,8 +10,8 @@ Margaret Hamilton,Manager,19`;
 export const csvDataTableScenario: ScenarioDefinition = {
   id: "csv-data-table",
   title: "Data table from a CSV snippet",
-  parchmentTool: CanvasTool.Table,
-  parchmentPrompt: `Use canvas_table to render this CSV as a sortable data table:
+  parchmentTool: CanvasTool.Render,
+  parchmentPrompt: `Use canvas_render with a DataTable component to render this CSV as a sortable data table:
 
 ${CSV_SNIPPET}`,
   htmlPrompt: `Write a single self-contained HTML file at ./table.html rendering this CSV as an HTML table (one <tr> per row, including a header row):

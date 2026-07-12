@@ -23,6 +23,28 @@ the new name, not a step down in functionality — everything shipped in
   remains the runtime for the daemon, CLI, and tests — `pnpm install`,
   `pnpm build`, never `bun install`.
 
+### MCP tool surface — leaner and token-efficient
+Pre-release, so this lands as a straight replacement rather than a deprecation
+cycle. The advertised tool surface drops from 14 tools to 8 and its serialized
+size falls ~62% (~5,500 → ~2,100 tokens), following Anthropic's "few thoughtful
+tools, concise descriptions" guidance. No capability is lost — the deep
+guidance already lives in the `canvas-tools` / `canvas-spec` skills.
+- **Removed** `canvas_diagram`, `canvas_diff`, `canvas_table`, `canvas_document`.
+  They were single-component wrappers; compose the same `MermaidEditor`,
+  `DiffViewer`, `DataTable`, or a centered document layout directly inside
+  `canvas_render`. A new `document` starter template seeds the document skeleton
+  into the library.
+- **Merged** `canvas_save` / `canvas_load` / `canvas_library` into one
+  `canvas_library` tool with `action: "save" | "load" | "list"`.
+- **Slimmed** every surviving tool's description to 1–2 sentences (enum values
+  in schemas are kept — they constrain the model; narrative prose was cut).
+- **Auto-repair**: `canvas_render` / `canvas_patch` now silently coerce
+  unambiguous wrong-but-obvious enum values instead of rejecting them — numeric
+  `gap` to the nearest spacing token, `level: 1` to `h1`, `variant: "default"`
+  to `primary`, Chart `xScale: "linear"` to `category`, and more — so common
+  first-attempt mistakes render on the first pass. Genuinely ambiguous values
+  still reject with the exact fix. `Steps` item `status` is now optional.
+
 ## 0.3.0 — 2026-07-06
 
 The generative-UI turnaround release. The canvas goes from "markdown in cards"

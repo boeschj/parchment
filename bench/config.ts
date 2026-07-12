@@ -28,8 +28,6 @@ export const DEFAULT_BENCH_PORT = 7811;
 // the authoring surface the scenario is actually testing.
 export const CanvasTool = {
   Render: "mcp__canvas__canvas_render",
-  Table: "mcp__canvas__canvas_table",
-  Diagram: "mcp__canvas__canvas_diagram",
   Plan: "mcp__canvas__canvas_plan",
   Patch: "mcp__canvas__canvas_patch",
   Snapshot: "mcp__canvas__canvas_snapshot",

@@ -172,7 +172,7 @@ export async function deleteLibraryEntry(name: string): Promise<void> {
 }
 
 // Loads a saved entry's full spec and pushes it into a new slot in the given
-// session — the browser-panel equivalent of the canvas_load MCP tool.
+// session — the browser-panel equivalent of canvas_library (action "load").
 export async function openLibraryEntryInSlot(sessionId: string, name: string): Promise<Slot> {
   const entryResponse = await fetch(`/api/library/${encodeURIComponent(name)}`);
   if (!entryResponse.ok) {

@@ -1,18 +1,37 @@
 # Documents and export
 
-## canvas_document — article-grade long-form
+## Long-form documents — a canvas_render layout
 
-Use when the content is genuinely prose-first and deserves reading typography: a
-postmortem, design writeup, research summary, or report the user will read
-top-to-bottom rather than scan. It renders a centered ~68ch reading column with a
-masthead (title, optional byline/date), heading rhythm, and styled code/blockquotes.
+When the content is genuinely prose-first and deserves reading typography (a
+postmortem, design writeup, research summary, or report the user reads top-to-bottom
+rather than scans), compose it with `canvas_render` as a centered reading column: a
+`Card` with `className: "canvas-document"` and `centered: true`, a masthead (Heading
+h1 + a muted Text byline/date), a `Separator`, and a single `Markdown` body. The
+`.canvas-document` class (styles.css) supplies the ~68ch column, heading rhythm, and
+quiet rules.
 
-Inputs: `title` (required), `body` (CommonMark markdown, required), `byline?`,
-`date?`, `slotId?` (reuse to refine), plus the usual slot `title?`.
+```json
+{
+  "root": "doc",
+  "elements": {
+    "doc": {"type": "Card", "props": {"className": "canvas-document", "centered": true},
+            "children": ["masthead", "sep", "body"]},
+    "masthead": {"type": "Stack", "props": {"gap": "sm"}, "children": ["title", "byline"]},
+    "title": {"type": "Heading", "props": {"text": "Write-through cache RFC", "level": "h1"}},
+    "byline": {"type": "Text", "props": {"variant": "muted", "text": "Jordan Boesch · Draft"}},
+    "sep": {"type": "Separator", "props": {}},
+    "body": {"type": "Markdown", "props": {"content": "## Summary\n..."}}
+  }
+}
+```
 
-Choose `canvas_render` instead when the reader should SCAN structured evidence —
-metrics, charts, tables, diffs. A document is for reading; a render is for seeing.
-Mixing: keep the document pure prose and push a separate render slot for the data.
+Fastest path: `canvas_library` `action: "load"`, `name: "document"` drops this exact
+skeleton onto the canvas — re-push the returned `slotId` with your own title/byline
+and markdown body. GFM tables, lists, and fenced code all render inside the body.
+
+Choose the scanning shape (Metric rows, Chart, DataTable, DiffViewer) instead when the
+reader should SEE structured evidence rather than read prose. Mixing: keep the document
+pure prose and push a separate render slot for the data.
 
 ## The Export menu (browser-side, tell the user it exists)
 

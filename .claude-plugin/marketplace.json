@@ -4,7 +4,7 @@
     "name": "Jordan Boesch"
   },
   "metadata": {
-    "description": "Local marketplace for parchment. Adds a generative-UI canvas to Claude Code: MCP tools (canvas_plan, canvas_diagram, canvas_diff, canvas_dashboard, canvas_table, canvas_report, canvas_render) push validated json-render specs to a browser tab; edits flow back via UserPromptSubmit hook.",
+    "description": "Local marketplace for parchment. Adds a generative-UI canvas to Claude Code: a compact set of MCP tools (canvas_render, canvas_live, canvas_app, canvas_plan, canvas_patch, canvas_snapshot, canvas_library, canvas_close) push validated json-render specs to a browser tab; edits flow back via UserPromptSubmit hook.",
     "version": "0.1.0"
   },
   "plugins": [

@@ -3,6 +3,7 @@ import { prReviewTemplate } from "./pr-review.ts";
 import { incidentTimelineTemplate } from "./incident-timeline.ts";
 import { costReportTemplate } from "./cost-report.ts";
 import { agentFleetSnapshotTemplate } from "./agent-fleet-snapshot.ts";
+import { documentTemplate } from "./document.ts";
 import type { StarterTemplate } from "./types.ts";
 
 // Seeded into a fresh install's ~/.parchment/library/ (see
@@ -15,6 +16,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
   incidentTimelineTemplate,
   costReportTemplate,
   agentFleetSnapshotTemplate,
+  documentTemplate,
 ];
 
 export type { StarterTemplate } from "./types.ts";

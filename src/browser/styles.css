@@ -282,7 +282,9 @@ button {
 }
 
 /*
- * Document mode — the blog-quality reading surface canvas_document composes.
+ * Document mode — the blog-quality reading surface the canvas_render document
+ * layout composes (a Card with className "canvas-document"; see the "document"
+ * starter template and skills/canvas-tools/references/documents.md).
  * A centered ~68ch column (42rem) on a paper card, with generous heading
  * rhythm, quiet horizontal rules, and footnote-style code blocks. Scoped under
  * .canvas-document (passed as the wrapping Card's className) so it refines the

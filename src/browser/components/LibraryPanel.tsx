@@ -1,5 +1,5 @@
 // The "Library" surface — every saved UI (starter templates + anything the
-// user asked Claude to save via canvas_save) as a card grid, with actions to
+// user asked Claude to save via canvas_library) as a card grid, with actions to
 // open a copy into a slot or delete it. The daemon seeds a fresh install's
 // library with the starter templates (see src/daemon/library.ts), so this
 // panel is never empty on a first run.
@@ -50,7 +50,7 @@ export function LibraryPanel({ sessionId, onOpenInSlot }: LibraryPanelProps) {
       <header className="mb-5">
         <h2 className="h-display text-2xl mb-1">Library</h2>
         <p className="text-sm text-muted-foreground">
-          Saved UIs — starter templates and anything you've asked Claude to keep with canvas_save.
+          Saved UIs — starter templates and anything you've asked Claude to keep with canvas_library.
         </p>
       </header>
 

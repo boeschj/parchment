@@ -1,9 +1,9 @@
 // The saved-UI library at ~/.parchment/library/<name>.json — one JSON file
-// per saved slot (spec + optional state). Shared by the MCP tools
-// (canvas_save/canvas_load/canvas_library in mcp-stdio.ts, a separate
-// process per session) and the daemon's /api/library HTTP routes (server.ts,
-// read by the browser's library panel), so both sides agree on the file
-// format and the slugification rule from a single place.
+// per saved slot (spec + optional state). Shared by the canvas_library MCP
+// tool (save/load/list in mcp-stdio.ts, a separate process per session) and
+// the daemon's /api/library HTTP routes (server.ts, read by the browser's
+// library panel), so both sides agree on the file format and the
+// slugification rule from a single place.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

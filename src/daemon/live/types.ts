@@ -40,81 +40,34 @@ export const MAX_FLEET_SESSION_LIMIT = 200;
 const MS_PER_SECOND = 1000;
 
 export const LiveSourceInputSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .describe("Stable source id within the slot, e.g. 'latency'."),
+  id: z.string().min(1).describe("Stable source id within the slot."),
   statePath: z
     .string()
     .regex(/^\//, "statePath must be a JSON Pointer starting with /")
-    .describe(
-      "JSON Pointer into slot state this source writes, e.g. '/series'. Bind component props to it with {\"$state\": \"/series\"}.",
-    ),
-  kind: z
-    .enum([
-      LiveSourceKind.FileTail,
-      LiveSourceKind.CommandPoll,
-      LiveSourceKind.HttpPoll,
-      LiveSourceKind.ClaudeSessions,
-    ])
-    .describe(
-      "file-tail follows a growing file; command-poll runs a shell command every interval; http-poll GETs a URL; claude-sessions is the built-in fleet+cost scanner of this machine's Claude Code sessions.",
-    ),
-  path: z
-    .string()
-    .optional()
-    .describe("file-tail: absolute path of the file to follow. Only NEW lines stream; a file created later is picked up."),
+    .describe("JSON Pointer into slot state this source writes, e.g. '/series'."),
+  kind: z.enum([
+    LiveSourceKind.FileTail,
+    LiveSourceKind.CommandPoll,
+    LiveSourceKind.HttpPoll,
+    LiveSourceKind.ClaudeSessions,
+  ]),
+  path: z.string().optional().describe("file-tail: absolute file path."),
   parser: z
     .enum([TailLineParser.Jsonl, TailLineParser.Regex, TailLineParser.Number])
     .optional()
-    .describe(
-      "file-tail line parser. 'jsonl' (default) parses each line as JSON; 'regex' needs `pattern`; 'number' extracts the first number on the line.",
-    ),
-  pattern: z
-    .string()
-    .optional()
-    .describe(
-      "file-tail regex parser: JavaScript regex with named groups, e.g. 'lat=(?<ms>\\\\d+)'. Each match appends one record of the groups; numeric group values are coerced to numbers.",
-    ),
-  command: z
-    .string()
-    .optional()
-    .describe("command-poll: shell command run every interval; stdout parsed as JSON, else number, else string."),
-  url: z
-    .string()
-    .optional()
-    .describe("http-poll: http(s) URL fetched with GET every interval; JSON body parsed."),
-  pluck: z
-    .string()
-    .optional()
-    .describe("Dot path plucked from each parsed value before applying, e.g. 'data.stats[0].cpu'."),
-  intervalSeconds: z
-    .number()
-    .optional()
-    .describe("Poll cadence for command-poll/http-poll/claude-sessions. Min 1 (claude-sessions min 2), default 5."),
+    .describe("file-tail parser; regex needs pattern."),
+  pattern: z.string().optional().describe("file-tail regex: JS regex, named groups."),
+  command: z.string().optional().describe("command-poll: shell command."),
+  url: z.string().optional().describe("http-poll: http(s) URL."),
+  pluck: z.string().optional().describe("Dot path plucked from each value, e.g. 'data.cpu'."),
+  intervalSeconds: z.number().optional().describe("Poll cadence seconds; default 5."),
   mode: z
     .enum([LiveApplyMode.Append, LiveApplyMode.Replace])
     .optional()
-    .describe(
-      "'append' pushes each value onto an array at statePath (bounded by window); 'replace' overwrites statePath. Defaults: file-tail append, everything else replace.",
-    ),
-  window: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("append mode: keep only the last N points. Default 300, max 5000."),
-  sinceHours: z
-    .number()
-    .positive()
-    .optional()
-    .describe("claude-sessions: include sessions active within the last N hours. Default 24."),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("claude-sessions: max sessions in the list. Default 25."),
+    .describe("append onto array (default file-tail) or replace path."),
+  window: z.number().int().positive().optional().describe("append: keep last N points. Default 300."),
+  sinceHours: z.number().positive().optional().describe("claude-sessions window hours. Default 24."),
+  limit: z.number().int().positive().optional().describe("claude-sessions max sessions. Default 25."),
 });
 
 export type LiveSourceInput = z.infer<typeof LiveSourceInputSchema>;

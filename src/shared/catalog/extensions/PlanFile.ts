@@ -1,23 +1,12 @@
 import * as z from "zod/v4";
 
 export const PlanFilePropsSchema = z.object({
-  title: z
-    .string()
-    .optional()
-    .describe(
-      "Optional heading shown above the editor. Omit when a surrounding Card already has a title.",
-    ),
-  markdown: z
-    .string()
-    .describe(
-      "Plan content in CommonMark markdown. Headings, lists, fenced code, tables supported. Keep under ~4KB; for longer content split into multiple PlanFiles inside a Stack.",
-    ),
+  title: z.string().optional().describe("Heading above the editor; omit if a wrapping Card has a title."),
+  markdown: z.string().describe("Plan content in CommonMark markdown; keep under ~4KB."),
   editable: z
     .boolean()
     .optional()
-    .describe(
-      "Default true. When true, the user edits in a Tiptap WYSIWYG; the edited markdown flows back to your next turn.",
-    ),
+    .describe("Default true. Tiptap WYSIWYG; edited markdown flows back next turn."),
 });
 
 export const PlanFileDefinition = {

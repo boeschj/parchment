@@ -28,7 +28,7 @@ export const MermaidEditorPropsSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "Default false. When true, the source is editable in a textarea next to the live render, and clicking any node lets the user leave a comment. The canvas_diagram tool sets this true for the standalone editable diagram; leave it unset when embedding a diagram inside a canvas_render report/dashboard so it renders as a clean, full-width, display-only diagram.",
+      "Default false. When true, the source is editable in a textarea next to the live render, and clicking any node lets the user leave a comment. Set true for a standalone editable diagram; leave it unset when embedding a diagram inside a report/dashboard so it renders as a clean, full-width, display-only diagram.",
     ),
   showSource: z
     .boolean()

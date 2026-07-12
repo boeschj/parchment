@@ -4,10 +4,10 @@ import type { ScenarioDefinition } from "./types.ts";
 export const architectureDiagramScenario: ScenarioDefinition = {
   id: "architecture-diagram",
   title: "Architecture diagram (3-tier system)",
-  parchmentTool: CanvasTool.Diagram,
-  parchmentPrompt: `Use canvas_diagram to render a mermaid architecture diagram for a 3-tier system:
-a Client node calling an API node, which calls a Database node. Label the nodes exactly
-"Client", "API", and "Database".`,
+  parchmentTool: CanvasTool.Render,
+  parchmentPrompt: `Use canvas_render with a MermaidEditor component to render a mermaid architecture diagram
+for a 3-tier system: a Client node calling an API node, which calls a Database node. Label the
+nodes exactly "Client", "API", and "Database".`,
   htmlPrompt: `Write a single self-contained HTML file at ./architecture.html that diagrams a 3-tier
 system: a Client box connected to an API box, connected to a Database box. Label the boxes
 exactly "Client", "API", and "Database", and draw the connections with inline <svg> (lines
