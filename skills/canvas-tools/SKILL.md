@@ -24,6 +24,7 @@ one only when the task calls for it.
 | A SMALL change to a slot already on the canvas | `canvas_patch` (never a full re-render) |
 | Host a third-party MCP app's UI in a slot | `canvas_app` |
 | A short plan the user will rewrite in their own words | `canvas_plan` |
+| Long-form prose that should read like an article (report, postmortem, essay) | `canvas_document` |
 | Just an editable diagram / code diff / data table | `canvas_diagram` / `canvas_diff` / `canvas_table` |
 | Look at what actually rendered | `canvas_snapshot` |
 | Keep or reload a view the user liked | `canvas_save` / `canvas_load` / `canvas_library` |
@@ -128,3 +129,6 @@ first time:
   replace, fleet scanner, worked example). Read before using canvas_live.
 - **references/mcp-apps.md** — hosting third-party MCP app UIs. Read before using canvas_app.
 - **references/patch-cookbook.md** — five worked `canvas_patch` edits. Read before your first patch.
+- **references/documents.md** — `canvas_document` (article-grade typography) and the
+  slot Export menu (standalone HTML, PDF, copy-as-React). Read for long-form or
+  when the user wants to keep/share a view.
