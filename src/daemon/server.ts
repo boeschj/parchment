@@ -5,7 +5,8 @@ import {
   generateToken,
   writeServerStateFiles,
   clearServerStateFilesIfOwned,
-  isCanvasDaemonAt,
+  DAEMON_APP_NAME,
+  isParchmentDaemonAt,
   isExistingDaemonHealthy,
 } from "./state.ts";
 import { guardRequest, jsonResponse, errorResponse, ErrorCode, HttpStatus } from "./security.ts";
@@ -87,6 +88,7 @@ async function handleFetch(
   if (path === "/api/health") {
     return jsonResponse({
       ok: true,
+      app: DAEMON_APP_NAME,
       port: srv.port,
       sessions: listSessions().length,
       startedAt: SERVER_STARTED_AT,
@@ -427,8 +429,10 @@ const websocketHandler: Bun.WebSocketHandler<WebSocketAttachment> = {
 };
 
 // Port fallback exists for ports held by OTHER software. If a port is held
-// by another canvas daemon, we lost a spawn race — exit instead of becoming
-// a second daemon that clobbers the winner's state files.
+// by another parchment daemon, we lost a spawn race — exit instead of
+// becoming a second daemon that clobbers the winner's state files. A foreign
+// daemon on the port (e.g. a legacy clawd-canvas install on 7800) is just
+// other software; keep walking the port range.
 async function startServerWithPortFallback(): Promise<CanvasServer> {
   const errors: string[] = [];
   for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
@@ -442,7 +446,7 @@ async function startServerWithPortFallback(): Promise<CanvasServer> {
         websocket: websocketHandler,
       });
     } catch (caught) {
-      if (await isCanvasDaemonAt(candidatePort)) {
+      if (await isParchmentDaemonAt(candidatePort)) {
         console.error(
           `parchment: another daemon won port ${candidatePort} during startup; exiting.`,
         );

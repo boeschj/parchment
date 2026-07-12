@@ -27,6 +27,12 @@ const TOKEN_FILE_MODE = 0o600;
 
 export const TOKEN_HEADER = "x-canvas-token";
 
+// Reported by /api/health and required by the daemon probes below. Liveness
+// alone cannot tell a parchment daemon from any other local server that
+// answers 200 on the same path (e.g. a legacy clawd-canvas daemon holding
+// port 7800), so every probe checks identity, not just health.
+export const DAEMON_APP_NAME = "parchment";
+
 export function generateToken(): string {
   return randomBytes(TOKEN_BYTES).toString("hex");
 }
@@ -56,18 +62,22 @@ export function clearServerStateFilesIfOwned(): void {
 
 const HEALTH_PROBE_TIMEOUT_MS = 750;
 
-// "A daemon exists" means it answers /api/health — a PID check alone is
-// wrong twice over: stale PID files get recycled to unrelated processes
-// (bricking startup forever), and a live-but-wedged daemon shouldn't block
-// a replacement.
-export async function isCanvasDaemonAt(port: number): Promise<boolean> {
+// "A parchment daemon exists" means it answers /api/health AND identifies
+// itself as parchment. A PID check alone is wrong twice over: stale PID
+// files get recycled to unrelated processes (bricking startup forever), and
+// a live-but-wedged daemon shouldn't block a replacement. A bare liveness
+// check is wrong once more: a foreign daemon on the port must read as
+// occupied-by-other-software, not as a lost spawn race.
+export async function isParchmentDaemonAt(port: number): Promise<boolean> {
   try {
     const response = await fetch(`http://localhost:${port}/api/health`, {
       signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
     });
     if (!response.ok) return false;
-    const payload = (await response.json()) as { ok?: boolean };
-    return payload.ok === true;
+    const payload = (await response.json()) as { ok?: boolean; app?: string };
+    const isHealthy = payload.ok === true;
+    const isParchment = payload.app === DAEMON_APP_NAME;
+    return isHealthy && isParchment;
   } catch {
     return false;
   }
@@ -77,7 +87,7 @@ export async function isExistingDaemonHealthy(): Promise<boolean> {
   if (!existsSync(PORT_FILE)) return false;
   const port = Number(readFileSync(PORT_FILE, "utf8").trim());
   if (!Number.isFinite(port) || port <= 0) return false;
-  return isCanvasDaemonAt(port);
+  return isParchmentDaemonAt(port);
 }
 
 export function sessionSlotDir(sessionId: string): string {

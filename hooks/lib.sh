@@ -83,11 +83,15 @@ canvas_slots_dir() {
   echo "${CANVAS_STATE_DIR}/sessions/${safe_id}/slots"
 }
 
-# Liveness = answers /api/health. A PID check is wrong twice over: stale
-# PID files get recycled to unrelated processes, and a wedged daemon that
-# still holds a PID shouldn't count as alive.
+# Liveness = answers /api/health AND identifies as parchment. A PID check is
+# wrong twice over: stale PID files get recycled to unrelated processes, and
+# a wedged daemon that still holds a PID shouldn't count as alive. The
+# identity check keeps a foreign daemon on a stale port (e.g. a legacy
+# clawd-canvas install) from masquerading as ours.
 canvas_server_alive() {
-  curl -fsS --max-time 0.5 "$(canvas_base_url)/api/health" >/dev/null 2>&1
+  local health
+  health="$(curl -fsS --max-time 0.5 "$(canvas_base_url)/api/health" 2>/dev/null)" || return 1
+  [[ "${health}" == *'"app":"parchment"'* ]]
 }
 
 # True when the running daemon is executing code older than what's on disk (a
@@ -190,10 +194,8 @@ canvas_set_status() {
 
 canvas_wait_for_health() {
   local attempts=20
-  local url
-  url="$(canvas_base_url)/api/health"
   while (( attempts > 0 )); do
-    if curl -fsS --max-time 1 "${url}" >/dev/null 2>&1; then
+    if canvas_server_alive; then
       return 0
     fi
     sleep 0.2
