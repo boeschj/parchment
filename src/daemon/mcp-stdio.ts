@@ -463,7 +463,7 @@ server.registerTool(
   {
     title: "Patch a Rendered Slot",
     description:
-      "Surgically update an existing slot with RFC 6902 JSON Patch operations against its spec — ~10x cheaper than re-sending the whole spec for small changes. Paths are relative to the spec object: /elements/<key>/props/<prop>, /elements/<key> (add/remove whole elements — remember to also patch the parent's children array), /state/<path>, /root. Use for iterations: new chart data, added tiles, text fixes, theme/prop tweaks. The patched spec is re-validated; failures reject with an issue list and the slot keeps its previous state.",
+      "PATCH-FIRST: for any SMALL change to a slot already on the canvas — a new metric value, an added row, a toggled visibility, an appended chart point, a retitle — patch it here instead of re-sending the whole spec with canvas_render. Surgical RFC 6902 JSON Patch against the slot's spec, ~10x cheaper than a full re-render. Paths are relative to the spec object: /elements/<key>/props/<prop>, /elements/<key> (add/remove whole elements — remember to also patch the parent's children array), /state/<path>, /root; append to an array with the '-' token (/elements/tbl/props/rows/-). The patched spec is re-validated; failures reject with an issue list and the slot keeps its previous state. Worked examples: canvas-tools skill, references/patch-cookbook.md.",
     inputSchema: z.object({
       slotId: z.string().describe("The slot to patch."),
       patches: z
