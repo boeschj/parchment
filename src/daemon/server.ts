@@ -35,6 +35,13 @@ import {
   renderInjectionMarkup,
   clearOverlay,
 } from "./edits.ts";
+import { extractIntentMenu, resolveIntent } from "./intents.ts";
+import { validateBridgeCall } from "./apps/bridge.ts";
+import { listAppServerNames } from "./apps/config.ts";
+import { closeAllAppConnections } from "./apps/connections.ts";
+import { executeBridgeCall, openAppInSlot } from "./apps/open.ts";
+import { SANDBOX_PAGE_HTML, SANDBOX_PAGE_PATH } from "./apps/sandbox-page.ts";
+import { storeUpload } from "./uploads.ts";
 import { serveStatic, serveUserTheme } from "./static.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
@@ -148,6 +155,30 @@ async function handleFetch(
     return handleSessionRoute(request, sessionId, subPath);
   }
 
+  if (path === "/api/apps" && request.method === "GET") {
+    return jsonResponse({ servers: listAppServerNames() });
+  }
+
+  // App bridge: the browser relays whitelisted JSON-RPC calls from an app
+  // iframe here. Token-guarded (mutating POST); the iframe itself can never
+  // reach this endpoint — its opaque origin and CSP block direct daemon
+  // access, so only parchment's own page code brokers calls.
+  const bridgeMatch = path.match(/^\/api\/apps\/([^/]+)\/bridge$/);
+  if (bridgeMatch && request.method === "POST") {
+    const serverName = decodeURIComponent(bridgeMatch[1]!);
+    return handleAppBridge(request, serverName);
+  }
+
+  // The MCP app sandbox proxy. The canvas loads it via the daemon's OTHER
+  // loopback name (localhost vs 127.0.0.1) so it runs cross-origin from the
+  // canvas page — the cheap local variant of SEP-1865's sandbox-proxy origin
+  // split.
+  if (path === SANDBOX_PAGE_PATH) {
+    return new Response(SANDBOX_PAGE_HTML, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+
   // Short-alias redirect: /s/<prefix> → /?session=<full-id>
   const shortMatch = path.match(/^\/s\/([^/]+)\/?$/);
   if (shortMatch) {
@@ -232,6 +263,16 @@ async function handleSessionRoute(
         "spec must be { root, elements }",
       );
     }
+    // Intent bindings must be resolvable daemon-side or the push fails —
+    // an unextractable intent would otherwise become an unclickable button.
+    const intentExtraction = extractIntentMenu(spec as never);
+    if (intentExtraction.issues.length > 0) {
+      return errorResponse(
+        HttpStatus.BadRequest,
+        ErrorCode.BadRequest,
+        `intent bindings rejected:\n${intentExtraction.issues.map((issue) => `- ${issue}`).join("\n")}`,
+      );
+    }
     const origin = isSlotOrigin(body.origin) ? body.origin : SlotOrigin.McpTool;
     const status = isSlotStatus(body.status) ? body.status : SlotStatus.Ready;
     const slot = upsertSlot({
@@ -302,14 +343,36 @@ async function handleSessionRoute(
         `unknown edit kind: ${body.kind}`,
       );
     }
+    // SECURITY: intent submissions carry only an opaque id. The payload the
+    // agent sees is resolved here, from the menu the daemon recorded at push
+    // time — a page cannot fabricate or reshape an intent it was not offered.
+    const isIntentSubmission = body.kind === EditKind.Intent;
+    const payload = isIntentSubmission
+      ? resolveIntentPayload(sessionId, body.slotId, body.payload)
+      : body.payload;
+    if (payload === null) {
+      return errorResponse(
+        HttpStatus.BadRequest,
+        ErrorCode.BadRequest,
+        `unknown intent id for slot ${body.slotId} — not in the daemon-recorded intent menu`,
+      );
+    }
     const edit = recordEdit({
       sessionId,
       slotId: body.slotId,
       elementId: body.elementId ?? null,
       kind: body.kind,
-      payload: body.payload,
+      payload,
     });
     return jsonResponse({ ok: true, edit });
+  }
+
+  if (subPath === "/uploads" && method === "POST") {
+    return handleUpload(request, sessionId);
+  }
+
+  if (subPath === "/apps/open" && method === "POST") {
+    return handleAppOpen(request, sessionId);
   }
 
   if (subPath === "/edits" && method === "GET") {
@@ -356,6 +419,103 @@ async function handleSessionRoute(
   }
 
   return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, "route not found");
+}
+
+// id -> daemon-recorded intent definition, or null when the id was never
+// offered (including ids for slots that don't exist).
+function resolveIntentPayload(
+  sessionId: string,
+  slotId: string,
+  submitted: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const intentId = submitted.id;
+  if (typeof intentId !== "string" || intentId.length === 0) return null;
+  const session = ensureSession(sessionId);
+  const slot = session.slots.find((candidate) => candidate.id === slotId);
+  if (!slot) return null;
+  const definition = resolveIntent(slot, intentId);
+  if (!definition) return null;
+  return { ...definition };
+}
+
+async function handleUpload(request: Request, sessionId: string): Promise<Response> {
+  const formData = await request.formData().catch(() => null);
+  if (!formData) {
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "multipart form body required");
+  }
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "form field 'file' must be a file");
+  }
+  const slotId = formData.get("slotId");
+  if (typeof slotId !== "string" || slotId.length === 0) {
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "form field 'slotId' required");
+  }
+  const elementId = formData.get("elementId");
+
+  const stored = await storeUpload(sessionId, file);
+  // The injected payload is the PATH plus metadata — never file contents.
+  const edit = recordEdit({
+    sessionId,
+    slotId,
+    elementId: typeof elementId === "string" && elementId.length > 0 ? elementId : null,
+    kind: EditKind.FileUpload,
+    payload: { ...stored },
+  });
+  return jsonResponse({ ok: true, savedPath: stored.savedPath, edit });
+}
+
+async function handleAppOpen(request: Request, sessionId: string): Promise<Response> {
+  const body = (await request.json()) as {
+    server?: string;
+    register?: unknown;
+    tool?: string;
+    toolArgs?: Record<string, unknown>;
+    resource?: string;
+    title?: string;
+    slotId?: string;
+    cwd?: string;
+  };
+  if (typeof body.server !== "string" || body.server.length === 0) {
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "server name required");
+  }
+  try {
+    const outcome = await openAppInSlot({
+      sessionId,
+      cwd: body.cwd ?? "",
+      server: body.server,
+      ...(body.register !== undefined ? { register: body.register } : {}),
+      ...(body.tool !== undefined ? { tool: body.tool } : {}),
+      ...(body.toolArgs !== undefined ? { toolArgs: body.toolArgs } : {}),
+      ...(body.resource !== undefined ? { resource: body.resource } : {}),
+      ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.slotId !== undefined ? { slotId: body.slotId } : {}),
+    });
+    return jsonResponse({
+      ok: true,
+      slot: outcome.slot,
+      resourceUri: outcome.resourceUri,
+      summary: outcome.summary,
+    });
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, message);
+  }
+}
+
+async function handleAppBridge(request: Request, serverName: string): Promise<Response> {
+  const body = await request.json().catch(() => null);
+  const validation = validateBridgeCall(body);
+  if (!validation.ok) {
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, validation.error);
+  }
+  try {
+    const result = await executeBridgeCall(serverName, validation.call);
+    return jsonResponse({ ok: true, result });
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, message);
+  }
 }
 
 function isSlotKind(value: unknown): value is import("../shared/types.ts").SlotKind {
@@ -467,7 +627,12 @@ writeServerStateFiles(boundPort, SERVER_TOKEN);
 process.on("exit", () => {
   clearServerStateFilesIfOwned();
 });
-process.on("SIGINT", () => process.exit(0));
-process.on("SIGTERM", () => process.exit(0));
+// Stdio app servers are child processes; close their transports before
+// exiting so they don't outlive the daemon.
+function shutdown(): void {
+  void closeAllAppConnections().finally(() => process.exit(0));
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 console.log(`clawd-canvas: listening on http://localhost:${boundPort}`);
