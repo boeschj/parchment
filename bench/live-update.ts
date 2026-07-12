@@ -52,33 +52,46 @@ const SEED_SERIES_POINTS = [
 ];
 
 async function main(): Promise<void> {
+  const model = parseModelArg(process.argv.slice(2));
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const resultsDir = join(BENCH_RESULTS_DIR, `${timestamp}-live-update`);
-  const runsRootDir = join(BENCH_RUNS_DIR, `${timestamp}-live-update`);
+  const resultsDir = join(BENCH_RESULTS_DIR, `${timestamp}-live-update-${model}`);
+  const runsRootDir = join(BENCH_RUNS_DIR, `${timestamp}-live-update-${model}`);
   mkdirSync(resultsDir, { recursive: true });
 
   process.stderr.write(
-    `[live-update] canvas_live registered on this build: ${isCanvasLiveToolRegistered()}\n`,
+    `[live-update] model: ${model}; canvas_live registered on this build: ${isCanvasLiveToolRegistered()}\n`,
   );
 
   process.stderr.write(`[live-update] html arm: 1 create call + ${MEASURED_UPDATE_COUNT} update calls...\n`);
-  const htmlResult = await runHtmlArm(join(runsRootDir, "html"));
+  const htmlResult = await runHtmlArm(join(runsRootDir, "html"), model);
   saveJson(resultsDir, "html-result.json", htmlResult);
   process.stderr.write(`[live-update] html arm done\n`);
 
   const daemon = await startBenchDaemon({ port: DEFAULT_BENCH_PORT });
   try {
     process.stderr.write(`[live-update] parchment arm: 1 compose+stream call, then 0 further claude -p calls...\n`);
-    const parchmentResult = await runParchmentArm(daemon, join(runsRootDir, "parchment"));
+    const parchmentResult = await runParchmentArm(daemon, join(runsRootDir, "parchment"), model);
     saveJson(resultsDir, "parchment-result.json", parchmentResult);
     process.stderr.write(`[live-update] parchment arm done\n`);
 
     const reportPath = join(resultsDir, "report.md");
-    writeFileSync(reportPath, buildLiveUpdateReportMarkdown(htmlResult, parchmentResult));
+    writeFileSync(reportPath, buildLiveUpdateReportMarkdown(htmlResult, parchmentResult, model));
     process.stderr.write(`[live-update] wrote ${reportPath}\n`);
   } finally {
     await daemon.stop();
   }
+}
+
+function parseModelArg(args: string[]): Model {
+  const flagIndex = args.indexOf("--model");
+  if (flagIndex === -1) return Model.Haiku;
+
+  const value = args[flagIndex + 1];
+  const isKnownModel = value === Model.Haiku || value === Model.Sonnet || value === Model.Opus;
+  if (!isKnownModel) {
+    throw new Error(`usage: bun run bench/live-update.ts [--model haiku|sonnet|opus] (got "${value}")`);
+  }
+  return value;
 }
 
 // ---- HTML arm ----
@@ -100,7 +113,7 @@ type HtmlLiveUpdateResult = {
   finalFileContainsAllLogLines: boolean;
 };
 
-async function runHtmlArm(runDir: string): Promise<HtmlLiveUpdateResult> {
+async function runHtmlArm(runDir: string, model: Model): Promise<HtmlLiveUpdateResult> {
   mkdirSync(runDir, { recursive: true });
   const sessionId = randomUUID();
   const filePath = join(runDir, HTML_OUTPUT_FILENAME);
@@ -108,7 +121,7 @@ async function runHtmlArm(runDir: string): Promise<HtmlLiveUpdateResult> {
 
   const createInvocation = await runClaudeHeadless({
     prompt: liveLogDashboardScenario.htmlPrompt,
-    model: Model.Haiku,
+    model,
     sessionId,
     cwd: runDir,
     arm: Arm.Html,
@@ -118,7 +131,7 @@ async function runHtmlArm(runDir: string): Promise<HtmlLiveUpdateResult> {
   for (const step of steps) {
     const invocation = await runClaudeHeadless({
       prompt: buildHtmlUpdatePrompt(step, `./${HTML_OUTPUT_FILENAME}`),
-      model: Model.Haiku,
+      model,
       sessionId,
       cwd: runDir,
       arm: Arm.Html,
@@ -203,7 +216,11 @@ type ParchmentLiveUpdateResult = {
   claudeCallsDuringUpdates: number; // always 0 — the point of this metric
 };
 
-async function runParchmentArm(daemon: BenchDaemon, runDir: string): Promise<ParchmentLiveUpdateResult> {
+async function runParchmentArm(
+  daemon: BenchDaemon,
+  runDir: string,
+  model: Model,
+): Promise<ParchmentLiveUpdateResult> {
   mkdirSync(runDir, { recursive: true });
   const logFilePath = join(runDir, "live-source.jsonl");
   writeFileSync(logFilePath, ""); // file-tail starts at current EOF — empty file tails from byte 0.
@@ -213,7 +230,7 @@ async function runParchmentArm(daemon: BenchDaemon, runDir: string): Promise<Par
 
   const invocation = await runClaudeHeadless({
     prompt: buildComposeAndStreamPrompt(logFilePath),
-    model: Model.Haiku,
+    model,
     sessionId,
     cwd: runDir,
     arm: Arm.Parchment,
@@ -288,7 +305,11 @@ function saveJson(resultsDir: string, filename: string, value: unknown): void {
   writeFileSync(join(resultsDir, filename), JSON.stringify(value, null, 2));
 }
 
-function buildLiveUpdateReportMarkdown(html: HtmlLiveUpdateResult, parchment: ParchmentLiveUpdateResult): string {
+function buildLiveUpdateReportMarkdown(
+  html: HtmlLiveUpdateResult,
+  parchment: ParchmentLiveUpdateResult,
+  model: Model,
+): string {
   const updateCalls = html.calls.filter((call) => call.index > 0);
   const updateCostStats = computeStats(updateCalls.map((call) => call.costUsd));
   const updateTokenStats = computeStats(updateCalls.map((call) => call.promptCompletionTokens));
@@ -298,6 +319,7 @@ function buildLiveUpdateReportMarkdown(html: HtmlLiveUpdateResult, parchment: Pa
     "# Metric (c): tokens-per-live-update",
     "",
     `- Generated: ${new Date().toISOString()}`,
+    `- Model: ${model}`,
     `- Updates measured per arm: ${MEASURED_UPDATE_COUNT}`,
     "",
     "## HTML arm — one billable `claude -p` call per update",

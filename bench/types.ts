@@ -14,6 +14,7 @@ export type Arm = (typeof Arm)[keyof typeof Arm];
 export const Model = {
   Haiku: "haiku",
   Sonnet: "sonnet",
+  Opus: "opus",
 } as const;
 
 export type Model = (typeof Model)[keyof typeof Model];

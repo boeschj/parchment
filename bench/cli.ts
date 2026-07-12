@@ -171,8 +171,9 @@ function parseArm(value: string): Arm {
 }
 
 function parseModel(value: string): Model {
-  if (value === Model.Haiku || value === Model.Sonnet) return value;
-  throw new Error(`unknown model "${value}" — expected "haiku" or "sonnet"`);
+  const isKnownModel = value === Model.Haiku || value === Model.Sonnet || value === Model.Opus;
+  if (isKnownModel) return value;
+  throw new Error(`unknown model "${value}" — expected "haiku", "sonnet", or "opus"`);
 }
 
 function timestampForDirName(): string {
@@ -187,7 +188,7 @@ function printUsage(): void {
       "run options:",
       "  --scenario <id|all>     Scenario id from bench/scenarios/index.ts, or 'all' (default: all)",
       "  --arms <list>           Comma-separated: parchment,html (default: parchment,html)",
-      "  --models <list>         Comma-separated: haiku,sonnet (default: haiku)",
+      "  --models <list>         Comma-separated: haiku,sonnet,opus (default: haiku)",
       "  --reps <n>              Repetitions per (scenario, arm, model) (default: 3)",
       "  --port <n>              Bench daemon port (default: 7811)",
       "",
