@@ -62,6 +62,10 @@ If a paragraph survives all rules, it earns a `Markdown` block. Most don't.
 - **Log / trace analysis**: Metric row (error rate, p99, window) → Chart
   (line/area over time; seed big series into `state` and reference it) → DataTable
   (worst offenders) → Callout (diagnosis).
+- **Live dashboard** ("keep an eye on X", test suites, builds, agent fleets, logs):
+  compose ONCE with canvas_render — state-bound Chart (`xScale: "time"`, `x: "t"`)
+  + Metric via `$template` + DataTable/`repeat` rows — then ONE canvas_live call
+  streams data in forever. See "Live data" below.
 - **Options comparison**: Heading → Grid columns 2–3, one Card per option
   (Badge verdict, Metric cost, bullet Markdown) → Callout recommendation.
 - **Interactive form / mini-app** (see Interactivity): seed `state` → Inputs with
@@ -92,6 +96,27 @@ memory of a slot is stale the moment the user touches it.
   front-end, MCP tools are the backend, you are the server.
 - Edit kinds you'll see: `plan-edit`, `diff-edit` (apply with Edit/Write —
   with permission), `mermaid-edit`, `mermaid-comment`, `table-edit`, `form-submit`.
+
+## Live data — compose once, streams forever
+
+`canvas_live` binds daemon-side data sources to a slot's state paths. After one
+render + one registration, updates flow to the browser with ZERO further tool
+calls — never re-render or patch a slot just to refresh its data.
+
+1. **Render** with seeded live paths and bound components:
+   `"state": {"series": [], "fleet": {"sessions": [], "totals": {}}}`, Chart
+   `data: {"$state": "/series"}, x: "t", xScale: "time"`, Metric
+   `value: {"$template": "${/fleet/totals/costUsd}"}`, DataTable rows or a
+   `repeat` over `/fleet/sessions`.
+2. **Register** sources: `canvas_live {slotId, sources: [{id, statePath, kind, ...}]}`.
+   Kinds: `file-tail` (path + parser jsonl|regex|number), `command-poll`
+   (command + intervalSeconds), `http-poll` (url), `claude-sessions` (the
+   built-in fleet+cost scanner — zero config for a live fleet dashboard).
+3. `append` mode pushes `{t: epochMs, ...}` points onto a bounded array
+   (`window`, default 300); `replace` overwrites the path — pick per source.
+4. Don't bind a live statePath to anything the user edits; the daemon owns it.
+5. Verify with canvas_snapshot after a few seconds — the first data should
+   already be in. Full schema + a worked example: canvas-spec skill.
 
 ## The feedback loop (non-negotiable)
 

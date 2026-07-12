@@ -1,6 +1,6 @@
 ---
 name: canvas-spec
-description: Reference for authoring clawd-canvas json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit), repeat lists, visibility, and the full 49-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
+description: Reference for authoring clawd-canvas json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit), repeat lists, visibility, live data sources (canvas_live), and the full 50-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
 ---
 
 # Canvas spec reference
@@ -82,7 +82,8 @@ requiredIf) and `validateOn`: `change` | `blur` | `submit`.
 | `Markdown` | content, maxHeight? |
 | `MermaidEditor` | source (RAW mermaid — no fences; `<br/>` not `\n` in labels), title?, editable?, comments? |
 | `DiffViewer` | file, before, after, language?, editableSide?: after/both/none |
-| `Chart` | kind: line/bar/area/pie/scatter, data (rows, raw numbers), x, y (string or string[]), title?, height? |
+| `Chart` | kind: line/bar/area/pie/scatter, data (rows, raw numbers), x, y (string or string[]), title?, height?, xScale? category/time (time = epoch-ms x, streaming-friendly) |
+| `Sparkline` | data (numbers, or objects read via y — default key 'value'), y?, width?, height?, series? 1-5 — tiny axis-less inline trend |
 | `DataTable` | columns: [{key, header, type?, align?, width?}], rows, caption?, editable?, exportable? |
 | `Scene3D` | objects: [{kind: box/sphere/cylinder/plane/text, position [x,y,z], size?, rotation? (degrees), color?, label?, opacity?}], camera?, ground?, background? auto/transparent, height?, autoRotate?, title? — orbitable 3D scaffold (see below) |
 | `PlanFile` | markdown, editable?, title? — the user's editable plan; not a layout block |
@@ -153,6 +154,59 @@ spatial sketch, not a chart or a CAD model.
   }
 }
 ```
+
+## Live data sources (canvas_live)
+
+After rendering a slot, `canvas_live {slotId, sources}` binds daemon-side
+sources to its state paths — updates then stream to the browser with no
+further tool calls. Each source: `{id, statePath, kind, ...}`.
+
+- `file-tail`: `path` + `parser` `jsonl` (default) | `regex` (needs `pattern`
+  with named groups, numerics coerced) | `number` (first number on the line).
+  Default mode `append`.
+- `command-poll`: `command` run every `intervalSeconds` (min 1, default 5);
+  stdout parsed as JSON → number → string. Default mode `replace`.
+- `http-poll`: `url` GET every interval; JSON body parsed. Default `replace`.
+- `claude-sessions`: this machine's Claude Code fleet. Options `sinceHours`
+  (24) and `limit` (25). Writes at statePath:
+  `{sessions: [{sessionId, project, title, lastPrompt, status: active|idle,
+  isSubagent, model, turns, tokensIn, tokensOut, cacheRead, cacheWrite,
+  costUsd, lastActivityAt, gitBranch}], totals: {sessions, active, turns,
+  tokensIn, tokensOut, costUsd}, scannedAt, costNote}`. `costUsd` is an
+  ESTIMATE from a static price table — always label it "est.".
+- Shared knobs: `pluck` (dot path into each parsed value, e.g.
+  `data.stats[0].cpu`), `mode` `append`|`replace`, `window` (append cap,
+  default 300). Appended points are objects with `t` (epoch ms) added when
+  missing; scalars become `{t, value}`.
+- Each call replaces the slot's whole source set; `[]` stops streaming;
+  sources die with canvas_close.
+
+Worked example — live latency dashboard in two calls:
+
+```json
+canvas_render: {"title": "API latency", "kind": "dashboard", "spec": {
+  "root": "page",
+  "state": {"series": [], "latest": 0},
+  "elements": {
+    "page":  {"type": "Stack", "props": {"gap": "lg"}, "children": ["kpis", "trend"]},
+    "kpis":  {"type": "Grid", "props": {"columns": 3}, "children": ["now"]},
+    "now":   {"type": "Metric", "props": {"label": "Current", "value": {"$template": "${/latest} ms"}}},
+    "trend": {"type": "Chart", "props": {"kind": "line", "x": "t", "y": "ms",
+              "xScale": "time", "data": {"$state": "/series"}}, "children": []}
+  }
+}}
+
+canvas_live: {"slotId": "<from render>", "sources": [
+  {"id": "series", "statePath": "/series", "kind": "file-tail",
+   "path": "/tmp/api.log", "parser": "regex", "pattern": "lat=(?<ms>\\d+)"},
+  {"id": "latest", "statePath": "/latest", "kind": "file-tail",
+   "path": "/tmp/api.log", "parser": "regex", "pattern": "lat=(?<ms>\\d+)",
+   "pluck": "ms", "mode": "replace"}
+]}
+```
+
+A fleet dashboard is the same shape with one `claude-sessions` source and a
+DataTable/`repeat` bound to `/fleet/sessions`.
 
 ## Integrity checklist (walk it before every send)
 
