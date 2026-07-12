@@ -35,7 +35,8 @@ import {
   renderInjectionMarkup,
   clearOverlay,
 } from "./edits.ts";
-import { serveStatic, serveUserTheme } from "./static.ts";
+import { serveBuiltInTheme, serveStatic, serveUserTheme } from "./static.ts";
+import { deleteLibraryEntry, ensureLibrarySeeded, listLibraryEntries, readLibraryEntry } from "./library.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
 const MAX_PORT_ATTEMPTS = 10;
@@ -55,6 +56,11 @@ if (await isExistingDaemonHealthy()) {
 
 const SERVER_TOKEN = generateToken();
 const SERVER_STARTED_AT = new Date().toISOString();
+
+// Fresh installs see the shipped starter templates in the browser's library
+// panel (and canvas_library) without waiting on an MCP tool call first —
+// cheap no-op after the first boot (guarded by the .seeded marker file).
+ensureLibrarySeeded();
 
 type CanvasServer = ReturnType<typeof serve<WebSocketAttachment>>;
 
@@ -148,6 +154,16 @@ async function handleFetch(
     return handleSessionRoute(request, sessionId, subPath);
   }
 
+  if (path === "/api/library") {
+    return jsonResponse({ entries: listLibraryEntries() });
+  }
+
+  const libraryEntryMatch = path.match(/^\/api\/library\/([^/]+)$/);
+  if (libraryEntryMatch) {
+    const name = decodeURIComponent(libraryEntryMatch[1]!);
+    return handleLibraryEntryRoute(request, name);
+  }
+
   // Short-alias redirect: /s/<prefix> → /?session=<full-id>
   const shortMatch = path.match(/^\/s\/([^/]+)\/?$/);
   if (shortMatch) {
@@ -162,6 +178,14 @@ async function handleFetch(
   // User theme override, served from ~/.parchment/theme.css (empty if absent).
   if (path === "/theme.css") {
     return serveUserTheme();
+  }
+
+  // A shipped built-in theme (themes/manuscript.css, themes/terminal.css,
+  // themes/slate.css, ...), read live from the repo — no rebuild to pick up
+  // an edit.
+  const builtInThemeMatch = path.match(/^\/themes\/([a-z]+)\.css$/);
+  if (builtInThemeMatch) {
+    return serveBuiltInTheme(builtInThemeMatch[1]!);
   }
 
   if (path === "/" || path.startsWith("/assets/") || path.startsWith("/ui/")) {
@@ -356,6 +380,23 @@ async function handleSessionRoute(
   }
 
   return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, "route not found");
+}
+
+// GET returns one saved entry's full spec (so the browser can push it into a
+// slot); DELETE removes it. Both are read/mutate-by-name, no session scoping —
+// the library is shared across every session, unlike slots.
+async function handleLibraryEntryRoute(request: Request, name: string): Promise<Response> {
+  if (request.method === "GET") {
+    const entry = readLibraryEntry(name);
+    if (!entry) return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, `no saved UI named "${name}"`);
+    return jsonResponse({ entry });
+  }
+  if (request.method === "DELETE") {
+    const deleted = deleteLibraryEntry(name);
+    if (!deleted) return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, `no saved UI named "${name}"`);
+    return jsonResponse({ ok: true });
+  }
+  return errorResponse(HttpStatus.MethodNotAllowed, ErrorCode.MethodNotAllowed, `method ${request.method} not allowed`);
 }
 
 function isSlotKind(value: unknown): value is import("../shared/types.ts").SlotKind {
