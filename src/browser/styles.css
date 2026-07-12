@@ -280,3 +280,65 @@ button {
   background: transparent;
   padding: 0;
 }
+
+/*
+ * Document mode — the blog-quality reading surface canvas_document composes.
+ * A centered ~68ch column (42rem) on a paper card, with generous heading
+ * rhythm, quiet horizontal rules, and footnote-style code blocks. Scoped under
+ * .canvas-document (passed as the wrapping Card's className) so it refines the
+ * shared prose without touching the transcript or any other slot.
+ */
+.canvas-document {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: 44px 48px 40px;
+}
+
+.canvas-document .transcript-prose {
+  font-size: 17px;
+  line-height: 1.72;
+  color: var(--foreground);
+}
+
+.canvas-document .transcript-prose > * + * {
+  margin-top: 1.05em;
+}
+
+.canvas-document .transcript-prose h1,
+.canvas-document .transcript-prose h2,
+.canvas-document .transcript-prose h3 {
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin-top: 1.9em;
+  margin-bottom: 0.55em;
+}
+
+.canvas-document .transcript-prose h2 {
+  font-size: 1.4rem;
+}
+
+.canvas-document .transcript-prose h3 {
+  font-size: 1.15rem;
+}
+
+.canvas-document .transcript-prose hr {
+  height: 1px;
+  border: 0;
+  background: var(--hairline);
+  margin: 2.4em 0;
+}
+
+.canvas-document .transcript-prose blockquote {
+  border-left: 2px solid var(--hairline);
+  padding-left: 1em;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.canvas-document .transcript-prose pre {
+  background: var(--muted);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  font-size: 13.5px;
+}

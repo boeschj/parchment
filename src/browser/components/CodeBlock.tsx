@@ -130,6 +130,7 @@ function CopyButton({ code }: { code: string }) {
   return (
     <button
       type="button"
+      data-parchment-export-hide
       onClick={handleCopyClick}
       className="shrink-0 h-7 px-3 rounded-full bg-popover font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
     >
