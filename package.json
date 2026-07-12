@@ -4,16 +4,17 @@
   "description": "Generative-UI canvas for Claude Code. Claude calls MCP tools, your browser tab renders json-render specs (shadcn + extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable), edits flow back via UserPromptSubmit.",
   "type": "module",
   "license": "MIT",
+  "packageManager": "pnpm@10.23.0",
   "engines": {
     "bun": ">=1.3.0"
   },
   "bin": {
-    "clawd-canvas": "./src/cli/main.ts"
+    "parchment": "./src/cli/main.ts"
   },
   "scripts": {
     "dev:daemon": "bun --watch run src/daemon/server.ts",
     "dev:browser": "vite",
-    "build": "bun run build:browser && bun run typecheck",
+    "build": "pnpm build:browser && pnpm typecheck",
     "build:browser": "vite build",
     "typecheck": "tsc --noEmit",
     "cli": "bun run src/cli/main.ts",
