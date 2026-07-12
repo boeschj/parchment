@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.0 — 2026-07-12
+
+Renamed from clawd-canvas to **parchment**. This is a fresh version line for
+the new name, not a step down in functionality — everything shipped in
+0.3.0 below is still here.
+
+### Renamed
+- Product identity throughout: CLI output, MCP server name, package
+  manifests, skill descriptions, and docs now say parchment instead of
+  clawd-canvas.
+- Marketplace and plugin keys changed from `clawd-canvas`/`clawd-canvas@clawd-canvas`
+  to `parchment`/`parchment@parchment`. Reinstall via
+  `/plugin marketplace add boeschj/parchment` and
+  `/plugin install parchment@parchment`.
+- Kept as-is: the MCP server key `canvas` and every `canvas_*` tool name, the
+  `~/.parchment` state directory, and the `parchment` bin name — none of
+  those were ever tied to the old product name.
+
+### Package management
+- Adopted pnpm (`pnpm@10.23.0`, pinned) for dependency management. Bun
+  remains the runtime for the daemon, CLI, and tests — `pnpm install`,
+  `pnpm build`, never `bun install`.
+
 ## 0.3.0 — 2026-07-06
 
 The generative-UI turnaround release. The canvas goes from "markdown in cards"
