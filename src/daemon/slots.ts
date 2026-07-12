@@ -8,6 +8,7 @@ import {
   type SlotOpsResult,
   type WsEvent,
 } from "../shared/types.ts";
+import { extractIntentMenu } from "./intents.ts";
 import { persistSlot, removePersistedSlot } from "./session-store.ts";
 import { generateId } from "./ids.ts";
 import { stopSlotLiveSources } from "./live/engine.ts";
@@ -41,6 +42,10 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
   const status = input.status ?? SlotStatus.Ready;
 
   const seededState = seedInitialState(input.spec, input.state);
+  // SECURITY: the intent menu is recorded here, from the spec the agent
+  // pushed, and re-derived on every re-push — the browser can only ever
+  // reference these entries by id, never define them.
+  const { menu: intentMenu } = extractIntentMenu(input.spec);
 
   if (input.slotId) {
     const existing = session.slots.find((slot) => slot.id === input.slotId);
@@ -51,6 +56,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
       existing.status = status;
       existing.origin = input.origin;
       existing.updatedAt = now;
+      existing.intentMenu = intentMenu;
       if (seededState) existing.state = seededState;
       persistSlot(session.sessionId, existing);
       broadcast(session, { kind: "slot-updated", data: existing });
@@ -66,6 +72,7 @@ export function upsertSlot(input: UpsertSlotInput): Slot {
     title: input.title,
     spec: input.spec,
     state: seededState ?? {},
+    intentMenu,
     createdAt: now,
     updatedAt: now,
   };

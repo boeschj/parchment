@@ -4,6 +4,7 @@
 // width/height (or lucide's size prop).
 
 import {
+  AppWindow,
   ChartColumn,
   Check,
   ChevronsLeft,
@@ -28,6 +29,7 @@ export type IconProps = LucideProps;
 
 export const DocIcon = FileText;
 export const FlowIcon = Waypoints;
+export const AppIcon = AppWindow;
 export const TableIcon = Table;
 export const ChartIcon = ChartColumn;
 export const DiffIcon = FileDiff;
@@ -49,6 +51,7 @@ const SLOT_KIND_ICON: Record<string, LucideIcon> = {
   [SlotKind.Table]: TableIcon,
   [SlotKind.Report]: DocIcon,
   [SlotKind.Render]: SparkleIcon,
+  [SlotKind.App]: AppIcon,
 };
 
 export function SlotKindIcon({ kind, ...props }: IconProps & { kind: string }) {

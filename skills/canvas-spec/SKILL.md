@@ -1,6 +1,6 @@
 ---
 name: canvas-spec
-description: Reference for authoring parchment json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit), repeat lists, visibility, live data sources (canvas_live), and the full 50-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
+description: Reference for authoring parchment json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit, canvas.intent), repeat lists, visibility, live data sources (canvas_live), and the full 52-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
 ---
 
 # Canvas spec reference
@@ -56,6 +56,10 @@ Multiple: array of bindings, run in order. Params accept expressions.
 - **`canvas.submit`** `{id, payload}` — THE backchannel. Delivers resolved payload
   (use `{"$state": "/form"}`) to Claude's next turn as
   `<canvas-edit kind="form-submit">`. Bind to Button `on.press`.
+- **`canvas.intent`** `{id, params?}` — structured action button. Params must be
+  STATIC JSON (no expressions; the daemon records them at render time and rejects
+  the spec otherwise). Arrives as `<canvas-edit kind="intent">` with the exact
+  recorded payload. Ids unique per slot.
 - `canvas.commentMermaid` — used internally by MermaidEditor node comments.
 
 Events by component: Button/Toggle emit `press`; Input/Textarea/Select/Checkbox/
@@ -87,6 +91,7 @@ requiredIf) and `validateOn`: `change` | `blur` | `submit`.
 | `DataTable` | columns: [{key, header, type?, align?, width?}], rows, caption?, editable?, exportable? |
 | `Scene3D` | objects: [{kind: box/sphere/cylinder/plane/text, position [x,y,z], size?, rotation? (degrees), color?, label?, opacity?}], camera?, ground?, background? auto/transparent, height?, autoRotate?, title? — orbitable 3D scaffold (see below) |
 | `PlanFile` | markdown, editable?, title? — the user's editable plan; not a layout block |
+| `Upload` | label?, hint?, accept? (e.g. ".csv,image/*"), multiple? — dropzone; each file arrives as `<canvas-edit kind="file-upload">` with a daemon-generated savedPath (read the PATH; contents never injected) |
 
 ### Layout & containers (shadcn)
 

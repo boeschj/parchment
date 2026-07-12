@@ -4,6 +4,7 @@ import { defineRegistry } from "@json-render/react";
 import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
 import { shadcnComponents } from "@json-render/shadcn";
 import { CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
+import { McpAppDefinition } from "../shared/catalog/extensions/McpApp.ts";
 import { PlanFile } from "./components/PlanFile.tsx";
 import { DiffViewer } from "./components/DiffViewer.tsx";
 import { MermaidEditor } from "./components/MermaidEditor.tsx";
@@ -19,6 +20,8 @@ import { TestResults } from "./components/TestResults.tsx";
 import { Markdown } from "./components/Markdown.tsx";
 import { Scene3D } from "./components/Scene3D.tsx";
 import { Sparkline } from "./components/Sparkline.tsx";
+import { McpAppView } from "./components/McpAppView.tsx";
+import { Upload } from "./components/Upload.tsx";
 import { canvasShadcnOverrides } from "./registry/canvas-shadcn.tsx";
 
 // Browser side: include both definitions + React implementations.
@@ -29,6 +32,10 @@ export const browserCatalog = defineCatalog(schema, {
   components: {
     ...shadcnComponentDefinitions,
     ...CanvasExtensionDefinitions,
+    // Browser-only on purpose: McpApp elements are minted by the daemon's
+    // canvas_app path; composed canvas_render specs may not name it (the MCP
+    // validator rejects it as an unknown type).
+    McpApp: McpAppDefinition,
   },
   actions: {},
 });
@@ -62,5 +69,7 @@ export const { registry } = defineRegistry(browserCatalog, {
     Markdown,
     Scene3D,
     Sparkline,
+    Upload,
+    McpApp: McpAppView,
   },
 });

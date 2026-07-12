@@ -17,6 +17,7 @@ import { TestResultsDefinition } from "./extensions/TestResults.ts";
 import { MarkdownDefinition } from "./extensions/Markdown.ts";
 import { Scene3DDefinition } from "./extensions/Scene3D.ts";
 import { SparklineDefinition } from "./extensions/Sparkline.ts";
+import { UploadDefinition } from "./extensions/Upload.ts";
 
 export const CanvasExtensionDefinitions = {
   PlanFile: PlanFileDefinition,
@@ -34,6 +35,7 @@ export const CanvasExtensionDefinitions = {
   Markdown: MarkdownDefinition,
   Scene3D: Scene3DDefinition,
   Sparkline: SparklineDefinition,
+  Upload: UploadDefinition,
 } as const;
 
 // Canvas-specific actions. The browser registers handlers for these in
@@ -72,6 +74,21 @@ export const CanvasActionDefinitions = {
     }),
     description:
       'Deliver a discrete submission (form data, a choice, a confirmation) back to Claude. It arrives on Claude\'s next turn as a <canvas-edit kind="form-submit"> block. Bind to a Button\'s on.press.',
+  },
+  "canvas.intent": {
+    params: z.object({
+      id: z
+        .string()
+        .describe("Semantic intent id, unique within the slot, e.g. 'retry-failed' or 'approve-deploy'."),
+      params: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "STATIC JSON only — baked into the payload when the slot is rendered. No $state expressions (those belong to canvas.submit). The browser submits just the id; the daemon injects the params it recorded, so a page cannot alter them.",
+        ),
+    }),
+    description:
+      'Offer a structured action button (a menu of things you\'re prepared to do). On press it arrives as <canvas-edit kind="intent"> with the exact {id, params} you rendered — payload verified by the daemon. Bind to a Button\'s on.press for "Retry failed", "Deploy", "Open PR"-style controls.',
   },
 } as const;
 
