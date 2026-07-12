@@ -158,7 +158,11 @@ export function MermaidEditor({ props }: RenderProps) {
         ) : null}
         <div className="relative">
           {diagramReady ? (
-            <div className="absolute top-3 right-3 z-10 flex gap-1.5" onClick={(event) => event.stopPropagation()}>
+            <div
+              data-parchment-export-hide
+              className="absolute top-3 right-3 z-10 flex gap-1.5"
+              onClick={(event) => event.stopPropagation()}
+            >
               <MermaidToolbarButton label="PNG" onClick={() => void handleExportPng()}>
                 <Download width={12} height={12} />
                 PNG

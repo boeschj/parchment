@@ -33,8 +33,11 @@ function escapeHtml(value: string): string {
 
 // Layout chrome for the exported document itself: a centered reading column on
 // the app's own page background, matching the ~960px capture width so charts
-// and tables sit at their rendered size.
+// and tables sit at their rendered size. Interactive-only controls (a diagram's
+// PNG/Live toolbar, a code block's copy button) are dead in a static file, so
+// they hide themselves via [data-parchment-export-hide].
 const EXPORT_LAYOUT_CSS = `
+[data-parchment-export-hide] { display: none !important; }
 .parchment-export-main {
   max-width: 992px;
   margin: 0 auto;
