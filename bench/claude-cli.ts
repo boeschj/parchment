@@ -17,8 +17,7 @@
 
 import { Arm, type Model } from "./types.ts";
 import type { ClaudeRunResult } from "./types.ts";
-import { HTML_ARM_TOOLS } from "./config.ts";
-import type { CanvasTool } from "./config.ts";
+import { CanvasTool, HTML_ARM_TOOLS } from "./config.ts";
 
 export type RunClaudeHeadlessOptions = {
   prompt: string;
@@ -111,6 +110,13 @@ function buildParchmentArmArgs(options: RunClaudeHeadlessOptions): string[] {
   if (!options.allowedCanvasTools || options.allowedCanvasTools.length === 0) {
     throw new Error("parchment arm requires at least one allowedCanvasTools entry");
   }
+  // bypassPermissions makes --allowedTools a pre-approval, not a restriction:
+  // models happily call canvas_snapshot after a render, which in a headless
+  // bench fails ("no canvas tab") and burns a turn. --disallowedTools DOES
+  // restrict under bypass, so the off-scenario canvas tools are named
+  // explicitly to keep the arm's surface exactly what the scenario declares.
+  const allowed = new Set(options.allowedCanvasTools);
+  const disallowed = Object.values(CanvasTool).filter((tool) => !allowed.has(tool));
   return [
     "--mcp-config",
     options.mcpConfigPath,
@@ -118,6 +124,7 @@ function buildParchmentArmArgs(options: RunClaudeHeadlessOptions): string[] {
     "",
     "--allowedTools",
     options.allowedCanvasTools.join(","),
+    ...(disallowed.length > 0 ? ["--disallowedTools", disallowed.join(",")] : []),
   ];
 }
 

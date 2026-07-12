@@ -35,6 +35,13 @@ export const CanvasTool = {
   // bench/live-update.ts, metric (c)): streams file-tail/command-poll/http-poll
   // updates into a slot's state with zero further tool calls.
   Live: "mcp__canvas__canvas_live",
+  // The full surface must be enumerable: buildParchmentArmArgs disallows every
+  // canvas tool a scenario doesn't declare (bypassPermissions treats
+  // --allowedTools as pre-approval, not restriction), so a missing entry here
+  // reopens a hole.
+  App: "mcp__canvas__canvas_app",
+  Library: "mcp__canvas__canvas_library",
+  Close: "mcp__canvas__canvas_close",
 } as const;
 
 export type CanvasTool = (typeof CanvasTool)[keyof typeof CanvasTool];

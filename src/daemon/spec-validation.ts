@@ -46,7 +46,12 @@ function fromCoreSpec(spec: Spec): JsonRenderSpec {
 export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   const { spec: autofixed } = autoFixSpec(toCoreSpec(spec));
   const normalized = withLeafChildren(fromCoreSpec(autofixed));
-  const { spec: repaired, repairs } = repairEnumSynonyms(normalized);
+  const repairs: string[] = [];
+  let repaired = repairComponentTypeAliases(normalized, repairs);
+  repaired = repairPropNameAliases(repaired, repairs);
+  repaired = repairExpressionShorthand(repaired, repairs);
+  repaired = repairEnumSynonyms(repaired, repairs);
+  repaired = repairNumbersWhereStringsExpected(repaired, repairs);
   const issues = [
     ...collectStructuralIssues(repaired),
     ...collectMissingChildIssues(repaired),
@@ -182,6 +187,9 @@ const GAP_TOKEN_PIXELS: Record<GapToken, number> = { none: 0, sm: 8, md: 16, lg:
 const SPACING_WORD_TO_TOKEN = {
   none: "none",
   zero: "none",
+  xxs: "sm",
+  "2xs": "sm",
+  xs: "sm",
   tiny: "sm",
   small: "sm",
   medium: "md",
@@ -189,6 +197,8 @@ const SPACING_WORD_TO_TOKEN = {
   large: "lg",
   big: "lg",
   xlarge: "xl",
+  xxl: "xl",
+  "2xl": "xl",
   huge: "xl",
 } as const;
 
@@ -246,15 +256,180 @@ const PropCoercions: Record<string, Record<string, CandidateResolver>> = {
   Chart: { xScale: wordResolver(CHART_XSCALE_TO_TOKEN) },
 };
 
-type RepairResult = { spec: JsonRenderSpec; repairs: string[] };
-
-function repairEnumSynonyms(spec: JsonRenderSpec): RepairResult {
-  const repairs: string[] = [];
+function repairEnumSynonyms(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
   const elements: Record<string, UIElement> = {};
   for (const [key, element] of Object.entries(spec.elements)) {
     elements[key] = coerceElementProps(key, element, repairs);
   }
-  return { spec: { ...spec, elements }, repairs };
+  return { ...spec, elements };
+}
+
+// ---- Dialect repair --------------------------------------------------------
+// Under token pressure models speak a plausible dialect rather than guess
+// randomly: a "Form" container, Chart xKey/yKeys, DataTable data/label,
+// "$state.path" shorthand strings, numbers where a preformatted string is
+// expected. Each repair below maps one OBSERVED dialect form onto the real
+// vocabulary; everything still passes the full prop check afterwards, and
+// ambiguous forms are left to reject with the exact fix.
+
+const COMPONENT_TYPE_ALIASES = {
+  form: "Card",
+} as const;
+
+function repairComponentTypeAliases(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+  const elements: Record<string, UIElement> = {};
+  let changed = false;
+  for (const [key, element] of Object.entries(spec.elements)) {
+    const isKnownType = ComponentPropSchemas[element.type] !== undefined;
+    const alias = lookupSynonym(COMPONENT_TYPE_ALIASES, element.type);
+    if (!isKnownType && alias !== null) {
+      elements[key] = { ...element, type: alias };
+      repairs.push(`elements/${key}/type: coerced "${element.type}" → "${alias}"`);
+      changed = true;
+      continue;
+    }
+    elements[key] = element;
+  }
+  return changed ? { ...spec, elements } : spec;
+}
+
+const DATA_TABLE_TYPE = "DataTable";
+
+const PROP_NAME_ALIASES: Record<string, Readonly<Record<string, string>>> = {
+  Chart: { xkey: "x", ykey: "y", ykeys: "y" },
+  [DATA_TABLE_TYPE]: { data: "rows" },
+};
+
+function repairPropNameAliases(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+  const elements: Record<string, UIElement> = {};
+  let changed = false;
+  for (const [key, element] of Object.entries(spec.elements)) {
+    const renamed = renameAliasedProps(key, element, repairs);
+    const normalized =
+      renamed.type === DATA_TABLE_TYPE ? normalizeDataTableColumns(key, renamed, repairs) : renamed;
+    if (normalized !== element) changed = true;
+    elements[key] = normalized;
+  }
+  return changed ? { ...spec, elements } : spec;
+}
+
+function renameAliasedProps(key: string, element: UIElement, repairs: string[]): UIElement {
+  const aliases = PROP_NAME_ALIASES[element.type];
+  if (!aliases) return element;
+  const props = { ...element.props };
+  let changed = false;
+  for (const [aliasName, realName] of Object.entries(aliases)) {
+    const presentAlias = Object.keys(props).find((name) => name.toLowerCase() === aliasName);
+    if (presentAlias === undefined) continue;
+    if (props[realName] !== undefined) continue;
+    props[realName] = props[presentAlias];
+    delete props[presentAlias];
+    changed = true;
+    repairs.push(`elements/${key}/props: renamed "${presentAlias}" → "${realName}"`);
+  }
+  return changed ? { ...element, props } : element;
+}
+
+function normalizeDataTableColumns(key: string, element: UIElement, repairs: string[]): UIElement {
+  const columns = element.props.columns;
+  if (!Array.isArray(columns)) return element;
+  let changed = false;
+  const normalized = columns.map((column, index) => {
+    if (!isPlainObject(column)) return column;
+    if (column.header !== undefined || typeof column.label !== "string") return column;
+    changed = true;
+    repairs.push(`elements/${key}/props/columns/${index}: renamed "label" → "header"`);
+    const { label, ...rest } = column;
+    return { ...rest, header: label };
+  });
+  if (!changed) return element;
+  return { ...element, props: { ...element.props, columns: normalized } };
+}
+
+// "$state.build.duration" / "$bindState:/form/title" as a bare string is
+// unmistakable intent for the expression object form.
+const STATE_SHORTHAND_PATTERN = /^\$(state|bindState)([.:/])(.+)$/;
+
+function repairExpressionShorthand(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+  const elements: Record<string, UIElement> = {};
+  let changed = false;
+  for (const [key, element] of Object.entries(spec.elements)) {
+    const props = replaceShorthandDeep(element.props, `elements/${key}/props`, repairs);
+    if (props !== element.props) {
+      elements[key] = { ...element, props: props as Record<string, unknown> };
+      changed = true;
+      continue;
+    }
+    elements[key] = element;
+  }
+  return changed ? { ...spec, elements } : spec;
+}
+
+function replaceShorthandDeep(value: unknown, path: string, repairs: string[]): unknown {
+  if (typeof value === "string") {
+    const expression = shorthandExpression(value);
+    if (expression === null) return value;
+    repairs.push(`${path}: coerced ${JSON.stringify(value)} → ${JSON.stringify(expression)}`);
+    return expression;
+  }
+  if (Array.isArray(value)) {
+    let changed = false;
+    const mapped = value.map((entry, index) => {
+      const replaced = replaceShorthandDeep(entry, `${path}/${index}`, repairs);
+      if (replaced !== entry) changed = true;
+      return replaced;
+    });
+    return changed ? mapped : value;
+  }
+  if (!isPlainObject(value)) return value;
+  if (isExpressionValue(value)) return value;
+  let changed = false;
+  const mapped: Record<string, unknown> = {};
+  for (const [entryKey, entryValue] of Object.entries(value)) {
+    const replaced = replaceShorthandDeep(entryValue, `${path}/${entryKey}`, repairs);
+    if (replaced !== entryValue) changed = true;
+    mapped[entryKey] = replaced;
+  }
+  return changed ? mapped : value;
+}
+
+function shorthandExpression(raw: string): Record<string, string> | null {
+  const match = raw.trim().match(STATE_SHORTHAND_PATTERN);
+  if (!match) return null;
+  const body = (match[3] ?? "").trim();
+  if (body.length === 0) return null;
+  const pointer = body.startsWith("/") ? body : `/${body.replace(/\./g, "/")}`;
+  const expressionKey = match[1] === "state" ? "$state" : "$bindState";
+  return { [expressionKey]: pointer };
+}
+
+function repairNumbersWhereStringsExpected(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+  const elements: Record<string, UIElement> = {};
+  let changed = false;
+  for (const [key, element] of Object.entries(spec.elements)) {
+    if (ComponentPropSchemas[element.type] === undefined) {
+      elements[key] = element;
+      continue;
+    }
+    const props = { ...element.props };
+    let elementChanged = false;
+    for (const [prop, value] of Object.entries(props)) {
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      if (isValidPropValue(element.type, prop, value)) continue;
+      const asString = String(value);
+      if (!isValidPropValue(element.type, prop, asString)) continue;
+      props[prop] = asString;
+      elementChanged = true;
+      repairs.push(`elements/${key}/props/${prop}: coerced ${value} → ${JSON.stringify(asString)}`);
+    }
+    if (elementChanged) {
+      elements[key] = { ...element, props };
+      changed = true;
+      continue;
+    }
+    elements[key] = element;
+  }
+  return changed ? { ...spec, elements } : spec;
 }
 
 function coerceElementProps(key: string, element: UIElement, repairs: string[]): UIElement {

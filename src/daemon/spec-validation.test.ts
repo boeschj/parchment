@@ -459,3 +459,160 @@ describe("prepareSpec — observed bench failures now render on the first pass",
     expect(issues).toEqual([]);
   });
 });
+
+// Round-two dialect failures, observed verbatim in the post-redesign bench runs
+// (bench/results/2026-07-12T19-52-*): the enum synonyms died and expressive
+// models surfaced a NEW class — plausible dialect. Each case below is the real
+// spec shape a model emitted; the assertion is that it renders first-pass.
+
+describe("prepareSpec — observed dialect failures repair first-pass", () => {
+  it("opus status-dashboard: gap 'xs' repairs to sm", () => {
+    const { issues, repairs } = prepareSpec(
+      spec({
+        root: "header",
+        elements: { header: { type: "Stack", props: { gap: "xs" }, children: [] } },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(repairs).toContainEqual('elements/header/props/gap: coerced "xs" → "sm"');
+  });
+
+  it("opus status-dashboard: Metric delta as a number stringifies", () => {
+    const { issues, repairs } = prepareSpec(
+      spec({
+        root: "kpiPass",
+        elements: {
+          kpiPass: {
+            type: "Metric",
+            props: { label: "Build Pass Rate", value: "94%", delta: 1.8, trend: "up" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(repairs).toContainEqual('elements/kpiPass/props/delta: coerced 1.8 → "1.8"');
+  });
+
+  it("sonnet status-dashboard: Chart data '$state.buildDuration' becomes the expression object", () => {
+    const { issues, spec: repaired } = prepareSpec(
+      spec({
+        root: "buildDurationChart",
+        state: { buildDuration: [] },
+        elements: {
+          buildDurationChart: {
+            type: "Chart",
+            props: { kind: "bar", data: "$state.buildDuration", xKey: "day", yKeys: ["minutes"] },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    const chartProps = repaired.elements["buildDurationChart"]!.props;
+    expect(chartProps.data).toEqual({ $state: "/buildDuration" });
+    expect(chartProps.x).toBe("day");
+    expect(chartProps.y).toEqual(["minutes"]);
+    expect(chartProps.xKey).toBeUndefined();
+    expect(chartProps.yKeys).toBeUndefined();
+  });
+
+  it("sonnet csv-table: DataTable data→rows and columns label→header", () => {
+    const { issues, spec: repaired } = prepareSpec(
+      spec({
+        root: "table",
+        state: { rows: [] },
+        elements: {
+          table: {
+            type: "DataTable",
+            props: {
+              data: "$state.rows",
+              columns: [
+                { key: "name", label: "Name" },
+                { key: "role", label: "Role" },
+              ],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    const tableProps = repaired.elements["table"]!.props;
+    expect(tableProps.rows).toEqual({ $state: "/rows" });
+    expect(tableProps.data).toBeUndefined();
+    expect(tableProps.columns).toEqual([
+      { key: "name", header: "Name" },
+      { key: "role", header: "Role" },
+    ]);
+  });
+
+  it("opus validated-form: unknown component 'Form' aliases to Card", () => {
+    const { issues, spec: repaired, repairs } = prepareSpec(
+      spec({
+        root: "form",
+        state: { form: { name: "" } },
+        elements: {
+          form: { type: "Form", props: { title: "Sign up" }, children: ["name"] },
+          name: {
+            type: "Input",
+            props: { label: "Name", value: { $bindState: "/form/name" } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(repaired.elements["form"]!.type).toBe("Card");
+    expect(repairs).toContainEqual('elements/form/type: coerced "Form" → "Card"');
+  });
+
+  it("$bindState shorthand string also converts", () => {
+    const { issues, spec: repaired } = prepareSpec(
+      spec({
+        root: "field",
+        state: { form: { email: "" } },
+        elements: {
+          field: {
+            type: "Input",
+            props: { label: "Email", value: "$bindState./form/email" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(repaired.elements["field"]!.props.value).toEqual({ $bindState: "/form/email" });
+  });
+
+  it("shorthand pointing at an unseeded key still rejects with the seeding fix", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "chart",
+        state: {},
+        elements: {
+          chart: {
+            type: "Chart",
+            props: { kind: "line", data: "$state.series", x: "t", y: "value" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues.length).toBe(1);
+    expect(issues[0]).toContain('"/series" is not seeded');
+  });
+
+  it("ordinary text starting with a dollar amount is untouched", () => {
+    const { issues, spec: repaired } = prepareSpec(
+      spec({
+        root: "t",
+        elements: {
+          t: { type: "Text", props: { text: "$state of the art pricing: $12" }, children: [] },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(repaired.elements["t"]!.props.text).toBe("$state of the art pricing: $12");
+  });
+});
