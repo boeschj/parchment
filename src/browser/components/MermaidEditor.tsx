@@ -1,12 +1,22 @@
 import { useEffect, useId, useRef, useState } from "react";
 import mermaid from "mermaid";
+import { Download, ExternalLink } from "lucide-react";
 import type { z } from "zod/v4";
 import { EditKind } from "../../shared/types.ts";
-import { MermaidEditorPropsSchema } from "../../shared/catalog/extensions/MermaidEditor.ts";
+import { MermaidEditorPropsSchema, MermaidTheme } from "../../shared/catalog/extensions/MermaidEditor.ts";
 import { useSlotContext } from "../SlotContext.tsx";
 import { postEdit } from "../api.ts";
 import { useDebouncedCallback } from "../useDebounce.ts";
 import { useLocalDraft } from "../useLocalDraft.ts";
+import { buildMermaidLiveUrl } from "../export/mermaid-live.ts";
+import { downloadSvgAsPng } from "../export/svg-png.ts";
+import { exportFilenameStem } from "../export/standalone-html.ts";
+
+const DEFAULT_MERMAID_THEME = MermaidTheme.Base;
+const PNG_BACKGROUND: Record<string, string> = {
+  [MermaidTheme.Dark]: "#0B0A08",
+};
+const DEFAULT_PNG_BACKGROUND = "#FFFFFF";
 
 type MermaidEditorProps = z.infer<typeof MermaidEditorPropsSchema>;
 type RenderProps = { props: MermaidEditorProps };
@@ -24,6 +34,7 @@ export function MermaidEditor({ props }: RenderProps) {
   const { sessionId, slotId } = useSlotContext();
   const editable = props.editable === true;
   const showSource = props.showSource ?? editable;
+  const theme = props.theme ?? DEFAULT_MERMAID_THEME;
   const renderId = useId().replace(/:/g, "");
   const { draft, setDraft, clearDraft } = useLocalDraft(
     sessionId,
@@ -54,6 +65,7 @@ export function MermaidEditor({ props }: RenderProps) {
     setRenderState({ status: "rendering" });
     let timer: ReturnType<typeof setTimeout> | null = setTimeout(async () => {
       try {
+        mermaid.initialize({ startOnLoad: false, theme });
         const result = await mermaid.render(`mermaid-${renderId}`, draft);
         if (!cancelledRef.current) {
           setRenderState({ status: "ready", svg: result.svg });
@@ -71,7 +83,7 @@ export function MermaidEditor({ props }: RenderProps) {
       cancelledRef.current = true;
       if (timer) clearTimeout(timer);
     };
-  }, [draft, renderId]);
+  }, [draft, renderId, theme]);
 
   const handleNodeClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     const target = event.target as Element | null;
@@ -91,8 +103,25 @@ export function MermaidEditor({ props }: RenderProps) {
     });
   };
 
+  const handleExportPng = async (): Promise<void> => {
+    const svg = containerRef.current?.querySelector("svg");
+    if (!svg) return;
+    const background = PNG_BACKGROUND[theme] ?? DEFAULT_PNG_BACKGROUND;
+    const filename = `${exportFilenameStem(props.title ?? "diagram")}.png`;
+    try {
+      await downloadSvgAsPng(svg, filename, background);
+    } catch (error) {
+      console.error("[MermaidEditor] PNG export failed", error);
+    }
+  };
+
+  const handleOpenInMermaidLive = (): void => {
+    window.open(buildMermaidLiveUrl(draft, theme), "_blank", "noopener");
+  };
+
   const containerLayoutClass = showSource ? "grid md:grid-cols-2" : "block";
   const diagramSizeClass = showSource ? "h-[504px]" : "min-h-[320px] max-h-[80vh]";
+  const diagramReady = renderState.status === "ready";
 
   return (
     <div
@@ -127,28 +156,42 @@ export function MermaidEditor({ props }: RenderProps) {
             )}
           </section>
         ) : null}
-        <section
-          ref={containerRef}
-          onClick={editable ? handleNodeClick : undefined}
-          className={`p-4 overflow-auto ${diagramSizeClass} flex items-start justify-center`}
-          style={{
-            background:
-              "radial-gradient(circle at center, var(--dot) 1px, transparent 1px) 0 0 / 22px 22px",
-          }}
-        >
-          {renderState.status === "ready" ? (
-            <div
-              className="w-full"
-              dangerouslySetInnerHTML={{ __html: renderState.svg }}
-            />
+        <div className="relative">
+          {diagramReady ? (
+            <div className="absolute top-3 right-3 z-10 flex gap-1.5" onClick={(event) => event.stopPropagation()}>
+              <MermaidToolbarButton label="PNG" onClick={() => void handleExportPng()}>
+                <Download width={12} height={12} />
+                PNG
+              </MermaidToolbarButton>
+              <MermaidToolbarButton label="Open in Mermaid Live" onClick={handleOpenInMermaidLive}>
+                <ExternalLink width={12} height={12} />
+                Mermaid Live
+              </MermaidToolbarButton>
+            </div>
           ) : null}
-          {renderState.status === "rendering" ? (
-            <div className="text-muted-foreground text-sm">rendering…</div>
-          ) : null}
-          {renderState.status === "error" ? (
-            <pre className="text-destructive text-xs whitespace-pre-wrap">{renderState.message}</pre>
-          ) : null}
-        </section>
+          <section
+            ref={containerRef}
+            onClick={editable ? handleNodeClick : undefined}
+            className={`p-4 overflow-auto ${diagramSizeClass} flex items-start justify-center`}
+            style={{
+              background:
+                "radial-gradient(circle at center, var(--dot) 1px, transparent 1px) 0 0 / 22px 22px",
+            }}
+          >
+            {renderState.status === "ready" ? (
+              <div
+                className="w-full"
+                dangerouslySetInnerHTML={{ __html: renderState.svg }}
+              />
+            ) : null}
+            {renderState.status === "rendering" ? (
+              <div className="text-muted-foreground text-sm">rendering…</div>
+            ) : null}
+            {renderState.status === "error" ? (
+              <pre className="text-destructive text-xs whitespace-pre-wrap">{renderState.message}</pre>
+            ) : null}
+          </section>
+        </div>
       </div>
       {editable && props.comments && props.comments.length > 0 ? (
         <footer className="px-4 py-2 text-xs text-muted-foreground" style={{ borderTop: "1px solid var(--hairline)" }}>
@@ -163,5 +206,26 @@ export function MermaidEditor({ props }: RenderProps) {
         </footer>
       ) : null}
     </div>
+  );
+}
+
+function MermaidToolbarButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="h-7 px-2.5 rounded-full bg-popover font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5 shadow-sm"
+    >
+      {children}
+    </button>
   );
 }

@@ -1,5 +1,13 @@
 import * as z from "zod/v4";
 
+export const MermaidTheme = {
+  Default: "default",
+  Base: "base",
+  Dark: "dark",
+  Forest: "forest",
+  Neutral: "neutral",
+} as const;
+
 export const MermaidCommentSchema = z.object({
   nodeId: z
     .string()
@@ -33,6 +41,18 @@ export const MermaidEditorPropsSchema = z.object({
     .optional()
     .describe(
       "Pre-existing comments to display anchored to specific nodes. New comments the user adds flow back via the canvas.commentMermaid action.",
+    ),
+  theme: z
+    .enum([
+      MermaidTheme.Default,
+      MermaidTheme.Base,
+      MermaidTheme.Dark,
+      MermaidTheme.Forest,
+      MermaidTheme.Neutral,
+    ])
+    .optional()
+    .describe(
+      "Mermaid render theme. Defaults to 'base' (matches the canvas surface). Also flows into the 'Open in Mermaid Live' handoff.",
     ),
 });
 
