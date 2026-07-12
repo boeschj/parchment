@@ -201,6 +201,28 @@ synonyms and shorthands before rejecting, rather than relying on the model
 to read a fix hint and try again. Post-fix, 0 of 24 fresh runs (sonnet +
 opus) were rejected on the first attempt.
 
+## Wall-clock to first render (sonnet)
+
+Mean seconds per run from the same suites as above (parchment post-fix run
+2026-07-12T22-28-37-337Z vs the unchanged html arm from
+2026-07-12T15-07-38-053Z). Turn latency is dominated by output-token
+generation, so authoring a compact spec instead of a styled document is
+faster in proportion to the output saved. Output tokens shown alongside.
+
+| Scenario | parchment s | html s | Speedup | parchment out-tokens | html out-tokens |
+|---|---:|---:|---:|---:|---:|
+| Architecture diagram | 3.8 | 9.8 | 2.6x | 246 | 997 |
+| CSV data table | 5.9 | 7.1 | 1.2x | 511 | 586 |
+| Incident report | 7.3 | 14.8 | 2.0x | 767 | 1,619 |
+| Live log dashboard | 11.9 | 21.9 | 1.8x | 1,153 | 2,732 |
+| CI status dashboard | 12.3 | 27.7 | 2.2x | 1,341 | 3,755 |
+| Validated signup form | 13.8 | 6.2 | **0.5x (loss)** | 1,325 | 412 |
+| **Mean** | **9.2** | **14.6** | **1.6x** | 891 | 1,684 |
+
+The signup form is slower for the same structural reason it costs more
+tokens: three native HTML5 attributes out-compress an equivalent JSON input
+tree. Every other scenario renders 1.2–2.6x faster.
+
 ## Daemon startup (zero LLM cost)
 
 Time from spawning the daemon process to a healthy HTTP endpoint, 5
