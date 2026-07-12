@@ -26,6 +26,7 @@ import {
   latestPlanSlot,
   newestSlotUpdatedAt,
   resolveView,
+  seedView,
   type CanvasView,
   type ViewChoice,
 } from "./view.ts";
@@ -55,19 +56,29 @@ export function App() {
   // which surface is showing.
   useWsEventSubscription(subscribeToEvents, createSlotOpsListener(sessionId));
 
-  // On the first snapshot, land on the transcript and mark every slot already
-  // present as "seen". Otherwise a stale plan from earlier in the session hits
-  // the Jarvis follow-rule on load and hijacks the view. Only slots pushed
-  // AFTER load (newer than this baseline) pull focus.
+  // Seed the landing view once both initial messages are in. The daemon sends
+  // "snapshot" (slots) then "transcript-snapshot" on socket open, in order, so
+  // seeding on the second one lets seedView see the whole session shape:
+  // transcript present → land there with existing slots marked "seen" (a stale
+  // plan must not hijack a reload; only pushes AFTER load pull focus);
+  // slots-only session → land on the newest slot, not an empty welcome card.
   const didSeedViewRef = useRef(false);
+  const seedSlotsRef = useRef<Slot[]>([]);
   useWsEventSubscription(
     subscribeToEvents,
     useCallback((event: WsEvent) => {
-      if (didSeedViewRef.current || event.kind !== "snapshot") return;
+      if (didSeedViewRef.current) return;
+      if (event.kind === "snapshot") {
+        seedSlotsRef.current = event.data.slots;
+        return;
+      }
+      if (event.kind !== "transcript-snapshot") return;
       didSeedViewRef.current = true;
+      const seedSlots = seedSlotsRef.current;
+      const hasTranscript = event.data.entries.length > 0;
       setViewChoice({
-        view: { type: "surface", surface: Surface.Transcript },
-        newestSeenUpdatedAt: newestSlotUpdatedAt(event.data.slots),
+        view: seedView(seedSlots, hasTranscript),
+        newestSeenUpdatedAt: newestSlotUpdatedAt(seedSlots),
       });
     }, []),
   );

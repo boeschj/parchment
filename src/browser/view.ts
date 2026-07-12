@@ -57,6 +57,16 @@ function followView(newest: Slot | null): CanvasView {
   return { type: "slot", slotId: newest.id };
 }
 
+// First paint: a session that already has conversation lands on the
+// transcript — stale slots must not hijack a reload; only pushes AFTER load
+// pull focus. A session with no transcript but existing slots is a pure
+// artifact space (reports, doc hubs), so it lands on the newest slot —
+// never on an empty welcome card with the content hidden in the rail.
+export function seedView(slots: Slot[], hasTranscript: boolean): CanvasView {
+  if (hasTranscript) return { type: "surface", surface: Surface.Transcript };
+  return followView(newestSlot(slots));
+}
+
 // Plan slots render inside the fixed Plan surface (latest wins), so the
 // dynamic rail section only lists the rest.
 export function latestPlanSlot(slots: Slot[]): Slot | null {
