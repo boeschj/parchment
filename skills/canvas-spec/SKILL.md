@@ -1,6 +1,6 @@
 ---
 name: canvas-spec
-description: Reference for authoring parchment json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit, canvas.intent), repeat lists, visibility, live data sources (canvas_live), and the full 52-component inventory with props. Use alongside canvas-tools when composing any canvas_render spec.
+description: Reference for authoring parchment json-render specs — spec grammar (root/elements/state), dynamic expressions ($state, $bindState, $template, $cond), events/actions (on.press, canvas.submit, canvas.intent), repeat lists, visibility, and the canvas component inventory with props. Use alongside canvas-tools when composing any canvas_render spec. Full shadcn prop tables, advanced expressions, and Scene3D live in this skill's references/*.md.
 ---
 
 # Canvas spec reference
@@ -31,48 +31,29 @@ never inside `props`. Every child key must exist in `elements`.
   (`value`, `checked`, `pressed`) of form components. Edits write back to state.
 - `{"$template": "Hi ${/user/name}, ${count} results"}` — string interpolation.
 - `{"$cond": {"$state": "/ok"}, "$then": "success", "$else": "danger"}` — branch.
-  Conditions: `{"$state": "/p"}` truthy · `eq`/`neq`/`gt`/`gte`/`lt`/`lte` ·
-  `not: true` · arrays = AND · `{"$and": []}` / `{"$or": []}`.
 - Inside `repeat` scope: `{"$item": "field"}`, `{"$index": true}`, `{"$bindItem": "field"}`.
 
-## State, lists, watchers
+Condition operators, `$and`/`$or`, `watch`, and the full state-action set
+(setState/pushState/removeState/validateForm) are in
+**references/expressions-and-events.md**.
+
+## State, lists, events
 
 - Seed initial state with the spec-level `"state"` object. Put LARGE datasets here
-  once; reference them instead of restating.
+  once and reference them. **Seed every path** any `$state`/`$bindState`/`$template`/
+  `repeat` references — an unseeded path is rejected.
 - `repeat`: `{"type": "Card", "repeat": {"statePath": "/todos", "key": "id"}, ...}`
   renders the element once per array item.
 - `visible`: any condition — e.g. `{"$state": "/form/valid"}`.
-- `watch`: `{"/form/country": {"action": "setState", "params": {...}}}` — fires on
-  change, not on mount.
+- Bind events on the element: `"on": {"press": {"action": "...", "params": {...}}}`.
+  The two backchannels to Claude's next turn:
+  - **`canvas.submit`** `{id, payload}` — delivers a resolved payload (use
+    `{"$state": "/form"}`) as `<canvas-edit kind="form-submit">`. Bind to Button press.
+  - **`canvas.intent`** `{id, params?}` — a structured action button. `params` must be
+    STATIC JSON (no expressions); ids unique per slot. Arrives as
+    `<canvas-edit kind="intent">` with the exact recorded payload.
 
-## Events and actions
-
-Bind on the element: `"on": {"press": {"action": "...", "params": {...}}}`.
-Multiple: array of bindings, run in order. Params accept expressions.
-
-- `setState` `{statePath, value}` · `pushState` `{statePath, value, clearStatePath?}`
-  (`"$id"` in value = auto id) · `removeState` `{statePath, index}` ·
-  `validateForm` `{statePath?}` writes `{valid, errors}`.
-- **`canvas.submit`** `{id, payload}` — THE backchannel. Delivers resolved payload
-  (use `{"$state": "/form"}`) to Claude's next turn as
-  `<canvas-edit kind="form-submit">`. Bind to Button `on.press`.
-- **`canvas.intent`** `{id, params?}` — structured action button. Params must be
-  STATIC JSON (no expressions; the daemon records them at render time and rejects
-  the spec otherwise). Arrives as `<canvas-edit kind="intent">` with the exact
-  recorded payload. Ids unique per slot.
-- `canvas.commentMermaid` — used internally by MermaidEditor node comments.
-
-Events by component: Button/Toggle emit `press`; Input/Textarea/Select/Checkbox/
-Radio/Switch/Slider emit `change` (+ `submit` on Input).
-
-Form validation: form components accept `checks` (e.g.
-`[{"type": "required", "message": "Required"}]`, types: required, email, url,
-numeric, minLength, maxLength, min, max, pattern, matches, lessThan, greaterThan,
-requiredIf) and `validateOn`: `change` | `blur` | `submit`.
-
-## Component inventory
-
-### Canvas extensions (rich widgets — prefer these; details in canvas-tools)
+## Component inventory — canvas extensions (rich widgets, prefer these)
 
 | Type | Key props |
 |---|---|
@@ -89,136 +70,39 @@ requiredIf) and `validateOn`: `change` | `blur` | `submit`.
 | `Chart` | kind: line/bar/area/pie/scatter, data (rows, raw numbers), x, y (string or string[]), title?, height?, xScale? category/time (time = epoch-ms x, streaming-friendly) |
 | `Sparkline` | data (numbers, or objects read via y — default key 'value'), y?, width?, height?, series? 1-5 — tiny axis-less inline trend |
 | `DataTable` | columns: [{key, header, type?, align?, width?}], rows, caption?, editable?, exportable? |
-| `Scene3D` | objects: [{kind: box/sphere/cylinder/plane/text, position [x,y,z], size?, rotation? (degrees), color?, label?, opacity?}], camera?, ground?, background? auto/transparent, height?, autoRotate?, title? — orbitable 3D scaffold (see below) |
+| `Scene3D` | orbitable 3D scaffold — see references/scene3d.md |
 | `PlanFile` | markdown, editable?, title? — the user's editable plan; not a layout block |
 | `Upload` | label?, hint?, accept? (e.g. ".csv,image/*"), multiple? — dropzone; each file arrives as `<canvas-edit kind="file-upload">` with a daemon-generated savedPath (read the PATH; contents never injected) |
 
-### Layout & containers (shadcn)
+## Component inventory — shadcn primitives
 
-`Stack` (direction? horizontal/vertical, gap? none/sm/md/lg/xl, align?, justify?) ·
-`Grid` (columns 1–6, gap?) · `Card` (title?, description?, maxWidth?, centered? —
-accepts children) · `Separator` (orientation?) · `Tabs` (tabs: [{value,label}],
-defaultValue — children map by value) · `Accordion` (items, type single/multiple) ·
-`Collapsible` (title) · `Dialog` / `Drawer` (title, description, openPath — state
-path controls visibility) · `Tooltip` (content, text) · `Popover` (trigger, content) ·
-`Carousel` (items) · `Pagination` (totalPages, page)
+Names only; full prop tables are in **references/components.md**.
 
-### Content (shadcn)
-
-`Heading` (text, level h1–h4) · `Text` (text, variant? body/caption/muted/lead/code —
-code is INLINE identifiers only) · `Badge` (text, variant? default/secondary/
-destructive/outline) · `Alert` (title, message?, type? info/success/warning/error —
-neutral banner; prefer Callout for tonal emphasis) · `Image` (src, alt, width?,
-height?) · `Avatar` (src?, name, size?) · `Table` (columns: string[], rows:
-string[][] — prefer DataTable) · `Progress` (value, max?, label?) · `Skeleton` ·
-`Spinner` (size?, label?)
-
-### Inputs & actions (shadcn — always bind with $bindState)
-
-`Button` (label, variant? primary/secondary/danger, disabled? — emits `press`) ·
-`Link` (label, href) · `Input` (label?, type?, placeholder?, value, checks?) ·
-`Textarea` (label?, rows?, value) · `Select` (label?, options: string[], value) ·
-`Checkbox` (label, checked) · `Radio` (label?, options, value) · `Switch` (label,
-checked) · `Slider` (label?, min, max, step?, value) · `Toggle` (label, pressed) ·
-`ToggleGroup` (items, type, value) · `ButtonGroup` (buttons, selected) ·
-`DropdownMenu` (label, items)
-
-## 3D scenes (Scene3D)
-
-`Scene3D` sketches an orbitable 3D layout the user can rotate, zoom, and pan —
-room and floor-plan scaffolds, architecture massing, physical arrangements, or
-data sculptures. Compose primitives in one coordinate space (meters, **y is up**,
-ground grid at y=0) and label the parts that matter. Keep the vocabulary small:
-`box` (walls/tables/furniture), `plane` (floors/rugs — lay flat with rotation
-`[-90, 0, 0]`), `cylinder` (columns/legs/posts), `sphere` (nodes/bulbs), `text`
-(a floating caption at its own position). Rest a shape of height `h` on the floor
-by centering it at `y = h/2`. Rotation is in **degrees**. Colors are hex; the
-scene background and grid adapt to light/dark on their own. Reach for `Chart`
-instead for 2D data and `MermaidEditor` for node-edge diagrams — Scene3D is a
-spatial sketch, not a chart or a CAD model.
-
-```json
-{
-  "root": "room",
-  "elements": {
-    "room": {
-      "type": "Scene3D",
-      "props": {
-        "title": "Booth layout", "height": 460, "autoRotate": true,
-        "camera": {"position": [7, 6, 9], "lookAt": [0, 0.9, 0]},
-        "objects": [
-          {"kind": "plane", "position": [0, 0, 0], "size": [6, 6, 1], "rotation": [-90, 0, 0], "color": "#d9d2c5"},
-          {"kind": "box", "position": [0, 1.4, -3], "size": [6, 2.8, 0.12], "color": "#c9c1b0", "label": "Banner wall"},
-          {"kind": "box", "position": [0, 0.5, 0], "size": [2, 1, 1], "color": "#7a4a24", "label": "Demo desk"},
-          {"kind": "cylinder", "position": [-2, 0.9, -2], "size": [0.18, 1.8, 0.18], "color": "#3b3a36"},
-          {"kind": "sphere", "position": [-2, 1.95, -2], "size": [0.4, 0, 0], "color": "#ffd9a0", "label": "Light"}
-        ]
-      },
-      "children": []
-    }
-  }
-}
-```
-
-## Live data sources (canvas_live)
-
-After rendering a slot, `canvas_live {slotId, sources}` binds daemon-side
-sources to its state paths — updates then stream to the browser with no
-further tool calls. Each source: `{id, statePath, kind, ...}`.
-
-- `file-tail`: `path` + `parser` `jsonl` (default) | `regex` (needs `pattern`
-  with named groups, numerics coerced) | `number` (first number on the line).
-  Default mode `append`.
-- `command-poll`: `command` run every `intervalSeconds` (min 1, default 5);
-  stdout parsed as JSON → number → string. Default mode `replace`.
-- `http-poll`: `url` GET every interval; JSON body parsed. Default `replace`.
-- `claude-sessions`: this machine's Claude Code fleet. Options `sinceHours`
-  (24) and `limit` (25). Writes at statePath:
-  `{sessions: [{sessionId, project, title, lastPrompt, status: active|idle,
-  isSubagent, model, turns, tokensIn, tokensOut, cacheRead, cacheWrite,
-  costUsd, lastActivityAt, gitBranch}], totals: {sessions, active, turns,
-  tokensIn, tokensOut, costUsd}, scannedAt, costNote}`. `costUsd` is an
-  ESTIMATE from a static price table — always label it "est.".
-- Shared knobs: `pluck` (dot path into each parsed value, e.g.
-  `data.stats[0].cpu`), `mode` `append`|`replace`, `window` (append cap,
-  default 300). Appended points are objects with `t` (epoch ms) added when
-  missing; scalars become `{t, value}`.
-- Each call replaces the slot's whole source set; `[]` stops streaming;
-  sources die with canvas_close.
-
-Worked example — live latency dashboard in two calls:
-
-```json
-canvas_render: {"title": "API latency", "kind": "dashboard", "spec": {
-  "root": "page",
-  "state": {"series": [], "latest": 0},
-  "elements": {
-    "page":  {"type": "Stack", "props": {"gap": "lg"}, "children": ["kpis", "trend"]},
-    "kpis":  {"type": "Grid", "props": {"columns": 3}, "children": ["now"]},
-    "now":   {"type": "Metric", "props": {"label": "Current", "value": {"$template": "${/latest} ms"}}},
-    "trend": {"type": "Chart", "props": {"kind": "line", "x": "t", "y": "ms",
-              "xScale": "time", "data": {"$state": "/series"}}, "children": []}
-  }
-}}
-
-canvas_live: {"slotId": "<from render>", "sources": [
-  {"id": "series", "statePath": "/series", "kind": "file-tail",
-   "path": "/tmp/api.log", "parser": "regex", "pattern": "lat=(?<ms>\\d+)"},
-  {"id": "latest", "statePath": "/latest", "kind": "file-tail",
-   "path": "/tmp/api.log", "parser": "regex", "pattern": "lat=(?<ms>\\d+)",
-   "pluck": "ms", "mode": "replace"}
-]}
-```
-
-A fleet dashboard is the same shape with one `claude-sessions` source and a
-DataTable/`repeat` bound to `/fleet/sessions`.
+- **Layout & containers**: `Stack`, `Grid`, `Card`, `Separator`, `Tabs`, `Accordion`,
+  `Collapsible`, `Dialog`, `Drawer`, `Tooltip`, `Popover`, `Carousel`, `Pagination`.
+- **Content**: `Heading`, `Text` (variant code = INLINE identifiers only), `Badge`,
+  `Alert` (prefer Callout for tonal emphasis), `Image`, `Avatar`, `Table` (prefer
+  DataTable), `Progress`, `Skeleton`, `Spinner`.
+- **Inputs & actions** (always bind with `$bindState`): `Button`, `Link`, `Input`,
+  `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Slider`, `Toggle`,
+  `ToggleGroup`, `ButtonGroup`, `DropdownMenu`.
 
 ## Integrity checklist (walk it before every send)
 
 1. Every key in every `children` array exists in `elements`.
-2. Every `$state`/`$bindState`/`repeat` path exists in `"state"` (seed it!).
+2. Every `$state`/`$bindState`/`repeat`/`$template` path is seeded in `"state"`.
 3. `on`/`repeat`/`watch`/`visible` at element level, not in `props`.
 4. Leaf elements still carry `"children": []`.
 5. Chart data values are numbers; Metric values are formatted strings.
 6. Mermaid source is raw (no fences), `<br/>` for label line breaks.
 7. Scene3D: y is up, rotation in degrees, rest shapes on the floor at `y = height/2`.
+
+## References (pull on demand)
+
+- **references/components.md** — full shadcn prop tables (layout, content, inputs).
+- **references/expressions-and-events.md** — conditions, `$and`/`$or`, `watch`, the
+  full state-action set, per-component events.
+- **references/scene3d.md** — the Scene3D 3D-scene guide + worked example.
+
+Live data sources (`canvas_live`) are documented in the canvas-tools skill:
+references/live-data.md.
