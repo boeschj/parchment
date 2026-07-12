@@ -165,6 +165,17 @@ Claude's response references your edited version. The roundtrip just worked — 
 
 Enter plan mode (Shift+Tab) and ask Claude for a plan. When Claude exits plan mode, the `PostToolUse` hook automatically pushes the plan to the canvas as a `✎ plan` slot — no MCP call needed.
 
+## Themes
+
+The default look never changes — every alternate theme is opt-in. Pick one
+from the palette icon in the left rail (built-ins, "Custom", or "Default" —
+applies instantly, no refresh), or copy a file from `themes/` to
+`~/.parchment/theme.css` for a zero-config override the daemon serves live.
+Three fully-designed built-ins ship in `themes/`: **manuscript** (warm paper,
+editorial serif accents), **terminal** (high-contrast phosphor green),
+**slate** (cool, minimal dev-tool gray). Full variable contract and a
+starter for writing your own: [`themes/README.md`](themes/README.md).
+
 ## How it works
 
 ```
