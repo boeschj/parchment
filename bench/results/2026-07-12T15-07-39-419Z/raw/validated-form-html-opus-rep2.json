@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "html",
+  "model": "opus",
+  "repetition": 2,
+  "sessionId": "6adca171-f94c-401d-87cf-049a8c45d91e",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-39-419Z-validated-form-html-rep-2/6adca171-f94c-401d-87cf-049a8c45d91e.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0610615,
+    "durationMs": 17661,
+    "sessionId": "6adca171-f94c-401d-87cf-049a8c45d91e",
+    "resultText": "Created `./signup.html` — a self-contained page with a signup `<form>` containing:\n\n- **Name** — `<input type=\"text\" required>`\n- **Email** — `<input type=\"email\" required>`\n- **Password** — `<input type=\"password\" minlength=\"8\" required>`\n- **Submit** — `<button type=\"submit\">Sign up</button>`\n\nValidation relies entirely on native HTML5 attributes (`required`, `type`, `minlength`). All styling is inline in a `<style>` block — no external stylesheets, scripts, or CDN links."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 8104,
+    "totalCompletionTokens": 1001,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 4418,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:12:03.497Z"
+}

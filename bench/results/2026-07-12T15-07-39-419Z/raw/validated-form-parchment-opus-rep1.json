@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "opus",
+  "repetition": 1,
+  "sessionId": "73e64950-3c81-463c-903a-1232f9c3c886",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-39-419Z-validated-form-parchment-rep-1/73e64950-3c81-463c-903a-1232f9c3c886.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.12204799999999999,
+    "durationMs": 37781,
+    "sessionId": "73e64950-3c81-463c-903a-1232f9c3c886",
+    "resultText": "The signup form is rendered to slot `slot-signup`.\n\n**What's wired up:**\n- **Name** — required `Input`, controlled via `$bindState` to `/form/name`\n- **Email** — required `Input` `type=\"email\"`, bound to `/form/email`\n- **Password** — required `Input` `type=\"password\"` with `minLength: 8`, bound to `/form/password`\n- **Sign up** — `Button` (`variant: primary`) whose `press` fires `canvas.submit` with a payload reading all three fields from state\n\nForm state is seeded (`form: { name: \"\", email: \"\", password: \"\" }`) so every input is controlled from the first render, and the two-way `$bindState` keeps typed values flowing back into state. When the user clicks **Sign up**, the submitted `{ name, email, password }` payload arrives on my next turn.\n\nI couldn't grab a snapshot to verify layout — no canvas tab is connected. Open http://localhost:7814/?session=73e64950-3c81-463c-903a-1232f9c3c886 and I'll snapshot it to confirm it reads well. One note: `minLength`/`required` are declarative hints on the inputs, but they don't block the submit by themselves — say the word if you want the button disabled until the fields are valid."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 50036,
+    "totalCompletionTokens": 2239,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 25345,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:10:54.635Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "architecture-diagram",
+  "arm": "html",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "0a08ce42-f530-42c4-8a14-5654e804b6a7",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-architecture-diagram-html-rep-3/0a08ce42-f530-42c4-8a14-5654e804b6a7.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.061835100000000004,
+    "durationMs": 10328,
+    "sessionId": "0a08ce42-f530-42c4-8a14-5654e804b6a7",
+    "resultText": "Created `architecture.html` — a single self-contained file with an inline SVG showing Client → API → Database, connected with arrowed lines, no external resources."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21758,
+    "totalCompletionTokens": 1020,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11316,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:11:41.174Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "csv-data-table",
+  "arm": "html",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "2a371533-d7ba-49f7-b092-bdc10406bb07",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-csv-data-table-html-rep-3/2a371533-d7ba-49f7-b092-bdc10406bb07.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0532165,
+    "durationMs": 7197,
+    "sessionId": "2a371533-d7ba-49f7-b092-bdc10406bb07",
+    "resultText": "Created `table.html` with the CSV rendered as an HTML table, header row plus one `<tr>` per data row, inline `<style>` only (no external resources)."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21375,
+    "totalCompletionTokens": 606,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 10918,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:10:54.087Z"
+}

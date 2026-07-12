@@ -1,0 +1,30 @@
+{
+  "scenarioId": "csv-data-table",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "aa55f1c2-ab75-47f6-b400-8a86c3d64db6",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-csv-data-table-parchment-rep-3/aa55f1c2-ab75-47f6-b400-8a86c3d64db6.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.051591000000000005,
+    "durationMs": 5508,
+    "sessionId": "aa55f1c2-ab75-47f6-b400-8a86c3d64db6",
+    "resultText": "Table rendered with sortable columns for Name, Role, and Tickets Closed."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 35985,
+    "totalCompletionTokens": 319,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 18087,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:10:30.169Z"
+}

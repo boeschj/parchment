@@ -1,0 +1,30 @@
+{
+  "scenarioId": "csv-data-table",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 1,
+  "sessionId": "8e8290a4-bc66-45d5-b7b5-eead031b28f0",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-csv-data-table-parchment-rep-1/8e8290a4-bc66-45d5-b7b5-eead031b28f0.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.051876000000000005,
+    "durationMs": 6155,
+    "sessionId": "8e8290a4-bc66-45d5-b7b5-eead031b28f0",
+    "resultText": "Table rendered — sortable by name, role, or tickets closed, with CSV export available."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 35999,
+    "totalCompletionTokens": 376,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 18143,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:10:18.249Z"
+}

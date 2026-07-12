@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "html",
+  "model": "sonnet",
+  "repetition": 2,
+  "sessionId": "cbf7c818-65da-4293-ac4f-93383165d601",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-validated-form-html-rep-2/cbf7c818-65da-4293-ac4f-93383165d601.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0488459,
+    "durationMs": 5975,
+    "sessionId": "cbf7c818-65da-4293-ac4f-93383165d601",
+    "resultText": "Created `signup.html` with a form using native HTML5 validation (`required`, `type=\"email\"`, `type=\"password\"` with `minlength=\"8\"`), no external resources."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21212,
+    "totalCompletionTokens": 390,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 10728,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:14:37.766Z"
+}

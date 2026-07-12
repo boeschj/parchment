@@ -1,0 +1,84 @@
+{
+  "sessionId": "26c5ccdf-0aaa-4aea-a6d8-7a8d76c69cac",
+  "calls": [
+    {
+      "index": 0,
+      "costUsd": 0.10227090000000001,
+      "promptCompletionTokens": 26640,
+      "containsThisStepsLogLine": null
+    },
+    {
+      "index": 1,
+      "costUsd": 0.0368952,
+      "promptCompletionTokens": 29675,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 2,
+      "costUsd": 0.0222966,
+      "promptCompletionTokens": 31254,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 3,
+      "costUsd": 0.024322500000000004,
+      "promptCompletionTokens": 32983,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 4,
+      "costUsd": 0.02646,
+      "promptCompletionTokens": 34827,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 5,
+      "costUsd": 0.0288612,
+      "promptCompletionTokens": 36847,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 6,
+      "costUsd": 0.0313152,
+      "promptCompletionTokens": 39043,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 7,
+      "costUsd": 0.033822000000000005,
+      "promptCompletionTokens": 41415,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 8,
+      "costUsd": 0.0363816,
+      "promptCompletionTokens": 43963,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 9,
+      "costUsd": 0.038994,
+      "promptCompletionTokens": 46687,
+      "containsThisStepsLogLine": true
+    },
+    {
+      "index": 10,
+      "costUsd": 0.0416592,
+      "promptCompletionTokens": 49587,
+      "containsThisStepsLogLine": true
+    }
+  ],
+  "retainedStepIndexes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "finalFileContainsAllLogLines": true
+}

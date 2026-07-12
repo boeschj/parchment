@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 1,
+  "sessionId": "c779ecb2-f5c7-4b9d-8026-7b2bd466c2e4",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-live-log-dashboard-parchment-rep-1/c779ecb2-f5c7-4b9d-8026-7b2bd466c2e4.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.0916158,
+    "durationMs": 14340,
+    "sessionId": "c779ecb2-f5c7-4b9d-8026-7b2bd466c2e4",
+    "resultText": "Dashboard rendered with the error-rate chart (seeded at `/errorRate`, so future updates can append points there) and the recent-logs table (`/logs`). Open it at http://localhost:7813/?session=c779ecb2-f5c7-4b9d-8026-7b2bd466c2e4 — I couldn't snapshot-verify since no canvas tab is currently connected."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 76078,
+    "totalCompletionTokens": 1591,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 38137,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:14:59.607Z"
+}

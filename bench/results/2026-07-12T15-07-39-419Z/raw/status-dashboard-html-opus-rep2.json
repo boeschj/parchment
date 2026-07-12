@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "html",
+  "model": "opus",
+  "repetition": 2,
+  "sessionId": "3e174d97-9d36-4e18-917d-fcdcc4c97aab",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-39-419Z-status-dashboard-html-rep-2/3e174d97-9d36-4e18-917d-fcdcc4c97aab.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.167452,
+    "durationMs": 40855,
+    "sessionId": "3e174d97-9d36-4e18-917d-fcdcc4c97aab",
+    "resultText": "Created `./dashboard.html` — a single standalone file, no external dependencies.\n\n**What's in it:**\n- **KPI row** — Build Pass Rate `94%` (green), Avg Build Time `4m12s`, Open Incidents `2` (amber).\n- **Bar chart** (inline `<svg>`) — build durations in minutes, Mon–Sun: 12, 8, 15, 9, 20, 7, 11. Y-axis scaled 0–20 with gridlines and value labels.\n- **Line chart** (inline `<svg>`) — daily deploy counts, Mon–Sun: 3, 5, 2, 6, 4, 7, 3. Y-axis scaled 0–8 with plotted points.\n\nAll styling is in an inline `<style>` block and both charts are hand-plotted SVG, so it opens and renders straight from disk with no scripts or CDN links. Responsive layout collapses to a single column under 720px."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 11236,
+    "totalCompletionTokens": 4042,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 7435,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:10:16.125Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "opus",
+  "repetition": 2,
+  "sessionId": "e97c8393-daf8-4c54-9e63-1dad8ed59210",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-39-419Z-validated-form-parchment-rep-2/e97c8393-daf8-4c54-9e63-1dad8ed59210.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.136615,
+    "durationMs": 33656,
+    "sessionId": "e97c8393-daf8-4c54-9e63-1dad8ed59210",
+    "resultText": "The signup form rendered to the canvas. Here's what it does:\n\n- **Controlled inputs** — form state is seeded (`state.form = { name, email, password }`) and each Input binds via `$bindState`, so edits flow back and the fields stay controlled.\n- **Name** — required text Input; shows \"Name is required.\" while empty.\n- **Email** — required Input of `type: \"email\"`; shows \"Email is required.\" while empty.\n- **Password** — required Input of `type: \"password\"`; shows \"Password must be at least 8 characters.\" while under 8 chars (`{{form.password.length < 8}}`).\n- **Sign up** — Button wired to `canvas.submit`, whose payload carries the current `name`/`email`/`password` from state. When pressed, that payload comes back to me on the next turn.\n\nI couldn't grab a visual snapshot — no canvas tab is connected. If you open http://localhost:7814/?session=e97c8393-daf8-4c54-9e63-1dad8ed59210 I'll snapshot it to verify the layout reads well. Once you fill it in and press **Sign up**, the submitted values will reach me and I can act on them."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 51570,
+    "totalCompletionTokens": 2582,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 26163,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:11:29.044Z"
+}

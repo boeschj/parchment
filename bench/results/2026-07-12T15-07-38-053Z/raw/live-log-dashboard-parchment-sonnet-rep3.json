@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "063d788d-21bd-4b63-8f4a-fb3362bf3dee",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-38-053Z-live-log-dashboard-parchment-rep-3/063d788d-21bd-4b63-8f4a-fb3362bf3dee.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.0996717,
+    "durationMs": 24048,
+    "sessionId": "063d788d-21bd-4b63-8f4a-fb3362bf3dee",
+    "resultText": "The dashboard rendered — a line chart of error-rate-per-minute (state path `/errorRate`) plus a DataTable of the 3 recent log lines (state path `/logs`). Both are bound via `$state`, so future updates can append to `/errorRate` or `/logs` directly (e.g. via `canvas_patch` or `canvas_live`). Open http://localhost:7813/?session=063d788d-21bd-4b63-8f4a-fb3362bf3dee to view it — I couldn't grab a snapshot since no canvas tab is connected yet."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 76647,
+    "totalCompletionTokens": 2046,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 38726,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:15:45.506Z"
+}

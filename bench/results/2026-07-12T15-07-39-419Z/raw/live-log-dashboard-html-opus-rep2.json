@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "html",
+  "model": "opus",
+  "repetition": 2,
+  "sessionId": "2644b7c7-e154-4fad-abed-bcfbd40533bb",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T15-07-39-419Z-live-log-dashboard-html-rep-2/2644b7c7-e154-4fad-abed-bcfbd40533bb.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.1340005,
+    "durationMs": 31732,
+    "sessionId": "2644b7c7-e154-4fad-abed-bcfbd40533bb",
+    "resultText": "Created `./log-dashboard.html` — a single self-contained file, no external stylesheets, scripts, or CDN links.\n\nWhat's in it:\n- **Line chart** — inline `<svg>` plotting errors-per-minute, seeded with the 5 points `2, 3, 1, 4, 2`. Includes gridlines, y-axis labels, x-axis minute labels (m1–m5), a filled gradient area, and data dots.\n- **Table** — the 3 most recent log lines with color-coded level badges:\n  - `[ERROR] db timeout`\n  - `[WARN] slow query 800ms`\n  - `[INFO] cache cleared`\n\nBoth the chart and table render from small JS data arrays (`errorRates` and `logs`), so appending new points/lines is a one-line change if you want to drive it live later. Open it directly in a browser to view."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 10230,
+    "totalCompletionTokens": 3092,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 6470,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T15:14:08.306Z"
+}
