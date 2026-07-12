@@ -2,9 +2,15 @@ import "./styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
-import { applyThemeClass, readInitialTheme } from "./theme.ts";
+import {
+  applyThemeChoice,
+  applyThemeClass,
+  readInitialTheme,
+  readInitialThemeChoice,
+} from "./theme.ts";
 
 applyThemeClass(readInitialTheme());
+applyThemeChoice(readInitialThemeChoice());
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
