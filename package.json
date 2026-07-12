@@ -25,6 +25,7 @@
     "@json-render/mcp": "latest",
     "@json-render/react": "latest",
     "@json-render/shadcn": "latest",
+    "@mcp-ui/client": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "latest",
     "@react-three/drei": "^10.7.7",
