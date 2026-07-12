@@ -5,14 +5,18 @@
 
 import {
   ChartColumn,
+  Check,
   ChevronsLeft,
   FileDiff,
   FileText,
+  Library,
   MessageSquare,
   Moon,
+  Palette,
   Sparkles,
   Sun,
   Table,
+  Trash2,
   Waypoints,
   type LucideIcon,
   type LucideProps,
@@ -32,6 +36,10 @@ export const TranscriptIcon = MessageSquare;
 export const SunIcon = Sun;
 export const MoonIcon = Moon;
 export const ChevronsLeftIcon = ChevronsLeft;
+export const LibraryIcon = Library;
+export const PaletteIcon = Palette;
+export const TrashIcon = Trash2;
+export const CheckIcon = Check;
 
 const SLOT_KIND_ICON: Record<string, LucideIcon> = {
   [SlotKind.Plan]: DocIcon,

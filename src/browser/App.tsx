@@ -5,6 +5,7 @@ import { SessionStatus, SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
 import { SlotContextProvider } from "./SlotContext.tsx";
 import { LeftRail } from "./components/LeftRail.tsx";
+import { LibraryPanel } from "./components/LibraryPanel.tsx";
 import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
@@ -17,7 +18,7 @@ import type { TranscriptModel } from "./transcript/parse.ts";
 import { useCanvasWebSocket } from "./ws.ts";
 import { readSessionIdFromUrl, shortSessionLabel } from "./session.ts";
 import { deleteSlot, resetSession } from "./api.ts";
-import { ThemeProvider, useThemeToggle } from "./theme.ts";
+import { ThemeProvider, useThemeChoice, useThemeToggle } from "./theme.ts";
 import {
   Surface,
   dynamicSlots,
@@ -40,6 +41,7 @@ export function App() {
   const { slots, transcript, connected, subscribeToEvents } = useCanvasWebSocket(sessionId);
   const sessions = useSessions();
   const { theme, toggleTheme } = useThemeToggle();
+  const { themeChoice, setThemeChoice } = useThemeChoice();
   const [viewChoice, setViewChoice] = useState<ViewChoice | null>(null);
 
   const view = resolveView(viewChoice, slots);
@@ -85,6 +87,8 @@ export function App() {
             hasPlan={planSlot !== null}
             theme={theme}
             onToggleTheme={toggleTheme}
+            themeChoice={themeChoice}
+            onSelectThemeChoice={setThemeChoice}
             newestSeenUpdatedAt={viewChoice?.newestSeenUpdatedAt ?? newestSlotUpdatedAt(slots)}
           />
           <div className="flex-1 min-w-0 flex flex-col">
@@ -96,6 +100,7 @@ export function App() {
               transcript={transcript}
               connected={connected}
               isClaudeWorking={isClaudeWorking}
+              onOpenInSlot={(slot) => selectView({ type: "slot", slotId: slot.id })}
             />
           </div>
         </div>
@@ -112,6 +117,7 @@ function ViewContent({
   transcript,
   connected,
   isClaudeWorking,
+  onOpenInSlot,
 }: {
   sessionId: string;
   view: CanvasView;
@@ -120,6 +126,7 @@ function ViewContent({
   transcript: TranscriptModel;
   connected: boolean;
   isClaudeWorking: boolean;
+  onOpenInSlot: (slot: Slot) => void;
 }) {
   if (view.type === "slot") {
     const slot = slots.find((candidate) => candidate.id === view.slotId);
@@ -137,6 +144,10 @@ function ViewContent({
       );
     }
     return <SlotView sessionId={sessionId} slot={planSlot} connected={connected} />;
+  }
+
+  if (view.surface === Surface.Library) {
+    return <LibraryPanel sessionId={sessionId} onOpenInSlot={onOpenInSlot} />;
   }
 
   if (transcript.items.length === 0) {
