@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@boeschj/claude-jsonl':
-        specifier: file:vendor/boeschj-claude-jsonl-0.1.0.tgz
-        version: file:vendor/boeschj-claude-jsonl-0.1.0.tgz
+        specifier: file:vendor/boeschj-claude-jsonl-0.1.1.tgz
+        version: file:vendor/boeschj-claude-jsonl-0.1.1.tgz
       '@json-render/core':
         specifier: 0.19.0
         version: 0.19.0(zod@4.4.3)
@@ -130,9 +130,9 @@ packages:
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
-  '@boeschj/claude-jsonl@file:vendor/boeschj-claude-jsonl-0.1.0.tgz':
-    resolution: {integrity: sha512-5enf0uPeNEofhPvWv23cm7GmziZY27Tp8bW6oDcya2rkDKvRNHqMoTBDRC4OzNyG3kG8X4qJ1LmKbBEw+n6+Zg==, tarball: file:vendor/boeschj-claude-jsonl-0.1.0.tgz}
-    version: 0.1.0
+  '@boeschj/claude-jsonl@file:vendor/boeschj-claude-jsonl-0.1.1.tgz':
+    resolution: {integrity: sha512-eCl7wwBpU+SX5HSVPduqWpMNGtnYsNBxPnSb4IY5NjK5kzE2VlbBSaSY2zf9b9WVPYA7+rMAx20McOL1Mv7FNA==, tarball: file:vendor/boeschj-claude-jsonl-0.1.1.tgz}
+    version: 0.1.1
 
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
@@ -3195,7 +3195,7 @@ snapshots:
 
   '@babel/runtime@7.29.7': {}
 
-  '@boeschj/claude-jsonl@file:vendor/boeschj-claude-jsonl-0.1.0.tgz': {}
+  '@boeschj/claude-jsonl@file:vendor/boeschj-claude-jsonl-0.1.1.tgz': {}
 
   '@braintree/sanitize-url@7.1.2': {}
 

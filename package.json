@@ -21,7 +21,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@boeschj/claude-jsonl": "file:vendor/boeschj-claude-jsonl-0.1.0.tgz",
+    "@boeschj/claude-jsonl": "file:vendor/boeschj-claude-jsonl-0.1.1.tgz",
     "@json-render/core": "0.19.0",
     "@json-render/mcp": "0.19.0",
     "@json-render/react": "0.19.0",
