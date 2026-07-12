@@ -19,7 +19,7 @@ import {
 import {
   DataTablePropsSchema,
 } from "../shared/catalog/extensions/DataTable.ts";
-import { SlotKind, SlotOrigin, type JsonRenderSpec } from "../shared/types.ts";
+import { SlotKind, SlotOrigin, type JsonRenderSpec, type UIElement } from "../shared/types.ts";
 import {
   canvasSessionUrl,
   closeSlot,
@@ -68,6 +68,41 @@ function singleElementSpec(type: string, props: Record<string, unknown>): JsonRe
       [ELEMENT_KEY]: { type, props, children: [] },
     },
   };
+}
+
+// A document-shaped spec: a centered reading column (~68ch, .canvas-document
+// styling in styles.css) with a masthead (title + byline/date), a rule, and
+// the prose body. Thin composition — canvas_render does the rendering.
+function documentSpec(input: {
+  title: string;
+  byline?: string | undefined;
+  date?: string | undefined;
+  body: string;
+}): JsonRenderSpec {
+  const bylineLine = [input.byline, input.date]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" · ");
+  const mastheadChildren = ["doc-title"];
+  const elements: Record<string, UIElement> = {
+    doc: {
+      type: "Card",
+      props: { className: "canvas-document", centered: true },
+      children: ["masthead", "doc-sep", "doc-body"],
+    },
+    masthead: { type: "Stack", props: { gap: "sm" }, children: mastheadChildren },
+    "doc-title": { type: "Heading", props: { text: input.title, level: "h1" }, children: [] },
+    "doc-sep": { type: "Separator", props: {}, children: [] },
+    "doc-body": { type: "Markdown", props: { content: input.body }, children: [] },
+  };
+  if (bylineLine.length > 0) {
+    elements["doc-byline"] = {
+      type: "Text",
+      props: { variant: "muted", text: bylineLine },
+      children: [],
+    };
+    mastheadChildren.push("doc-byline");
+  }
+  return { root: "doc", elements };
 }
 
 function okText(slotId: string, resolvedSessionId: string): { content: [{ type: "text"; text: string }] } {
@@ -345,6 +380,39 @@ server.registerTool(
         kind: kind ?? SlotKind.Render,
         title,
         spec: fixedSpec as unknown as JsonRenderSpec,
+        origin: SlotOrigin.McpTool,
+        ...(slotId !== undefined ? { slotId } : {}),
+      });
+      return okText(slot.id, resolvedSessionId);
+    } catch (caught) {
+      return errorText(caught);
+    }
+  },
+);
+
+server.registerTool(
+  "canvas_document",
+  {
+    title: "Render a Long-Form Document",
+    description:
+      "Render blog-post-quality long-form prose: a centered ~68ch reading column on a paper surface, with a masthead (title, optional byline/date), a rule, and your markdown body rendered with document typography (heading rhythm, quiet rules, footnote-style code blocks). USE FOR: essays, write-ups, RFCs, design docs, postmortems, release notes, READMEs — anything meant to be READ top to bottom. This is a display surface, not an editor (use canvas_plan for something the user rewrites) and not a dashboard (use canvas_render for metrics/charts/tables). The body is a single markdown string; GFM tables, lists, and fenced code are supported.",
+    inputSchema: z.object({
+      title: z.string().describe("Document title, shown as the masthead h1."),
+      body: z.string().describe("The document body as CommonMark/GFM markdown. Headings, lists, tables, and fenced code blocks all render."),
+      byline: z.string().optional().describe("Optional author/byline shown under the title, e.g. 'Jordan Boesch'."),
+      date: z.string().optional().describe("Optional date/context shown next to the byline, e.g. '2026-07-12' or 'Draft'."),
+      slotId: z.string().optional().describe("If supplied and a slot with this id exists, replace it. Otherwise allocate a new slot."),
+    }),
+  },
+  async ({ title, body, byline, date, slotId }) => {
+    try {
+      const resolvedSessionId = await resolveSessionId();
+      const slot = await pushSlot({
+        sessionId: resolvedSessionId,
+        cwd,
+        kind: SlotKind.Report,
+        title,
+        spec: documentSpec({ title, body, byline, date }),
         origin: SlotOrigin.McpTool,
         ...(slotId !== undefined ? { slotId } : {}),
       });
