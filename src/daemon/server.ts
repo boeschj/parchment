@@ -35,6 +35,18 @@ import {
   renderInjectionMarkup,
   clearOverlay,
 } from "./edits.ts";
+import {
+  listSessionLiveSources,
+  rehydratePersistedLiveSources,
+  setSlotLiveSources,
+  stopAllLiveSources,
+  stopSessionLiveSources,
+} from "./live/engine.ts";
+import {
+  LiveSourceInputSchema,
+  normalizeLiveSource,
+  type LiveSourceConfig,
+} from "./live/types.ts";
 import { serveStatic, serveUserTheme } from "./static.ts";
 
 const DEFAULT_PORT = Number(process.env.CANVAS_PORT ?? 7800);
@@ -346,8 +358,34 @@ async function handleSessionRoute(
     return jsonResponse({ ok: true });
   }
 
+  // Live data sources are set wholesale per slot: PUT the full desired set
+  // (an empty array stops streaming). One canvas_render + one PUT here is a
+  // complete live dashboard — updates then flow with zero further calls.
+  if (subPath === "/live" && method === "GET") {
+    return jsonResponse({ sources: listSessionLiveSources(sessionId) });
+  }
+
+  if (subPath === "/live" && method === "PUT") {
+    const body = (await request.json()) as { slotId?: string; sources?: unknown[] };
+    if (typeof body.slotId !== "string" || !Array.isArray(body.sources)) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "slotId and sources[] required");
+    }
+    const session = ensureSession(sessionId);
+    const slotExists = session.slots.some((slot) => slot.id === body.slotId);
+    if (!slotExists) {
+      return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, `slot ${body.slotId} not found`);
+    }
+    const validated = validateLiveSources(body.sources);
+    if (!validated.ok) {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, validated.error);
+    }
+    setSlotLiveSources(sessionId, body.slotId, validated.configs);
+    return jsonResponse({ ok: true, sourceIds: validated.configs.map((config) => config.id) });
+  }
+
   if (subPath === "/reset" && method === "POST") {
     const session = ensureSession(sessionId);
+    stopSessionLiveSources(sessionId);
     session.slots = [];
     clearOverlay(sessionId);
     clearPersistedSlots(sessionId);
@@ -356,6 +394,44 @@ async function handleSessionRoute(
   }
 
   return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, "route not found");
+}
+
+type ValidatedLiveSources =
+  | { ok: true; configs: LiveSourceConfig[] }
+  | { ok: false; error: string };
+
+function validateLiveSources(rawSources: unknown[]): ValidatedLiveSources {
+  const configs: LiveSourceConfig[] = [];
+  const errors: string[] = [];
+  for (const [index, rawSource] of rawSources.entries()) {
+    const parsed = LiveSourceInputSchema.safeParse(rawSource);
+    if (!parsed.success) {
+      const detail = parsed.error.issues
+        .map((issue) => `${issue.path.join("/")}: ${issue.message}`)
+        .join("; ");
+      errors.push(`sources[${index}]: ${detail}`);
+      continue;
+    }
+    const normalized = normalizeLiveSource(parsed.data);
+    if (!normalized.ok) {
+      errors.push(normalized.error);
+      continue;
+    }
+    configs.push(normalized.config);
+  }
+  const duplicateId = firstDuplicateSourceId(configs);
+  if (duplicateId) errors.push(`duplicate source id '${duplicateId}'`);
+  if (errors.length > 0) return { ok: false, error: errors.join("\n") };
+  return { ok: true, configs };
+}
+
+function firstDuplicateSourceId(configs: LiveSourceConfig[]): string | null {
+  const seen = new Set<string>();
+  for (const config of configs) {
+    if (seen.has(config.id)) return config.id;
+    seen.add(config.id);
+  }
+  return null;
 }
 
 function isSlotKind(value: unknown): value is import("../shared/types.ts").SlotKind {
@@ -463,8 +539,10 @@ if (boundPort === undefined) {
   throw new Error("clawd-canvas: server bound but Bun did not report a port");
 }
 writeServerStateFiles(boundPort, SERVER_TOKEN);
+rehydratePersistedLiveSources();
 
 process.on("exit", () => {
+  stopAllLiveSources();
   clearServerStateFilesIfOwned();
 });
 process.on("SIGINT", () => process.exit(0));

@@ -21,6 +21,7 @@ import {
 import { join, dirname } from "node:path";
 import { sessionSlotDir, SESSIONS_DIR } from "./state.ts";
 import type { Edit, OverlayEntry, Slot } from "../shared/types.ts";
+import type { LiveSourceConfig } from "./live/types.ts";
 
 export function persistSlot(sessionId: string, slot: Slot): void {
   const dir = sessionSlotDir(sessionId);
@@ -128,6 +129,46 @@ export function loadSessionMeta(sessionId: string): SessionMeta {
     return { transcriptPath: parsed.transcriptPath ?? null };
   } catch {
     return { transcriptPath: null };
+  }
+}
+
+// Live data source bindings survive daemon restarts so a dashboard composed
+// once keeps streaming across plugin updates. savedAt records when the agent
+// last touched the bindings; rehydration ignores stale files.
+export type PersistedLiveSources = {
+  savedAt: number;
+  slots: Record<string, LiveSourceConfig[]>;
+};
+
+const EMPTY_LIVE_SOURCES: PersistedLiveSources = { savedAt: 0, slots: {} };
+
+function liveSourcesFilePath(sessionId: string): string {
+  return join(dirname(sessionSlotDir(sessionId)), "live.json");
+}
+
+export function persistLiveSources(
+  sessionId: string,
+  slots: Record<string, LiveSourceConfig[]>,
+): void {
+  const path = liveSourcesFilePath(sessionId);
+  const hasBindings = Object.values(slots).some((configs) => configs.length > 0);
+  if (!hasBindings) {
+    if (existsSync(path)) unlinkSync(path);
+    return;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  const payload: PersistedLiveSources = { savedAt: Date.now(), slots };
+  writeFileSync(path, JSON.stringify(payload));
+}
+
+export function loadPersistedLiveSources(sessionId: string): PersistedLiveSources {
+  const path = liveSourcesFilePath(sessionId);
+  if (!existsSync(path)) return EMPTY_LIVE_SOURCES;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as PersistedLiveSources;
+    return { savedAt: parsed.savedAt ?? 0, slots: parsed.slots ?? {} };
+  } catch {
+    return EMPTY_LIVE_SOURCES;
   }
 }
 
