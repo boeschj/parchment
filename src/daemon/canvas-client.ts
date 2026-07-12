@@ -150,6 +150,44 @@ export async function pushSlot(input: PushSlotInput): Promise<Slot> {
   return payload.slot;
 }
 
+export type OpenAppRequest = {
+  sessionId: string;
+  cwd?: string;
+  server: string;
+  register?: unknown;
+  tool?: string;
+  toolArgs?: Record<string, unknown>;
+  resource?: string;
+  title?: string;
+  slotId?: string;
+};
+
+export type OpenAppResponse = {
+  slot: Slot;
+  resourceUri: string;
+  summary: string;
+};
+
+// Opening an app may spawn + handshake a stdio server and call a tool on it;
+// give it more headroom than a plain slot push.
+const OPEN_APP_TIMEOUT_MS = 30_000;
+
+export async function openApp(request: OpenAppRequest): Promise<OpenAppResponse> {
+  await ensureDaemonAlive();
+  const { sessionId, cwd, ...rest } = request;
+  const body = { ...rest, cwd: cwd ?? "" };
+  const response = await authorizedFetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/apps/open`,
+    { method: "POST", body: JSON.stringify(body) },
+    OPEN_APP_TIMEOUT_MS,
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new CanvasDaemonError(`openApp failed (${response.status}): ${text}`);
+  }
+  return (await response.json()) as OpenAppResponse;
+}
+
 export async function closeSlot(sessionId: string, slotId: string): Promise<void> {
   await ensureDaemonAlive();
   const response = await authorizedFetch(
