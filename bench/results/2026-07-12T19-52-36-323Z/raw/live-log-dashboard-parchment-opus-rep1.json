@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "opus",
+  "repetition": 1,
+  "sessionId": "8e844c31-8c9b-4055-bdab-fcdcf311c405",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-36-323Z-live-log-dashboard-parchment-rep-1/8e844c31-8c9b-4055-bdab-fcdcf311c405.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 3,
+    "totalCostUsd": 0.10700799999999999,
+    "durationMs": 20828,
+    "sessionId": "8e844c31-8c9b-4055-bdab-fcdcf311c405",
+    "resultText": "The dashboard is on the canvas: a line chart of errors per minute (2, 3, 1, 4, 2) above a table of the three recent log lines.\n\nBoth datasets live in the spec's initial state rather than being inlined into props, so updates are cheap patches:\n\n- **Chart points** are at `/state/errorRate` — append a new minute with `{\"op\": \"add\", \"path\": \"/state/errorRate/-\", \"value\": {\"minute\": \"t+1\", \"errors\": 5}}`.\n- **Log lines** are at `/state/logs` — prepend a new line with `{\"op\": \"add\", \"path\": \"/state/logs/0\", \"value\": {...}}`, and drop the oldest with a `remove` on the last index if you want to keep it at three.\n\nThe chart binds via `{\"$state\": \"errorRate\"}` and the table via `{\"$state\": \"logs\"}`, so they re-render from state on every patch with no full re-push. Two notes on the spec grammar I hit along the way: `Stack` gap has no `xs` (smallest is `sm`), and `DataTable` columns use `header`, not `label`."
+  },
+  "transcript": {
+    "assistantTurnCount": 3,
+    "totalPromptTokens": 24985,
+    "totalCompletionTokens": 1966,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 17421,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:54:54.170Z"
+}

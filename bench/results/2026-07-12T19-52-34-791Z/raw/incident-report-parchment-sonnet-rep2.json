@@ -1,0 +1,30 @@
+{
+  "scenarioId": "incident-report",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 2,
+  "sessionId": "bbd0081e-6119-46f8-a3cb-2296d2358b66",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-34-791Z-incident-report-parchment-rep-2/bbd0081e-6119-46f8-a3cb-2296d2358b66.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0610895,
+    "durationMs": 8943,
+    "sessionId": "bbd0081e-6119-46f8-a3cb-2296d2358b66",
+    "resultText": "The postmortem report is on the canvas with the verdict callout, 5-step incident timeline, and the two action items."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 27539,
+    "totalCompletionTokens": 899,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 14208,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:54:36.743Z"
+}

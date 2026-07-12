@@ -1,0 +1,30 @@
+{
+  "scenarioId": "architecture-diagram",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "0a69b1fd-c4b9-4f8a-9482-4b96943700d9",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-34-791Z-architecture-diagram-parchment-rep-3/0a69b1fd-c4b9-4f8a-9482-4b96943700d9.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0469967,
+    "durationMs": 3924,
+    "sessionId": "0a69b1fd-c4b9-4f8a-9482-4b96943700d9",
+    "resultText": "Rendered a 3-tier flowchart with Client → API → Database on the canvas."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 26728,
+    "totalCompletionTokens": 241,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 13432,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:54:18.231Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 2,
+  "sessionId": "ce016e96-8773-4618-9b79-8372212fe655",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T22-28-37-337Z-live-log-dashboard-parchment-rep-2/ce016e96-8773-4618-9b79-8372212fe655.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.0636972,
+    "durationMs": 11275,
+    "sessionId": "ce016e96-8773-4618-9b79-8372212fe655",
+    "resultText": "Dashboard is live: a line chart of error-rate-per-minute seeded from `state.errorRateData` and a table of the 3 recent log lines from `state.recentLogs`. Future updates can append to `errorRateData` (or `recentLogs`) via state patches to extend the chart/table live."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21574,
+    "totalCompletionTokens": 1139,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11323,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T22:31:31.592Z"
+}

@@ -1,0 +1,30 @@
+{
+  "scenarioId": "live-log-dashboard",
+  "arm": "parchment",
+  "model": "opus",
+  "repetition": 2,
+  "sessionId": "b2b93c94-226f-4839-8623-09c8a3bb021d",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-36-323Z-live-log-dashboard-parchment-rep-2/b2b93c94-226f-4839-8623-09c8a3bb021d.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 3,
+    "totalCostUsd": 0.1140445,
+    "durationMs": 24237,
+    "sessionId": "b2b93c94-226f-4839-8623-09c8a3bb021d",
+    "resultText": "The dashboard is on the canvas as slot `slot_mri7qf3z_qvip7l`: a line chart of errors per minute (2, 3, 1, 4, 2) above a table of the three recent log lines.\n\nBoth datasets live in the spec's initial state rather than being inlined in props, so they're addressable for later updates:\n\n- `/errorRate` — array of `{ minute, errors }` points, bound to the chart via `{\"$state\": \"errorRate\"}`\n- `/logs` — array of `{ level, message }` rows, bound to the DataTable\n\nTo add a new minute, append to the chart's state path with a patch (`op: \"add\"`, `path: \"/state/errorRate/-\"`, value `{\"minute\": \"t+1\", \"errors\": 5}`); the same pattern works for `/logs/-`. If you'd rather have it update itself, I can attach a live source that tails a real log file into those paths."
+  },
+  "transcript": {
+    "assistantTurnCount": 3,
+    "totalPromptTokens": 25429,
+    "totalCompletionTokens": 2147,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 17865,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:55:19.190Z"
+}

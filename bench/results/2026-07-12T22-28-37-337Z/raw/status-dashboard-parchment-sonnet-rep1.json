@@ -1,0 +1,30 @@
+{
+  "scenarioId": "status-dashboard",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 1,
+  "sessionId": "2e445191-2847-4faa-a9b5-d1bf9b71fa77",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T22-28-37-337Z-status-dashboard-parchment-rep-1/2e445191-2847-4faa-a9b5-d1bf9b71fa77.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.08782990000000002,
+    "durationMs": 9127,
+    "sessionId": "2e445191-2847-4faa-a9b5-d1bf9b71fa77",
+    "resultText": "Dashboard rendered with the KPI row (Pass Rate, Avg Build Time, Open Incidents), a bar chart of build durations, and a line chart of deploy counts, all in one Stack/Grid layout."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21587,
+    "totalCompletionTokens": 1087,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11318,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T22:28:47.436Z"
+}

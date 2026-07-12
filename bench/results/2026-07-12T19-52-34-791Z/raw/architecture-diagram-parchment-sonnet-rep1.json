@@ -1,0 +1,30 @@
+{
+  "scenarioId": "architecture-diagram",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 1,
+  "sessionId": "562c9662-055c-4a70-a633-fc51bf7fa946",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-34-791Z-architecture-diagram-parchment-rep-1/562c9662-055c-4a70-a633-fc51bf7fa946.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.046921700000000004,
+    "durationMs": 3993,
+    "sessionId": "562c9662-055c-4a70-a633-fc51bf7fa946",
+    "resultText": "Rendered the 3-tier architecture diagram (Client → API → Database) using MermaidEditor."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 26718,
+    "totalCompletionTokens": 240,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 13425,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:54:07.381Z"
+}

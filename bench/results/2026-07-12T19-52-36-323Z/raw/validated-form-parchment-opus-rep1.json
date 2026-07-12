@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "opus",
+  "repetition": 1,
+  "sessionId": "d9f22892-0917-42a0-9c79-659ae1075145",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T19-52-36-323Z-validated-form-parchment-rep-1/d9f22892-0917-42a0-9c79-659ae1075145.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 4,
+    "totalCostUsd": 0.12322899999999999,
+    "durationMs": 27447,
+    "sessionId": "d9f22892-0917-42a0-9c79-659ae1075145",
+    "resultText": "The signup form is on the canvas at slot `slot_mri7opwa_pvv0o6`.\n\nStructure: a Card wrapping a vertical Stack with three Inputs and a right-aligned \"Sign up\" Button. Each input is controlled via `$bindState` against the seeded `state.form` object (`name`, `email`, `password` all seeded to `\"\"`), so the fields render controlled from the first paint and edits flow back into state. The email input uses `type: \"email\"`, the password input uses `type: \"password\"` with `minLength: 8` plus a description line, and all three are marked `required`. The button fires `canvas.submit` with the whole `form` object as the payload.\n\nOne thing worth flagging: the catalog has no `Form` component (my first attempt used one and was rejected), so there's no native form element handling submit-time validation. The `required` and `minLength` props are per-input; whether they block submission depends on how the runtime enforces them, so if you want a hard guarantee, I can disable the button until the state satisfies the rules.\n\nI couldn't take a snapshot to verify the rendered layout — no canvas tab is connected. Open http://localhost:7814/?session=d9f22892-0917-42a0-9c79-659ae1075145 and I'll capture one."
+  },
+  "transcript": {
+    "assistantTurnCount": 4,
+    "totalPromptTokens": 35183,
+    "totalCompletionTokens": 2255,
+    "renderAttempts": 2,
+    "tokensToFirstPaint": 17918,
+    "turnsToFirstPaint": 2
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T19:54:03.690Z"
+}

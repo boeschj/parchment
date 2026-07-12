@@ -1,0 +1,30 @@
+{
+  "scenarioId": "validated-form",
+  "arm": "parchment",
+  "model": "sonnet",
+  "repetition": 3,
+  "sessionId": "60c8cfb7-ad31-4571-8ee9-8e3b3cc47b48",
+  "jsonlPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-bench--runs-2026-07-12T22-28-37-337Z-validated-form-parchment-rep-3/60c8cfb7-ad31-4571-8ee9-8e3b3cc47b48.jsonl",
+  "claudeResult": {
+    "isError": false,
+    "numTurns": 2,
+    "totalCostUsd": 0.06366350000000001,
+    "durationMs": 11517,
+    "sessionId": "60c8cfb7-ad31-4571-8ee9-8e3b3cc47b48",
+    "resultText": "The signup form is rendered with controlled Name, Email, and Password inputs (required, password min length 8) and a \"Sign up\" button wired to `canvas.submit`."
+  },
+  "transcript": {
+    "assistantTurnCount": 2,
+    "totalPromptTokens": 21474,
+    "totalCompletionTokens": 1157,
+    "renderAttempts": 1,
+    "tokensToFirstPaint": 11291,
+    "turnsToFirstPaint": 1
+  },
+  "validation": {
+    "passed": true,
+    "reasons": []
+  },
+  "claudeVersion": "2.1.207",
+  "recordedAt": "2026-07-12T22:31:02.503Z"
+}
