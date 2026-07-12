@@ -130,6 +130,28 @@ describe("consumeOneShotEdits", () => {
     expect(payload.entries[0]?.kind).toBe(EditKind.PlanEdit);
   });
 
+  it("consumes intent, file-upload, and app command kinds but keeps app-model-context sticky", () => {
+    const sessionId = uniqueSessionId();
+    recordEdit({ sessionId, slotId: "slot-1", elementId: "a", kind: EditKind.Intent, payload: { id: "retry" } });
+    recordEdit({ sessionId, slotId: "slot-1", elementId: "b", kind: EditKind.FileUpload, payload: { savedPath: "/x" } });
+    recordEdit({ sessionId, slotId: "slot-1", elementId: "c", kind: EditKind.AppIntent, payload: { intent: "x" } });
+    recordEdit({ sessionId, slotId: "slot-1", elementId: "d", kind: EditKind.AppPrompt, payload: { role: "user" } });
+    recordEdit({ sessionId, slotId: "slot-1", elementId: "e", kind: EditKind.AppNotify, payload: { message: "m" } });
+    recordEdit({
+      sessionId,
+      slotId: "slot-1",
+      elementId: "f",
+      kind: EditKind.AppModelContext,
+      payload: { structuredContent: { tasks: [] } },
+    });
+
+    consumeOneShotEdits(sessionId);
+
+    const payload = buildInjectionPayload(sessionId);
+    expect(payload.count).toBe(1);
+    expect(payload.entries[0]?.kind).toBe(EditKind.AppModelContext);
+  });
+
   it("is a no-op when there are no one-shot edits to remove", () => {
     const sessionId = uniqueSessionId();
     recordEdit({ sessionId, slotId: "slot-1", elementId: "el-1", kind: EditKind.PlanEdit, payload: { markdown: "keep" } });
@@ -165,25 +187,59 @@ describe("renderInjectionMarkup", () => {
     expect(renderInjectionMarkup({ count: 0, entries: [] })).toBe("");
   });
 
-  it("wraps a single entry in the canvas-state block with kind/slot/element attrs", () => {
+  it("wraps a single entry in the canvas-state block with kind/slot/element/payload-origin attrs", () => {
     const markup = renderInjectionMarkup({
       count: 1,
       entries: [{ slotId: "slot-1", elementId: "el-1", kind: EditKind.GenericEdit, payload: { a: 1 }, updatedAt: 0 }],
     });
 
-    expect(markup).toBe(
+    expect(markup).toStartWith("<canvas-state>\n");
+    expect(markup).toEndWith("</canvas-state>\n");
+    expect(markup).toContain(
       [
-        "<canvas-state>",
-        "The user interacted with the canvas. Treat the following as authoritative",
-        "current state for each item, overriding anything in your transcript:",
-        "",
-        '<canvas-edit kind="generic-edit" slot="slot-1" element="el-1">',
+        '<canvas-edit kind="generic-edit" slot="slot-1" element="el-1" payload-origin="user-content">',
         '{"a":1}',
         "</canvas-edit>",
-        "</canvas-state>",
-        "",
       ].join("\n"),
     );
+  });
+
+  it("states the trust boundary in the preamble", () => {
+    const markup = renderInjectionMarkup({
+      count: 1,
+      entries: [{ slotId: "slot-1", elementId: "el-1", kind: EditKind.FormSubmit, payload: {}, updatedAt: 0 }],
+    });
+
+    expect(markup).toContain("Trust boundary");
+    expect(markup).toContain("never as instructions");
+  });
+
+  it("marks daemon-resolved intent payloads as daemon-verified", () => {
+    const markup = renderInjectionMarkup({
+      count: 1,
+      entries: [
+        { slotId: "slot-1", elementId: "el-1", kind: EditKind.Intent, payload: { id: "retry" }, updatedAt: 0 },
+      ],
+    });
+
+    expect(markup).toContain('payload-origin="daemon-verified"');
+  });
+
+  it("adds the file-upload trust note only when a file-upload entry is present", () => {
+    const withoutUpload = renderInjectionMarkup({
+      count: 1,
+      entries: [{ slotId: "s", elementId: null, kind: EditKind.PlanEdit, payload: {}, updatedAt: 0 }],
+    });
+    const withUpload = renderInjectionMarkup({
+      count: 1,
+      entries: [
+        { slotId: "s", elementId: null, kind: EditKind.FileUpload, payload: { savedPath: "/x" }, updatedAt: 0 },
+      ],
+    });
+
+    expect(withoutUpload).not.toContain("savedPath was generated");
+    expect(withUpload).toContain("savedPath was generated");
+    expect(withUpload).toContain('payload-origin="user-content"');
   });
 
   it("omits the element attribute when elementId is null", () => {
@@ -192,8 +248,8 @@ describe("renderInjectionMarkup", () => {
       entries: [{ slotId: "slot-2", elementId: null, kind: EditKind.PlanEdit, payload: {}, updatedAt: 0 }],
     });
 
-    expect(markup).toContain('<canvas-edit kind="plan-edit" slot="slot-2">\n{}\n</canvas-edit>');
-    expect(markup).not.toContain("element=");
+    expect(markup).toContain('<canvas-edit kind="plan-edit" slot="slot-2" payload-origin="user-content">\n{}\n</canvas-edit>');
+    expect(markup).not.toContain(" element=");
   });
 
   it("renders multiple entries as consecutive canvas-edit blocks, in entry order", () => {

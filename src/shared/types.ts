@@ -6,6 +6,7 @@ export const SlotKind = {
   Table: "table",
   Report: "report",
   Render: "render",
+  App: "app",
 } as const;
 
 export type SlotKind = (typeof SlotKind)[keyof typeof SlotKind];
@@ -64,6 +65,18 @@ export type JsonRenderSpec = {
   state?: Record<string, unknown>;
 };
 
+// An intent the agent offered on a rendered slot (a canvas.intent binding).
+// SECURITY: the daemon records this menu when the spec is pushed and it is the
+// only source of intent payloads. The browser submits an opaque id; the daemon
+// resolves id -> {id, params} from this map, so a page can never fabricate or
+// tamper with an intent — it can only pick from the menu the agent offered.
+export type IntentDefinition = {
+  id: string;
+  params?: Record<string, unknown>;
+};
+
+export type IntentMenu = Record<string, IntentDefinition>;
+
 export type Slot = {
   id: string;
   kind: SlotKind;
@@ -72,6 +85,7 @@ export type Slot = {
   title: string;
   spec: JsonRenderSpec;
   state: Record<string, unknown>;
+  intentMenu?: IntentMenu;
   createdAt: number;
   updatedAt: number;
   errorMessage?: string;
@@ -85,6 +99,12 @@ export const EditKind = {
   TableEdit: "table-edit",
   GenericEdit: "generic-edit",
   FormSubmit: "form-submit",
+  Intent: "intent",
+  FileUpload: "file-upload",
+  AppIntent: "app-intent",
+  AppPrompt: "app-prompt",
+  AppNotify: "app-notify",
+  AppModelContext: "app-model-context",
 } as const;
 
 export type EditKind = (typeof EditKind)[keyof typeof EditKind];
