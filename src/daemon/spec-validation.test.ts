@@ -261,3 +261,201 @@ describe("prepareSpec — rejection is not noisy", () => {
     expect(issues[0]?.startsWith("- ")).toBe(false);
   });
 });
+
+// A single element wrapped in the minimal valid spec so a prop coercion can be
+// asserted in isolation.
+function oneElement(type: string, props: Record<string, unknown>): JsonRenderSpec {
+  return { root: "el", elements: { el: { type, props, children: [] } } };
+}
+
+describe("prepareSpec — enum synonym auto-repair", () => {
+  it("numeric Stack gap → nearest spacing token, no rejection", () => {
+    const { spec: prepared, issues, repairs } = prepareSpec(oneElement("Stack", { gap: 16 }));
+    expect(issues).toEqual([]);
+    expect(prepared.elements.el?.props.gap).toBe("md");
+    expect(repairs).toEqual(['elements/el/props/gap: coerced 16 → "md"']);
+  });
+
+  it("numeric Stack gap 4 and 6 → sm (nearest, ties toward the more visible token)", () => {
+    expect(prepareSpec(oneElement("Stack", { gap: 4 })).spec.elements.el?.props.gap).toBe("sm");
+    expect(prepareSpec(oneElement("Stack", { gap: 6 })).spec.elements.el?.props.gap).toBe("sm");
+    expect(prepareSpec(oneElement("Stack", { gap: 24 })).spec.elements.el?.props.gap).toBe("lg");
+    expect(prepareSpec(oneElement("Stack", { gap: 40 })).spec.elements.el?.props.gap).toBe("xl");
+  });
+
+  it("numeric-string gap \"16\" → md (a stringified number reads as pixels)", () => {
+    const { spec: prepared, issues } = prepareSpec(oneElement("Stack", { gap: "16" }));
+    expect(issues).toEqual([]);
+    expect(prepared.elements.el?.props.gap).toBe("md");
+  });
+
+  it("numeric Grid gap that maps to 'none' falls back to 'sm' (Grid has no none)", () => {
+    // Grid's spacing enum omits "none"; a 2px gap nearest 'none' must still land
+    // on a value Grid actually accepts.
+    const { spec: prepared, issues } = prepareSpec(oneElement("Grid", { columns: 3, gap: 2 }));
+    expect(issues).toEqual([]);
+    expect(prepared.elements.el?.props.gap).toBe("sm");
+  });
+
+  it("spacing words small/medium/large → sm/md/lg", () => {
+    expect(prepareSpec(oneElement("Stack", { gap: "small" })).spec.elements.el?.props.gap).toBe("sm");
+    expect(prepareSpec(oneElement("Stack", { gap: "medium" })).spec.elements.el?.props.gap).toBe("md");
+    expect(prepareSpec(oneElement("Stack", { gap: "large" })).spec.elements.el?.props.gap).toBe("lg");
+  });
+
+  it("Heading level 1 | \"1\" | \"H1\" → h1, and 5/6 clamp to h4", () => {
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: 1 })).spec.elements.el?.props.level).toBe("h1");
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: "1" })).spec.elements.el?.props.level).toBe("h1");
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: "H1" })).spec.elements.el?.props.level).toBe("h1");
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: 2 })).spec.elements.el?.props.level).toBe("h2");
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: 5 })).spec.elements.el?.props.level).toBe("h4");
+    expect(prepareSpec(oneElement("Heading", { text: "A", level: 6 })).spec.elements.el?.props.level).toBe("h4");
+  });
+
+  it("Stack direction row → horizontal, column → vertical", () => {
+    expect(prepareSpec(oneElement("Stack", { direction: "row" })).spec.elements.el?.props.direction).toBe("horizontal");
+    expect(prepareSpec(oneElement("Stack", { direction: "column" })).spec.elements.el?.props.direction).toBe("vertical");
+  });
+
+  it("Button variant default → primary, destructive → danger", () => {
+    expect(prepareSpec(oneElement("Button", { label: "Go", variant: "default" })).spec.elements.el?.props.variant).toBe("primary");
+    expect(prepareSpec(oneElement("Button", { label: "Go", variant: "destructive" })).spec.elements.el?.props.variant).toBe("danger");
+  });
+
+  it("Badge variant danger/error → destructive, primary → default", () => {
+    expect(prepareSpec(oneElement("Badge", { text: "P1", variant: "danger" })).spec.elements.el?.props.variant).toBe("destructive");
+    expect(prepareSpec(oneElement("Badge", { text: "err", variant: "error" })).spec.elements.el?.props.variant).toBe("destructive");
+    expect(prepareSpec(oneElement("Badge", { text: "ok", variant: "primary" })).spec.elements.el?.props.variant).toBe("default");
+  });
+
+  it("Text variant default → body, secondary → muted", () => {
+    expect(prepareSpec(oneElement("Text", { text: "hi", variant: "default" })).spec.elements.el?.props.variant).toBe("body");
+    expect(prepareSpec(oneElement("Text", { text: "hi", variant: "secondary" })).spec.elements.el?.props.variant).toBe("muted");
+  });
+
+  it("Chart xScale linear → category, timestamp → time", () => {
+    const linear = prepareSpec(
+      oneElement("Chart", { kind: "line", x: "t", y: "value", data: [{ t: 1, value: 2 }], xScale: "linear" }),
+    );
+    expect(linear.issues).toEqual([]);
+    expect(linear.spec.elements.el?.props.xScale).toBe("category");
+    const ts = prepareSpec(
+      oneElement("Chart", { kind: "line", x: "t", y: "value", data: [{ t: 1, value: 2 }], xScale: "timestamp" }),
+    );
+    expect(ts.spec.elements.el?.props.xScale).toBe("time");
+  });
+
+  it("Steps items without a status validate (status is optional, renders neutral)", () => {
+    const { issues } = prepareSpec(
+      oneElement("Steps", {
+        items: [{ title: "Deploy", description: "raised pool size" }, { title: "Recovered" }],
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("leaves genuinely ambiguous enum values untouched — still rejected with the fix", () => {
+    const { spec: prepared, issues } = prepareSpec(oneElement("Button", { label: "Go", variant: "fancy" }));
+    expect(prepared.elements.el?.props.variant).toBe("fancy");
+    expect(issues).toEqual([
+      'elements/el/props/variant: Invalid option: expected one of "primary"|"secondary"|"danger"',
+    ]);
+  });
+
+  it("never coerces an expression-bound value", () => {
+    const { spec: prepared, issues } = prepareSpec(
+      spec({
+        root: "page",
+        state: { g: "md" },
+        elements: {
+          page: { type: "Stack", props: { gap: { $state: "/g" } }, children: [] },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+    expect(prepared.elements.page?.props.gap).toEqual({ $state: "/g" });
+  });
+});
+
+describe("prepareSpec — observed bench failures now render on the first pass", () => {
+  // Each spec below is the exact shape a sonnet run pushed and had REJECTED in
+  // bench/results/2026-07-12T15-07-38-053Z. After the auto-repair they must
+  // validate with zero issues — the whole point of the coercion layer.
+
+  it("live-log-dashboard: gap 16 + level 1 + xScale 'linear' all repair", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "root",
+        state: { errorRateSeries: [{ t: 1, value: 2 }] },
+        elements: {
+          root: { type: "Stack", props: { gap: 16 }, children: ["heading", "chart"] },
+          heading: { type: "Heading", props: { level: 1, text: "Log Monitoring" }, children: [] },
+          chart: {
+            type: "Chart",
+            props: { type: "line", data: { $state: "/errorRateSeries" }, x: "t", y: "value", xScale: "linear", height: 260 },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("validated-form: Button variant 'default' repairs to primary", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "card",
+        state: { form: { name: "" } },
+        elements: {
+          card: { type: "Card", props: { title: "Create an account" }, children: ["submitBtn"] },
+          submitBtn: {
+            type: "Button",
+            props: { label: "Sign up", variant: "default" },
+            on: { press: { action: "canvas.submit", params: { id: "signup", payload: { $state: "/form" } } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("status-dashboard: Stack gap 16 + Heading level 1 + two Grid gap 16 all repair", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        elements: {
+          page: { type: "Stack", props: { gap: 16, padding: 16 }, children: ["heading", "kpiRow", "chartsGrid"] },
+          heading: { type: "Heading", props: { text: "CI Status Dashboard", level: 1 }, children: [] },
+          kpiRow: { type: "Grid", props: { columns: 3, gap: 16 }, children: [] },
+          chartsGrid: { type: "Grid", props: { columns: 2, gap: 16 }, children: [] },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("incident-report: Heading levels 1 and 2 + Steps items missing status all repair", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        elements: {
+          page: { type: "Stack", props: { gap: "lg" }, children: ["heading", "timelineHeading", "steps"] },
+          heading: { type: "Heading", props: { text: "Checkout API Incident Postmortem", level: 1 }, children: [] },
+          timelineHeading: { type: "Heading", props: { text: "Timeline", level: 2 }, children: [] },
+          steps: {
+            type: "Steps",
+            props: {
+              items: [
+                { title: "14:02 — Deploy", description: "Deploy raised connection pool size to 5." },
+                { title: "14:14 — Recovered", description: "Error rate returned to baseline." },
+              ],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+});

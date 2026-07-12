@@ -13,12 +13,16 @@ import { autoFixSpec, validateSpec, type Spec, type SpecIssue } from "@json-rend
 import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
 import * as z from "zod/v4";
 import { canvasCatalog, CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
+import { ChartXScale } from "../shared/catalog/extensions/Chart.ts";
 import { extractIntentMenu } from "./intents.ts";
 import type { JsonRenderSpec, UIElement } from "../shared/types.ts";
 
 export type SpecPreparation = {
   spec: JsonRenderSpec;
   issues: string[];
+  // Wrong-but-obvious enum values we silently coerced to a catalog value, one
+  // human-readable line each (e.g. 'elements/page/props/gap: coerced 16 → "md"').
+  repairs: string[];
 };
 
 const CHART_TYPE = "Chart";
@@ -42,15 +46,16 @@ function fromCoreSpec(spec: Spec): JsonRenderSpec {
 export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   const { spec: autofixed } = autoFixSpec(toCoreSpec(spec));
   const normalized = withLeafChildren(fromCoreSpec(autofixed));
+  const { spec: repaired, repairs } = repairEnumSynonyms(normalized);
   const issues = [
-    ...collectStructuralIssues(normalized),
-    ...collectMissingChildIssues(normalized),
-    ...collectPropIssues(normalized),
-    ...collectUnseededStateIssues(normalized),
-    ...collectChartDataIssues(normalized),
-    ...extractIntentMenu(normalized).issues,
+    ...collectStructuralIssues(repaired),
+    ...collectMissingChildIssues(repaired),
+    ...collectPropIssues(repaired),
+    ...collectUnseededStateIssues(repaired),
+    ...collectChartDataIssues(repaired),
+    ...extractIntentMenu(repaired).issues,
   ];
-  return { spec: normalized, issues };
+  return { spec: repaired, issues, repairs };
 }
 
 function withLeafChildren(spec: JsonRenderSpec): JsonRenderSpec {
@@ -153,6 +158,208 @@ function collectPropIssues(spec: JsonRenderSpec): string[] {
     }
   }
   return issues;
+}
+
+// ---- Enum synonym auto-repair ----------------------------------------------
+// A model sometimes emits a wrong-but-obvious enum value: gap: 16, level: 1,
+// variant: "default", xScale: "linear". Rather than bounce the whole spec on a
+// value we can resolve unambiguously, we coerce it to the catalog value and
+// record the repair; the coerced spec then passes the prop check above.
+// Genuinely ambiguous values are left untouched so that check still rejects
+// them with the exact fix. Every candidate is verified against the real
+// component schema before it is applied, so a coercion can never introduce an
+// invalid value even if a synonym map drifts from the catalog.
+
+type CandidateResolver = (value: unknown) => string[];
+
+// The spacing scale a numeric gap is read against (as pixels); the nearest
+// token wins, ties break toward the more visible (larger) token. Grid has no
+// "none", so gapCandidates offers "sm"/"md" fallbacks (verified per-component).
+const GAP_TOKENS = ["none", "sm", "md", "lg", "xl"] as const;
+type GapToken = (typeof GAP_TOKENS)[number];
+const GAP_TOKEN_PIXELS: Record<GapToken, number> = { none: 0, sm: 8, md: 16, lg: 24, xl: 32 };
+
+const SPACING_WORD_TO_TOKEN = {
+  none: "none",
+  zero: "none",
+  tiny: "sm",
+  small: "sm",
+  medium: "md",
+  normal: "md",
+  large: "lg",
+  big: "lg",
+  xlarge: "xl",
+  huge: "xl",
+} as const;
+
+const DIRECTION_TO_TOKEN = {
+  row: "horizontal",
+  horizontal: "horizontal",
+  column: "vertical",
+  col: "vertical",
+  vertical: "vertical",
+} as const;
+
+const BUTTON_VARIANT_TO_TOKEN = {
+  default: "primary",
+  destructive: "danger",
+  error: "danger",
+  outline: "secondary",
+  ghost: "secondary",
+  link: "secondary",
+} as const;
+
+const BADGE_VARIANT_TO_TOKEN = {
+  danger: "destructive",
+  error: "destructive",
+  primary: "default",
+} as const;
+
+const TEXT_VARIANT_TO_TOKEN = {
+  default: "body",
+  normal: "body",
+  secondary: "muted",
+  subtle: "muted",
+  small: "caption",
+  subtitle: "lead",
+} as const;
+
+const CHART_XSCALE_TO_TOKEN = {
+  linear: ChartXScale.Category,
+  numeric: ChartXScale.Category,
+  ordinal: ChartXScale.Category,
+  timestamp: ChartXScale.Time,
+  datetime: ChartXScale.Time,
+  date: ChartXScale.Time,
+} as const;
+
+const HEADING_LEVEL_MIN = 1;
+const HEADING_LEVEL_MAX = 4;
+
+const PropCoercions: Record<string, Record<string, CandidateResolver>> = {
+  Stack: { gap: gapCandidates, direction: wordResolver(DIRECTION_TO_TOKEN) },
+  Grid: { gap: gapCandidates },
+  Heading: { level: headingLevelCandidates },
+  Button: { variant: wordResolver(BUTTON_VARIANT_TO_TOKEN) },
+  Badge: { variant: wordResolver(BADGE_VARIANT_TO_TOKEN) },
+  Text: { variant: wordResolver(TEXT_VARIANT_TO_TOKEN) },
+  Chart: { xScale: wordResolver(CHART_XSCALE_TO_TOKEN) },
+};
+
+type RepairResult = { spec: JsonRenderSpec; repairs: string[] };
+
+function repairEnumSynonyms(spec: JsonRenderSpec): RepairResult {
+  const repairs: string[] = [];
+  const elements: Record<string, UIElement> = {};
+  for (const [key, element] of Object.entries(spec.elements)) {
+    elements[key] = coerceElementProps(key, element, repairs);
+  }
+  return { spec: { ...spec, elements }, repairs };
+}
+
+function coerceElementProps(key: string, element: UIElement, repairs: string[]): UIElement {
+  const resolvers = PropCoercions[element.type];
+  if (!resolvers) return element;
+  const props = { ...element.props };
+  let changed = false;
+  for (const [prop, resolver] of Object.entries(resolvers)) {
+    const original = props[prop];
+    if (original === undefined) continue;
+    if (isExpressionValue(original)) continue;
+    if (isValidPropValue(element.type, prop, original)) continue;
+    const coerced = firstValidCandidate(element.type, prop, resolver(original));
+    if (coerced === null) continue;
+    props[prop] = coerced;
+    changed = true;
+    repairs.push(
+      `elements/${key}/props/${prop}: coerced ${JSON.stringify(original)} → ${JSON.stringify(coerced)}`,
+    );
+  }
+  return changed ? { ...element, props } : element;
+}
+
+function isValidPropValue(type: string, prop: string, value: unknown): boolean {
+  const schema = ComponentPropSchemas[type];
+  if (!schema) return false;
+  return schema.safeParse({ [prop]: value }).success;
+}
+
+function firstValidCandidate(type: string, prop: string, candidates: string[]): string | null {
+  for (const candidate of candidates) {
+    if (isValidPropValue(type, prop, candidate)) return candidate;
+  }
+  return null;
+}
+
+function gapCandidates(value: unknown): string[] {
+  const pixels = numericPixels(value);
+  if (pixels !== null) {
+    return dedupe([nearestGapToken(pixels), "sm", "md"]);
+  }
+  if (typeof value === "string") {
+    const mapped = lookupSynonym(SPACING_WORD_TO_TOKEN, value);
+    return mapped ? [mapped] : [];
+  }
+  return [];
+}
+
+// A gap given as a number (16) or a numeric string ("16") is read as pixels.
+function numericPixels(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    return Number.parseFloat(value.trim());
+  }
+  return null;
+}
+
+function nearestGapToken(pixels: number): GapToken {
+  let best: GapToken = "md";
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const token of GAP_TOKENS) {
+    const distance = Math.abs(GAP_TOKEN_PIXELS[token] - pixels);
+    const isCloser = distance < bestDistance;
+    const isTieButMoreVisible =
+      distance === bestDistance && GAP_TOKEN_PIXELS[token] > GAP_TOKEN_PIXELS[best];
+    if (isCloser || isTieButMoreVisible) {
+      best = token;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function headingLevelCandidates(value: unknown): string[] {
+  const parsed = parseLeadingInt(value);
+  if (parsed === null) return [];
+  const clamped = Math.min(Math.max(parsed, HEADING_LEVEL_MIN), HEADING_LEVEL_MAX);
+  return [`h${clamped}`];
+}
+
+function parseLeadingInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string") {
+    const match = value.match(/\d+/);
+    if (match) return Number.parseInt(match[0], 10);
+  }
+  return null;
+}
+
+function wordResolver(map: Readonly<Record<string, string>>): CandidateResolver {
+  return (value) => {
+    if (typeof value !== "string") return [];
+    const mapped = lookupSynonym(map, value);
+    return mapped ? [mapped] : [];
+  };
+}
+
+function lookupSynonym(map: Readonly<Record<string, string>>, key: string): string | null {
+  const normalized = key.trim().toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(map, normalized)) return null;
+  return map[normalized] ?? null;
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 // ---- State seeding ---------------------------------------------------------

@@ -24,8 +24,8 @@ const StepItemSchema = z.object({
     .describe(
       "One line of supporting context: what happened, what's blocking, a file or command involved.",
     ),
-  status: StepStatusSchema.describe(
-    "'done' ✓ completed, 'active' currently in progress, 'pending' not started, 'error' ✗ failed.",
+  status: StepStatusSchema.optional().describe(
+    "'done' ✓ completed, 'active' currently in progress, 'pending' (default) not started, 'error' ✗ failed.",
   ),
 });
 

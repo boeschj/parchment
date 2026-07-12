@@ -3,7 +3,7 @@ import { StepStatus, StepsPropsSchema } from "../../shared/catalog/extensions/St
 
 type StepsProps = z.infer<typeof StepsPropsSchema>;
 type RenderProps = { props: StepsProps };
-type StepStatusValue = (typeof StepStatus)[keyof typeof StepStatus];
+type StepStatusValue = (typeof StepStatus)[keyof typeof StepStatus] | undefined;
 
 export function Steps({ props }: RenderProps) {
   const lastIndex = props.items.length - 1;
