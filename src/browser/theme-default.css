@@ -1,12 +1,12 @@
 /*
  * ============================================================
- * clawd-canvas — DEFAULT THEME
+ * parchment — DEFAULT THEME
  * ============================================================
  * This file is the DEFAULT theme, and the ONLY place color values live.
  * The app never hardcodes a color — every component reads the CSS custom
  * properties below. That makes this list the public theming contract.
  *
- * To retheme clawd-canvas WITHOUT forking or rebuilding:
+ * To retheme parchment WITHOUT forking or rebuilding:
  *   1. Create  ~/.parchment/theme.css
  *   2. Redefine any tokens you want under :root (and .dark for the dark
  *      ramp). Override only what you want to change — the rest fall back

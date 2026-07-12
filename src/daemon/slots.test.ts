@@ -15,7 +15,7 @@ import type { SessionRoom, WebSocketSubscriber } from "./sessions.ts";
 // module before that chain is ever imported. This must happen via a dynamic
 // import — a static one would be hoisted by ESM ahead of the mock.module
 // call below.
-const fakeHome = mkdtempSync(join(tmpdir(), "clawd-canvas-slots-"));
+const fakeHome = mkdtempSync(join(tmpdir(), "parchment-slots-"));
 const realOs = await import("node:os");
 mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));
 

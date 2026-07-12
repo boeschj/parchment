@@ -28,7 +28,7 @@ export const TerminalDefinition = {
     "USE FOR: showing a real command run and its actual output — build results, test invocations, CLI sessions. Always renders on a dark terminal surface in both themes. Only show commands you actually ran and output you actually captured — never invent output. DO NOT USE FOR: code snippets (use CodeBlock) or structured test summaries (use TestResults).",
   example: {
     command: "bun test src/api",
-    cwd: "~/clawd-canvas",
+    cwd: "~/parchment",
     exitCode: 0,
     output:
       "✓ cache.test.ts (12 tests) 84ms\n✓ routes.test.ts (9 tests) 112ms\n\n21 pass, 0 fail (196ms)",

@@ -76,15 +76,15 @@ function isExistingDaemonAlive(): { alive: boolean; pid?: number; port?: string 
 function cmdInstall(): number {
   if (!isPlatformSupported()) {
     bail(
-      "clawd-canvas: Windows is not supported in v0.2. WSL2 works. Roadmap: https://github.com/jboesch/clawd-canvas",
+      "parchment: Windows is not supported yet. WSL2 works. Roadmap: https://github.com/boeschj/parchment",
     );
   }
 
   if (!existsSync(STATUSLINE_SCRIPT)) {
-    bail(`clawd-canvas: expected statusline at ${STATUSLINE_SCRIPT}`);
+    bail(`parchment: expected statusline at ${STATUSLINE_SCRIPT}`);
   }
   if (!existsSync(MCP_STDIO_ENTRY)) {
-    bail(`clawd-canvas: expected MCP server at ${MCP_STDIO_ENTRY}`);
+    bail(`parchment: expected MCP server at ${MCP_STDIO_ENTRY}`);
   }
 
   mkdirSync(CLAUDE_DIR, { recursive: true });
@@ -105,12 +105,12 @@ function cmdInstall(): number {
     !existingStatusCommand.includes(STATUSLINE_SCRIPT);
 
   if (hasForeignStatusLine) {
-    warn("clawd-canvas: refusing to overwrite your existing statusLine.command.");
+    warn("parchment: refusing to overwrite your existing statusLine.command.");
     info("");
     info(`  Your current statusLine.command:`);
     muted(`    ${existingStatusCommand}`);
     info("");
-    info(`  clawd-canvas needs this in your statusline:`);
+    info(`  parchment needs this in your statusline:`);
     process.stdout.write(`    ${Color.Cyan}${desiredStatusCommand}${Color.Reset}\n`);
     info("");
     info("  Pick one:");
@@ -153,7 +153,7 @@ function cmdInstall(): number {
 
   writeClaudeSettings(settings);
 
-  ok("installed clawd-canvas at user scope");
+  ok("installed parchment at user scope");
   muted(`  repo: ${REPO_ROOT}`);
   muted(`  statusline: ${STATUSLINE_SCRIPT}`);
   muted(`  mcp server: bun run ${MCP_STDIO_ENTRY}`);
@@ -194,7 +194,7 @@ function cmdUninstall(): number {
   }
 
   writeClaudeSettings(settings);
-  ok("uninstalled clawd-canvas from user scope");
+  ok("uninstalled parchment from user scope");
   info("Restart Claude Code to drop the plugin + statusline + MCP server.");
   return 0;
 }
@@ -257,7 +257,7 @@ function cmdClean(): number {
 }
 
 function cmdHelp(): number {
-  info("clawd-canvas v0.2");
+  info("parchment v0.1.0");
   info("");
   info("Usage: bun run cli <command>");
   info("");

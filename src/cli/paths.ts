@@ -13,6 +13,6 @@ export const DAEMON_ENTRY = join(REPO_ROOT, "src", "daemon", "server.ts");
 export const CLAUDE_DIR = join(homedir(), ".claude");
 export const CLAUDE_USER_SETTINGS = join(CLAUDE_DIR, "settings.json");
 
-export const MARKETPLACE_KEY = "clawd-canvas";
-export const PLUGIN_ENABLE_KEY = "clawd-canvas@clawd-canvas";
+export const MARKETPLACE_KEY = "parchment";
+export const PLUGIN_ENABLE_KEY = "parchment@parchment";
 export const MCP_SERVER_KEY = "canvas";

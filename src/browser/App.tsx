@@ -185,10 +185,7 @@ function TopBar({
   return (
     <header className="h-[72px] shrink-0 px-8 flex items-center gap-3">
       <Mark />
-      <span className="text-[19px] font-semibold tracking-tight leading-none">clawd</span>
-      <span className="text-[19px] font-light text-muted-foreground tracking-tight leading-none">
-        canvas
-      </span>
+      <span className="text-[19px] font-semibold tracking-tight leading-none">parchment</span>
       <div className="flex-1" />
       <SessionSwitcher sessions={sessions} currentSessionId={currentSessionId} />
     </header>

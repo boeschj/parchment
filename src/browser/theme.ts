@@ -7,7 +7,7 @@ export const Theme = {
 
 export type Theme = (typeof Theme)[keyof typeof Theme];
 
-const THEME_STORAGE_KEY = "clawd-canvas:theme";
+const THEME_STORAGE_KEY = "parchment:theme";
 
 export function readInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);

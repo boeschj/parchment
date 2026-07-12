@@ -22,16 +22,16 @@ BUILD_LOCK_STALE_MINUTES=10
 
 if [[ ! -d "${CLAUDE_PLUGIN_ROOT}/node_modules" || ! -d "${CLAUDE_PLUGIN_ROOT}/dist/browser" ]]; then
   if ! command -v bun >/dev/null 2>&1; then
-    echo "[clawd-canvas] bun not found in PATH — install bun (https://bun.sh) and re-run \`claude\`." >&2
+    echo "[parchment] bun not found in PATH — install bun (https://bun.sh) and re-run \`claude\`." >&2
     exit 0
   fi
   build_lock="${CANVAS_STATE_DIR}/first-run-build.lock"
   if [[ -d "${build_lock}" ]] && [[ -n "$(find "${build_lock}" -maxdepth 0 -mmin +${BUILD_LOCK_STALE_MINUTES} 2>/dev/null)" ]]; then
-    echo "[clawd-canvas] clearing stale first-run build lock." >&2
+    echo "[parchment] clearing stale first-run build lock." >&2
     rmdir "${build_lock}" 2>/dev/null || true
   fi
   if mkdir "${build_lock}" 2>/dev/null; then
-    echo "[clawd-canvas] first run — installing deps and building in the background (~1 min on a cold cache). The canvas comes up automatically when it finishes." >&2
+    echo "[parchment] first run — installing deps and building in the background (~1 min on a cold cache). The canvas comes up automatically when it finishes." >&2
     nohup bash -c '
       set -uo pipefail
       cd "$1" || exit 1
@@ -39,14 +39,14 @@ if [[ ! -d "${CLAUDE_PLUGIN_ROOT}/node_modules" || ! -d "${CLAUDE_PLUGIN_ROOT}/d
         rmdir "$2" 2>/dev/null || true
         CANVAS_PORT="$3" nohup bun run "$1/src/daemon/server.ts" >>"$4" 2>&1 &
       else
-        echo "[clawd-canvas] first-run build failed" >>"$5"
+        echo "[parchment] first-run build failed" >>"$5"
         rmdir "$2" 2>/dev/null || true
       fi
     ' first-run-build "${CLAUDE_PLUGIN_ROOT}" "${build_lock}" "${CANVAS_DEFAULT_PORT}" "${CANVAS_LOG_FILE}" "${CANVAS_STATE_DIR}/first-run-build.log" \
       >>"${CANVAS_STATE_DIR}/first-run-build.log" 2>&1 &
     disown || true
   else
-    echo "[clawd-canvas] another session is running the first-time build; the canvas will be up shortly." >&2
+    echo "[parchment] another session is running the first-time build; the canvas will be up shortly." >&2
   fi
   exit 0
 fi
@@ -56,13 +56,13 @@ fi
 # persisted to disk, so the restart is lossless and the browser tab reconnects
 # on its own — the user never runs a command to pick up an update.
 if canvas_server_alive && canvas_daemon_is_stale; then
-  echo "[clawd-canvas] newer build detected — restarting the canvas daemon to adopt it." >&2
+  echo "[parchment] newer build detected — restarting the canvas daemon to adopt it." >&2
   canvas_stop_daemon
 fi
 
 if ! canvas_server_alive; then
   if ! command -v bun >/dev/null 2>&1; then
-    echo "[clawd-canvas] bun not found in PATH — install bun and re-run \`claude\`. https://bun.sh" >&2
+    echo "[parchment] bun not found in PATH — install bun and re-run \`claude\`. https://bun.sh" >&2
     exit 0
   fi
   CANVAS_PORT="${CANVAS_DEFAULT_PORT}" \
@@ -72,7 +72,7 @@ if ! canvas_server_alive; then
 fi
 
 if ! canvas_wait_for_health; then
-  echo "[clawd-canvas] daemon failed to come up within timeout. See ${CANVAS_LOG_FILE}" >&2
+  echo "[parchment] daemon failed to come up within timeout. See ${CANVAS_LOG_FILE}" >&2
   exit 0
 fi
 
@@ -104,4 +104,4 @@ canvas_activate_session "${session_id}" "${cwd}"
 canvas_register_transcript "${session_id}" "${transcript_path}"
 
 url="$(canvas_session_full_href "${session_id}")"
-printf '[clawd-canvas] canvas ready: %s\n' "${url}" >&2
+printf '[parchment] canvas ready: %s\n' "${url}" >&2

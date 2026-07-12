@@ -1,7 +1,7 @@
 {
   "name": "parchment",
-  "version": "0.2.0",
-  "description": "Generative-UI canvas for Claude Code. Claude calls MCP tools, your browser tab renders json-render specs (shadcn + extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable), edits flow back via UserPromptSubmit.",
+  "version": "0.1.0",
+  "description": "Parchment is the visual layer for agentic coding tools: a generative-UI canvas rendered in the browser. Claude calls canvas_* MCP tools, your browser tab renders json-render specs (shadcn + extensions: PlanFile, DiffViewer, MermaidEditor, Chart, DataTable), and edits flow back via UserPromptSubmit.",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.23.0",

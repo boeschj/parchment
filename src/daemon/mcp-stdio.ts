@@ -178,7 +178,7 @@ function specRejection(issues: SpecIssueList): ReturnType<typeof errorText> {
   );
 }
 
-const server = new McpServer({ name: "clawd-canvas", version: "0.2.0" });
+const server = new McpServer({ name: "parchment", version: "0.1.0" });
 
 server.registerTool(
   "canvas_plan",

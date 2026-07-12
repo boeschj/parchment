@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 // path across test files, so this must happen via a dynamic import (never a
 // static one, which ESM hoists ahead of the mock.module call below) — see
 // slots.test.ts for the same pattern.
-const fakeHome = mkdtempSync(join(tmpdir(), "clawd-canvas-edits-"));
+const fakeHome = mkdtempSync(join(tmpdir(), "parchment-edits-"));
 const realOs = await import("node:os");
 mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));
 

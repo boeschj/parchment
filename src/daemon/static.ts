@@ -51,7 +51,7 @@ function bundleNotReadyPage(): Response {
   const heading = isBuilding ? "Building the canvas…" : "The canvas isn’t built yet";
   const detail = isBuilding
     ? "First run installs dependencies and builds the browser bundle — about a minute on a cold cache. This page refreshes on its own; leave it open."
-    : "The browser bundle is missing. Start a Claude Code session to trigger the build, or run <code>bun run build:browser</code> in the clawd-canvas plugin directory. This page refreshes on its own.";
+    : "The browser bundle is missing. Start a Claude Code session to trigger the build, or run <code>bun run build:browser</code> in the parchment plugin directory. This page refreshes on its own.";
 
   return new Response(bundleNotReadyHtml(heading, detail), {
     // 503 is the honest status (temporarily unavailable) and keeps proxies from
@@ -74,7 +74,7 @@ function bundleNotReadyHtml(heading: string, detail: string): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="refresh" content="${REFRESH_SECONDS}" />
-<title>clawd-canvas</title>
+<title>parchment</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }

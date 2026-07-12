@@ -49,7 +49,7 @@ const REQUEST_IDLE_TIMEOUT_S = 30;
 // MCP, browser) had to carry respawn logic to compensate.
 
 if (await isExistingDaemonHealthy()) {
-  console.error("clawd-canvas: daemon already running; exiting.");
+  console.error("parchment: daemon already running; exiting.");
   process.exit(0);
 }
 
@@ -444,7 +444,7 @@ async function startServerWithPortFallback(): Promise<CanvasServer> {
     } catch (caught) {
       if (await isCanvasDaemonAt(candidatePort)) {
         console.error(
-          `clawd-canvas: another daemon won port ${candidatePort} during startup; exiting.`,
+          `parchment: another daemon won port ${candidatePort} during startup; exiting.`,
         );
         process.exit(0);
       }
@@ -453,14 +453,14 @@ async function startServerWithPortFallback(): Promise<CanvasServer> {
     }
   }
   throw new Error(
-    `clawd-canvas: could not bind any port in [${DEFAULT_PORT}..${DEFAULT_PORT + MAX_PORT_ATTEMPTS - 1}]\n${errors.join("\n")}`,
+    `parchment: could not bind any port in [${DEFAULT_PORT}..${DEFAULT_PORT + MAX_PORT_ATTEMPTS - 1}]\n${errors.join("\n")}`,
   );
 }
 
 const server = await startServerWithPortFallback();
 const boundPort = server.port;
 if (boundPort === undefined) {
-  throw new Error("clawd-canvas: server bound but Bun did not report a port");
+  throw new Error("parchment: server bound but Bun did not report a port");
 }
 writeServerStateFiles(boundPort, SERVER_TOKEN);
 
@@ -470,4 +470,4 @@ process.on("exit", () => {
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
 
-console.log(`clawd-canvas: listening on http://localhost:${boundPort}`);
+console.log(`parchment: listening on http://localhost:${boundPort}`);

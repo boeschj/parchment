@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clawd-canvas statusline.
+# parchment statusline.
 #
 # Invoked by Claude Code's statusLine.command. NOT a plugin hook — so
 # CLAUDE_PLUGIN_ROOT is unset; we self-locate lib.sh via this script's dir.

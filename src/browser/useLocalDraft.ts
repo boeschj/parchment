@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-const STORAGE_PREFIX = "clawd-canvas:draft:";
+const STORAGE_PREFIX = "parchment:draft:";
 
 function storageKey(sessionId: string, slotId: string, elementId: string): string {
   return `${STORAGE_PREFIX}${sessionId}:${slotId}:${elementId}`;
