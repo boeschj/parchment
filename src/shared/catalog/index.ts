@@ -16,6 +16,7 @@ import { FileChangeDefinition } from "./extensions/FileChange.ts";
 import { TestResultsDefinition } from "./extensions/TestResults.ts";
 import { MarkdownDefinition } from "./extensions/Markdown.ts";
 import { Scene3DDefinition } from "./extensions/Scene3D.ts";
+import { SparklineDefinition } from "./extensions/Sparkline.ts";
 
 export const CanvasExtensionDefinitions = {
   PlanFile: PlanFileDefinition,
@@ -32,6 +33,7 @@ export const CanvasExtensionDefinitions = {
   TestResults: TestResultsDefinition,
   Markdown: MarkdownDefinition,
   Scene3D: Scene3DDefinition,
+  Sparkline: SparklineDefinition,
 } as const;
 
 // Canvas-specific actions. The browser registers handlers for these in
