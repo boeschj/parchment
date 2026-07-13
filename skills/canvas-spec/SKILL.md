@@ -32,6 +32,8 @@ never inside `props`. Every child key must exist in `elements`.
 - `{"$template": "Hi ${/user/name}, ${count} results"}` — string interpolation.
 - `{"$cond": {"$state": "/ok"}, "$then": "success", "$else": "danger"}` — branch.
 - Inside `repeat` scope: `{"$item": "field"}`, `{"$index": true}`, `{"$bindItem": "field"}`.
+- String shorthand: a bare `"$state./path"` / `"$bindState./form/title"` string
+  (dot or pointer path) is accepted anywhere and normalized to the object form.
 
 Condition operators, `$and`/`$or`, `watch`, and the full state-action set
 (setState/pushState/removeState/validateForm) are in
@@ -86,6 +88,15 @@ Names only; full prop tables are in **references/components.md**.
 - **Inputs & actions** (always bind with `$bindState`): `Button`, `Link`, `Input`,
   `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Slider`, `Toggle`,
   `ToggleGroup`, `ButtonGroup`, `DropdownMenu`.
+
+## Accepted input forms (part of the schema, auto-normalized)
+
+`gap` number / `"16"` / size word → nearest none/sm/md/lg/xl · `direction`
+row/column · Heading `level` 1–6 (5/6 clamp to h4) · variant synonyms (Button
+default→primary, destructive→danger; Badge danger/error→destructive; Text
+default→body, secondary→muted) · Chart `xScale` linear→category,
+date/timestamp→time · Chart xKey/yKey/yKeys→x/y · DataTable data→rows,
+columns[].label→header · Metric value/delta numbers → display strings.
 
 ## Integrity checklist (walk it before every send)
 

@@ -38,12 +38,18 @@ guidance already lives in the `canvas-tools` / `canvas-spec` skills.
   `canvas_library` tool with `action: "save" | "load" | "list"`.
 - **Slimmed** every surviving tool's description to 1–2 sentences (enum values
   in schemas are kept — they constrain the model; narrative prose was cut).
-- **Auto-repair**: `canvas_render` / `canvas_patch` now silently coerce
-  unambiguous wrong-but-obvious enum values instead of rejecting them — numeric
-  `gap` to the nearest spacing token, `level: 1` to `h1`, `variant: "default"`
-  to `primary`, Chart `xScale: "linear"` to `category`, and more — so common
-  first-attempt mistakes render on the first pass. Genuinely ambiguous values
-  still reject with the exact fix. `Steps` item `status` is now optional.
+- **Declared input forms**: the tolerances `canvas_render` / `canvas_patch`
+  extend to model dialect are part of the component schemas themselves
+  (`src/shared/catalog/prop-normal-forms.ts`), not a repair pass — numeric
+  `gap` → nearest spacing token, `level: 1` → `h1`, `variant: "default"` →
+  `primary`, Chart `xScale: "linear"` → `category`, Chart `xKey`/`yKeys` →
+  `x`/`y`, DataTable `data`/`label` → `rows`/`header`, Metric numeric
+  `value`/`delta` → display strings, and `"$state.path"` string shorthand in
+  the expression grammar. What the docs advertise is exactly what the schema
+  accepts, and every normalization is total and semantics-preserving.
+  Genuinely ambiguous values still reject with the exact fix, and the one
+  remaining heuristic (unknown type `Form` → `Card`) is marked as such.
+  `Steps` item `status` is now optional.
 
 ## 0.3.0 — 2026-07-06
 
