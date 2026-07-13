@@ -1,8 +1,9 @@
 // Single-pass spec validation. canvas_render and canvas_patch run every spec
-// through prepareSpec before it reaches a browser: it silently repairs the
-// mistakes that can be repaired, and rejects the rest with messages precise
-// enough that the model fixes them in ONE retry — the element key, the exact
-// path, and the exact fix.
+// through prepareSpec before it reaches a browser. Props arriving in a declared
+// input form (src/shared/catalog/prop-normal-forms.ts) are normalized to the
+// normal form the renderer consumes; everything else that fails is rejected
+// with messages precise enough that the model fixes them in ONE retry — the
+// element key, the exact path, and the exact fix.
 //
 // This is deliberately hand-written rather than json-render's catalog.validate:
 // that path strips the interactive fields (on/repeat/watch/state) the canvas
@@ -10,18 +11,23 @@
 // core and enrich their output here.
 
 import { autoFixSpec, validateSpec, type Spec, type SpecIssue } from "@json-render/core";
-import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
 import * as z from "zod/v4";
-import { canvasCatalog, CanvasExtensionDefinitions } from "../shared/catalog/index.ts";
-import { ChartXScale } from "../shared/catalog/extensions/Chart.ts";
+import { canvasCatalog } from "../shared/catalog/index.ts";
+import {
+  PropNameAliases,
+  PropNormalForms,
+  WidenedComponentPropSchemas,
+} from "../shared/catalog/prop-normal-forms.ts";
+import { isExpressionValue, isPlainObject, parseStateShorthand } from "../shared/expressions.ts";
 import { extractIntentMenu } from "./intents.ts";
 import type { JsonRenderSpec, UIElement } from "../shared/types.ts";
 
 export type SpecPreparation = {
   spec: JsonRenderSpec;
   issues: string[];
-  // Wrong-but-obvious enum values we silently coerced to a catalog value, one
-  // human-readable line each (e.g. 'elements/page/props/gap: coerced 16 → "md"').
+  // Declared-form normalizations we applied, one human-readable line each
+  // (e.g. 'elements/page/props/gap: coerced 16 → "md"') — observability into
+  // every rewrite the spec went through.
   repairs: string[];
 };
 
@@ -47,11 +53,9 @@ export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   const { spec: autofixed } = autoFixSpec(toCoreSpec(spec));
   const normalized = withLeafChildren(fromCoreSpec(autofixed));
   const repairs: string[] = [];
-  let repaired = repairComponentTypeAliases(normalized, repairs);
-  repaired = repairPropNameAliases(repaired, repairs);
-  repaired = repairExpressionShorthand(repaired, repairs);
-  repaired = repairEnumSynonyms(repaired, repairs);
-  repaired = repairNumbersWhereStringsExpected(repaired, repairs);
+  let repaired = repairUnknownComponentTypes(normalized, repairs);
+  repaired = normalizeExpressionShorthand(repaired, repairs);
+  repaired = applyDeclaredNormalForms(repaired, repairs);
   const issues = [
     ...collectStructuralIssues(repaired),
     ...collectMissingChildIssues(repaired),
@@ -117,29 +121,20 @@ function collectMissingChildIssues(spec: JsonRenderSpec): string[] {
 
 // ---- Component props -------------------------------------------------------
 
-// Every prop schema is applied with .partial(). Required props are routinely
-// supplied as runtime expressions ({$state}/{$template}) which staticPropsOnly
-// strips before validation, so enforcing required-ness here would reject valid
-// live-bound specs (e.g. a Metric with value: {$template}, the flagship
-// live-dashboard shape). partial() still catches wrong types and bad enum values
-// on the static props that ARE present — the real single-pass wins — while
-// expression-bound props are covered by the state-seeding and chart-data checks.
+// Every prop schema is the WIDENED schema from prop-normal-forms.ts — the
+// declared input forms parse (and normalize) directly through it — applied
+// with .partial(). Required props are routinely supplied as runtime expressions
+// ({$state}/{$template}) which staticPropsOnly strips before validation, so
+// enforcing required-ness here would reject valid live-bound specs (e.g. a
+// Metric with value: {$template}, the flagship live-dashboard shape). partial()
+// still catches wrong types and bad enum values on the static props that ARE
+// present — the real single-pass wins — while expression-bound props are
+// covered by the state-seeding and chart-data checks.
 const ComponentPropSchemas: Record<string, z.ZodType> = Object.fromEntries(
-  Object.entries({ ...shadcnComponentDefinitions, ...CanvasExtensionDefinitions }).map(
-    ([name, definition]) => {
-      const propsSchema = definition.props as unknown as z.ZodObject;
-      return [name, propsSchema.partial()] as const;
-    },
+  Object.entries(WidenedComponentPropSchemas).map(
+    ([name, propsSchema]) => [name, propsSchema.partial()] as const,
   ),
 );
-
-// Expression-valued props ({$state}, {$bindState}, {$template}, ...) resolve at
-// render time, so their static type never matches the prop schema — skip them.
-function isExpressionValue(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(isExpressionValue);
-  if (!isPlainObject(value)) return false;
-  return Object.keys(value).some((key) => key.startsWith("$"));
-}
 
 function staticPropsOnly(props: Record<string, unknown>): Record<string, unknown> {
   const entries = Object.entries(props).filter(([, value]) => !isExpressionValue(value));
@@ -165,192 +160,74 @@ function collectPropIssues(spec: JsonRenderSpec): string[] {
   return issues;
 }
 
-// ---- Enum synonym auto-repair ----------------------------------------------
-// A model sometimes emits a wrong-but-obvious enum value: gap: 16, level: 1,
-// variant: "default", xScale: "linear". Rather than bounce the whole spec on a
-// value we can resolve unambiguously, we coerce it to the catalog value and
-// record the repair; the coerced spec then passes the prop check above.
-// Genuinely ambiguous values are left untouched so that check still rejects
-// them with the exact fix. Every candidate is verified against the real
-// component schema before it is applied, so a coercion can never introduce an
-// invalid value even if a synonym map drifts from the catalog.
+// ---- Declared input-form normalization ---------------------------------------
+// One generic pass driven entirely by the prop-normal-forms table: rename
+// declared prop aliases to their normal-form names, then rewrite each declared
+// input form to the normal form the renderer consumes. A normalization is only
+// adopted when the widened schema accepts the result, so the table can never
+// introduce an invalid value even if it drifts from the catalog. Anything the
+// table does not declare is left for collectPropIssues to reject with the
+// exact fix.
 
-type CandidateResolver = (value: unknown) => string[];
-
-// The spacing scale a numeric gap is read against (as pixels); the nearest
-// token wins, ties break toward the more visible (larger) token. Grid has no
-// "none", so gapCandidates offers "sm"/"md" fallbacks (verified per-component).
-const GAP_TOKENS = ["none", "sm", "md", "lg", "xl"] as const;
-type GapToken = (typeof GAP_TOKENS)[number];
-const GAP_TOKEN_PIXELS: Record<GapToken, number> = { none: 0, sm: 8, md: 16, lg: 24, xl: 32 };
-
-const SPACING_WORD_TO_TOKEN = {
-  none: "none",
-  zero: "none",
-  xxs: "sm",
-  "2xs": "sm",
-  xs: "sm",
-  tiny: "sm",
-  small: "sm",
-  medium: "md",
-  normal: "md",
-  large: "lg",
-  big: "lg",
-  xlarge: "xl",
-  xxl: "xl",
-  "2xl": "xl",
-  huge: "xl",
-} as const;
-
-const DIRECTION_TO_TOKEN = {
-  row: "horizontal",
-  horizontal: "horizontal",
-  column: "vertical",
-  col: "vertical",
-  vertical: "vertical",
-} as const;
-
-const BUTTON_VARIANT_TO_TOKEN = {
-  default: "primary",
-  destructive: "danger",
-  error: "danger",
-  outline: "secondary",
-  ghost: "secondary",
-  link: "secondary",
-} as const;
-
-const BADGE_VARIANT_TO_TOKEN = {
-  danger: "destructive",
-  error: "destructive",
-  primary: "default",
-} as const;
-
-const TEXT_VARIANT_TO_TOKEN = {
-  default: "body",
-  normal: "body",
-  secondary: "muted",
-  subtle: "muted",
-  small: "caption",
-  subtitle: "lead",
-} as const;
-
-const CHART_XSCALE_TO_TOKEN = {
-  linear: ChartXScale.Category,
-  numeric: ChartXScale.Category,
-  ordinal: ChartXScale.Category,
-  timestamp: ChartXScale.Time,
-  datetime: ChartXScale.Time,
-  date: ChartXScale.Time,
-} as const;
-
-const HEADING_LEVEL_MIN = 1;
-const HEADING_LEVEL_MAX = 4;
-
-const PropCoercions: Record<string, Record<string, CandidateResolver>> = {
-  Stack: { gap: gapCandidates, direction: wordResolver(DIRECTION_TO_TOKEN) },
-  Grid: { gap: gapCandidates },
-  Heading: { level: headingLevelCandidates },
-  Button: { variant: wordResolver(BUTTON_VARIANT_TO_TOKEN) },
-  Badge: { variant: wordResolver(BADGE_VARIANT_TO_TOKEN) },
-  Text: { variant: wordResolver(TEXT_VARIANT_TO_TOKEN) },
-  Chart: { xScale: wordResolver(CHART_XSCALE_TO_TOKEN) },
-};
-
-function repairEnumSynonyms(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+function applyDeclaredNormalForms(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
   const elements: Record<string, UIElement> = {};
   for (const [key, element] of Object.entries(spec.elements)) {
-    elements[key] = coerceElementProps(key, element, repairs);
+    const aliased = renameDeclaredPropAliases(key, element, repairs);
+    elements[key] = normalizeDeclaredPropForms(key, aliased, repairs);
   }
   return { ...spec, elements };
 }
 
-// ---- Dialect repair --------------------------------------------------------
-// Under token pressure models speak a plausible dialect rather than guess
-// randomly: a "Form" container, Chart xKey/yKeys, DataTable data/label,
-// "$state.path" shorthand strings, numbers where a preformatted string is
-// expected. Each repair below maps one OBSERVED dialect form onto the real
-// vocabulary; everything still passes the full prop check afterwards, and
-// ambiguous forms are left to reject with the exact fix.
-
-const COMPONENT_TYPE_ALIASES = {
-  form: "Card",
-} as const;
-
-function repairComponentTypeAliases(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
-  const elements: Record<string, UIElement> = {};
-  let changed = false;
-  for (const [key, element] of Object.entries(spec.elements)) {
-    const isKnownType = ComponentPropSchemas[element.type] !== undefined;
-    const alias = lookupSynonym(COMPONENT_TYPE_ALIASES, element.type);
-    if (!isKnownType && alias !== null) {
-      elements[key] = { ...element, type: alias };
-      repairs.push(`elements/${key}/type: coerced "${element.type}" → "${alias}"`);
-      changed = true;
-      continue;
-    }
-    elements[key] = element;
-  }
-  return changed ? { ...spec, elements } : spec;
-}
-
-const DATA_TABLE_TYPE = "DataTable";
-
-const PROP_NAME_ALIASES: Record<string, Readonly<Record<string, string>>> = {
-  Chart: { xkey: "x", ykey: "y", ykeys: "y" },
-  [DATA_TABLE_TYPE]: { data: "rows" },
-};
-
-function repairPropNameAliases(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
-  const elements: Record<string, UIElement> = {};
-  let changed = false;
-  for (const [key, element] of Object.entries(spec.elements)) {
-    const renamed = renameAliasedProps(key, element, repairs);
-    const normalized =
-      renamed.type === DATA_TABLE_TYPE ? normalizeDataTableColumns(key, renamed, repairs) : renamed;
-    if (normalized !== element) changed = true;
-    elements[key] = normalized;
-  }
-  return changed ? { ...spec, elements } : spec;
-}
-
-function renameAliasedProps(key: string, element: UIElement, repairs: string[]): UIElement {
-  const aliases = PROP_NAME_ALIASES[element.type];
+function renameDeclaredPropAliases(key: string, element: UIElement, repairs: string[]): UIElement {
+  const aliases = PropNameAliases[element.type];
   if (!aliases) return element;
   const props = { ...element.props };
   let changed = false;
-  for (const [aliasName, realName] of Object.entries(aliases)) {
+  for (const [aliasName, normalName] of Object.entries(aliases)) {
     const presentAlias = Object.keys(props).find((name) => name.toLowerCase() === aliasName);
     if (presentAlias === undefined) continue;
-    if (props[realName] !== undefined) continue;
-    props[realName] = props[presentAlias];
+    if (props[normalName] !== undefined) continue;
+    props[normalName] = props[presentAlias];
     delete props[presentAlias];
     changed = true;
-    repairs.push(`elements/${key}/props: renamed "${presentAlias}" → "${realName}"`);
+    repairs.push(`elements/${key}/props: renamed "${presentAlias}" → "${normalName}"`);
   }
   return changed ? { ...element, props } : element;
 }
 
-function normalizeDataTableColumns(key: string, element: UIElement, repairs: string[]): UIElement {
-  const columns = element.props.columns;
-  if (!Array.isArray(columns)) return element;
+function normalizeDeclaredPropForms(key: string, element: UIElement, repairs: string[]): UIElement {
+  const normalizers = PropNormalForms[element.type];
+  if (!normalizers) return element;
+  const props = { ...element.props };
   let changed = false;
-  const normalized = columns.map((column, index) => {
-    if (!isPlainObject(column)) return column;
-    if (column.header !== undefined || typeof column.label !== "string") return column;
+  for (const [prop, normalize] of Object.entries(normalizers)) {
+    const original = props[prop];
+    if (original === undefined) continue;
+    if (isExpressionValue(original)) continue;
+    const normalized = normalize(original);
+    if (normalized === original) continue;
+    if (!isValidPropValue(element.type, prop, normalized)) continue;
+    props[prop] = normalized;
     changed = true;
-    repairs.push(`elements/${key}/props/columns/${index}: renamed "label" → "header"`);
-    const { label, ...rest } = column;
-    return { ...rest, header: label };
-  });
-  if (!changed) return element;
-  return { ...element, props: { ...element.props, columns: normalized } };
+    repairs.push(
+      `elements/${key}/props/${prop}: coerced ${JSON.stringify(original)} → ${JSON.stringify(normalized)}`,
+    );
+  }
+  return changed ? { ...element, props } : element;
 }
 
-// "$state.build.duration" / "$bindState:/form/title" as a bare string is
-// unmistakable intent for the expression object form.
-const STATE_SHORTHAND_PATTERN = /^\$(state|bindState)([.:/])(.+)$/;
+function isValidPropValue(type: string, prop: string, value: unknown): boolean {
+  const schema = ComponentPropSchemas[type];
+  if (!schema) return false;
+  return schema.safeParse({ [prop]: value }).success;
+}
 
-function repairExpressionShorthand(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+// ---- Expression shorthand ----------------------------------------------------
+// "$state.build.duration" / "$bindState:/form/title" as a bare string is part
+// of the declared expression grammar (src/shared/expressions.ts); this pass
+// rewrites every occurrence in props to the object form.
+
+function normalizeExpressionShorthand(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
   const elements: Record<string, UIElement> = {};
   let changed = false;
   for (const [key, element] of Object.entries(spec.elements)) {
@@ -367,7 +244,7 @@ function repairExpressionShorthand(spec: JsonRenderSpec, repairs: string[]): Jso
 
 function replaceShorthandDeep(value: unknown, path: string, repairs: string[]): unknown {
   if (typeof value === "string") {
-    const expression = shorthandExpression(value);
+    const expression = parseStateShorthand(value);
     if (expression === null) return value;
     repairs.push(`${path}: coerced ${JSON.stringify(value)} → ${JSON.stringify(expression)}`);
     return expression;
@@ -393,37 +270,26 @@ function replaceShorthandDeep(value: unknown, path: string, repairs: string[]): 
   return changed ? mapped : value;
 }
 
-function shorthandExpression(raw: string): Record<string, string> | null {
-  const match = raw.trim().match(STATE_SHORTHAND_PATTERN);
-  if (!match) return null;
-  const body = (match[3] ?? "").trim();
-  if (body.length === 0) return null;
-  const pointer = body.startsWith("/") ? body : `/${body.replace(/\./g, "/")}`;
-  const expressionKey = match[1] === "state" ? "$state" : "$bindState";
-  return { [expressionKey]: pointer };
-}
+// ---- The one heuristic -------------------------------------------------------
+// Everything above is a declared contract; this is the single remaining guess.
+// There is no Form component, but models under token pressure emit type "Form"
+// for form containers, and Card is what they mean structurally. Mapping it
+// beats rejecting the whole spec over a wrapper. Unknown types outside this
+// table still reject with the full known-type list.
 
-function repairNumbersWhereStringsExpected(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
+const UNKNOWN_COMPONENT_TYPE_ALIASES: Readonly<Record<string, string>> = {
+  form: "Card",
+};
+
+function repairUnknownComponentTypes(spec: JsonRenderSpec, repairs: string[]): JsonRenderSpec {
   const elements: Record<string, UIElement> = {};
   let changed = false;
   for (const [key, element] of Object.entries(spec.elements)) {
-    if (ComponentPropSchemas[element.type] === undefined) {
-      elements[key] = element;
-      continue;
-    }
-    const props = { ...element.props };
-    let elementChanged = false;
-    for (const [prop, value] of Object.entries(props)) {
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (isValidPropValue(element.type, prop, value)) continue;
-      const asString = String(value);
-      if (!isValidPropValue(element.type, prop, asString)) continue;
-      props[prop] = asString;
-      elementChanged = true;
-      repairs.push(`elements/${key}/props/${prop}: coerced ${value} → ${JSON.stringify(asString)}`);
-    }
-    if (elementChanged) {
-      elements[key] = { ...element, props };
+    const isKnownType = WidenedComponentPropSchemas[element.type] !== undefined;
+    const alias = unknownTypeAlias(element.type);
+    if (!isKnownType && alias !== null) {
+      elements[key] = { ...element, type: alias };
+      repairs.push(`elements/${key}/type: coerced "${element.type}" → "${alias}"`);
       changed = true;
       continue;
     }
@@ -432,109 +298,12 @@ function repairNumbersWhereStringsExpected(spec: JsonRenderSpec, repairs: string
   return changed ? { ...spec, elements } : spec;
 }
 
-function coerceElementProps(key: string, element: UIElement, repairs: string[]): UIElement {
-  const resolvers = PropCoercions[element.type];
-  if (!resolvers) return element;
-  const props = { ...element.props };
-  let changed = false;
-  for (const [prop, resolver] of Object.entries(resolvers)) {
-    const original = props[prop];
-    if (original === undefined) continue;
-    if (isExpressionValue(original)) continue;
-    if (isValidPropValue(element.type, prop, original)) continue;
-    const coerced = firstValidCandidate(element.type, prop, resolver(original));
-    if (coerced === null) continue;
-    props[prop] = coerced;
-    changed = true;
-    repairs.push(
-      `elements/${key}/props/${prop}: coerced ${JSON.stringify(original)} → ${JSON.stringify(coerced)}`,
-    );
+function unknownTypeAlias(type: string): string | null {
+  const normalized = type.trim().toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(UNKNOWN_COMPONENT_TYPE_ALIASES, normalized)) {
+    return null;
   }
-  return changed ? { ...element, props } : element;
-}
-
-function isValidPropValue(type: string, prop: string, value: unknown): boolean {
-  const schema = ComponentPropSchemas[type];
-  if (!schema) return false;
-  return schema.safeParse({ [prop]: value }).success;
-}
-
-function firstValidCandidate(type: string, prop: string, candidates: string[]): string | null {
-  for (const candidate of candidates) {
-    if (isValidPropValue(type, prop, candidate)) return candidate;
-  }
-  return null;
-}
-
-function gapCandidates(value: unknown): string[] {
-  const pixels = numericPixels(value);
-  if (pixels !== null) {
-    return dedupe([nearestGapToken(pixels), "sm", "md"]);
-  }
-  if (typeof value === "string") {
-    const mapped = lookupSynonym(SPACING_WORD_TO_TOKEN, value);
-    return mapped ? [mapped] : [];
-  }
-  return [];
-}
-
-// A gap given as a number (16) or a numeric string ("16") is read as pixels.
-function numericPixels(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) {
-    return Number.parseFloat(value.trim());
-  }
-  return null;
-}
-
-function nearestGapToken(pixels: number): GapToken {
-  let best: GapToken = "md";
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const token of GAP_TOKENS) {
-    const distance = Math.abs(GAP_TOKEN_PIXELS[token] - pixels);
-    const isCloser = distance < bestDistance;
-    const isTieButMoreVisible =
-      distance === bestDistance && GAP_TOKEN_PIXELS[token] > GAP_TOKEN_PIXELS[best];
-    if (isCloser || isTieButMoreVisible) {
-      best = token;
-      bestDistance = distance;
-    }
-  }
-  return best;
-}
-
-function headingLevelCandidates(value: unknown): string[] {
-  const parsed = parseLeadingInt(value);
-  if (parsed === null) return [];
-  const clamped = Math.min(Math.max(parsed, HEADING_LEVEL_MIN), HEADING_LEVEL_MAX);
-  return [`h${clamped}`];
-}
-
-function parseLeadingInt(value: unknown): number | null {
-  if (typeof value === "number" && Number.isInteger(value)) return value;
-  if (typeof value === "string") {
-    const match = value.match(/\d+/);
-    if (match) return Number.parseInt(match[0], 10);
-  }
-  return null;
-}
-
-function wordResolver(map: Readonly<Record<string, string>>): CandidateResolver {
-  return (value) => {
-    if (typeof value !== "string") return [];
-    const mapped = lookupSynonym(map, value);
-    return mapped ? [mapped] : [];
-  };
-}
-
-function lookupSynonym(map: Readonly<Record<string, string>>, key: string): string | null {
-  const normalized = key.trim().toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(map, normalized)) return null;
-  return map[normalized] ?? null;
-}
-
-function dedupe(values: string[]): string[] {
-  return [...new Set(values)];
+  return UNKNOWN_COMPONENT_TYPE_ALIASES[normalized] ?? null;
 }
 
 // ---- State seeding ---------------------------------------------------------
@@ -658,10 +427,4 @@ function seriesKeysOf(y: unknown): string[] {
   if (typeof y === "string") return [y];
   if (Array.isArray(y)) return y.filter((entry): entry is string => typeof entry === "string");
   return [];
-}
-
-// ---- Shared ----------------------------------------------------------------
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
