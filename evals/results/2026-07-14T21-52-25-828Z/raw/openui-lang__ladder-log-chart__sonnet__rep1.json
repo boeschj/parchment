@@ -1,0 +1,67 @@
+{
+  "runId": "openui-lang__ladder-log-chart__sonnet__rep1",
+  "armId": "openui-lang",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 1,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 3314,
+      "authoredOutputTokens": 490,
+      "authoredArtifactBytes": 613,
+      "renderCallCount": 4,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 12,
+      "cacheReadTokens": 156352,
+      "cacheCreationTokens": 22448,
+      "assistantTurnCount": 6,
+      "wallClockMs": 37647,
+      "reportedCostUsd": 0.23211360000000003,
+      "artifact": {
+        "source": "root = Card([content], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from app.log\", \"lg\", true)\n\nerrorData = Query(\"log_series\", {file: \"./logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: defaultBuckets, x: \"bucket\", y: \"count\"})\n\ndefaultBuckets = [\n  {bucket: \"09:00\", count: 1},\n  {bucket: \"09:10\", count: 2},\n  {bucket: \"09:20\", count: 6},\n  {bucket: \"09:30\", count: 7},\n  {bucket: \"09:40\", count: 2},\n  {bucket: \"09:50\", count: 1}\n]\n\nerrorChart = Chart(\"bar\", errorData.data, errorData.x, errorData.y, \"ERROR Lines per 10-Minute Bucket\", 360)\n\ncontent = Stack([errorChart], \"vertical\", \"lg\")",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "root = Card([content], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from app.log\", \"lg\", true)\n\nerrorData = Query(\"log_series\", {file: \"./logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: defaultBuckets, x: \"bucket\", y: \"count\"})\n\ndefaultBuckets = [\n  {bucket: \"09:00\", count: 1},\n  {bucket: \"09:10\", count: 2},\n  {bucket: \"09:20\", count: 6},\n  {bucket: \"09:30\", count: 7},\n  {bucket: \"09:40\", count: 2},\n  {bucket: \"09:50\", count: 1}\n]\n\nerrorChart = Chart(\"bar\", errorData.data, errorData.x, errorData.y, \"ERROR Lines per 10-Minute Bucket\", 360)\n\ncontent = Stack([errorChart], \"vertical\", \"lg\")"
+        }
+      },
+      "accepted": false,
+      "failureReasons": [
+        "content-non-empty: expected >=200 visible chars and >=120px of painted content, observed 127 chars and 876px — \"Error Rate Over Time ERROR lines per 10-minute bucket from app.log ERROR Lines per 10-Minute Bucket 09:00 09:10 09:20 09:30 09:40 09:50 0 3 6 9 12 0 1 5 11 4 1\""
+      ]
+    },
+    {
+      "attemptIndex": 1,
+      "outputTokens": 1022,
+      "authoredOutputTokens": 964,
+      "authoredArtifactBytes": 1053,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 4,
+      "cacheReadTokens": 65660,
+      "cacheCreationTokens": 1302,
+      "assistantTurnCount": 2,
+      "wallClockMs": 13927,
+      "reportedCostUsd": 0.042852,
+      "artifact": {
+        "source": "root = Card([content], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from app.log\", \"lg\", true)\n\nerrorData = Query(\"log_series\", {file: \"./logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: defaultBuckets, x: \"bucket\", y: \"count\"})\n\ndefaultBuckets = [\n  {bucket: \"09:00\", count: 1},\n  {bucket: \"09:10\", count: 2},\n  {bucket: \"09:20\", count: 6},\n  {bucket: \"09:30\", count: 7},\n  {bucket: \"09:40\", count: 2},\n  {bucket: \"09:50\", count: 1}\n]\n\nintroText = Text(\"This chart plots the number of ERROR-level log lines from app.log, bucketed into ten-minute windows starting at each label on the x-axis. Errors cluster noticeably in the middle of the hour before tapering off.\", \"muted\")\n\nerrorChart = Chart(\"bar\", errorData.data, errorData.x, errorData.y, \"ERROR Lines per 10-Minute Bucket\", 360)\n\ntableCols = [{key: \"bucket\", label: \"Bucket Start\"}, {key: \"count\", label: \"ERROR Count\"}]\nbucketTable = DataTable(\"ERROR counts by bucket\", tableCols, errorData.data, true)\n\ncontent = Stack([introText, errorChart, bucketTable], \"vertical\", \"lg\")",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "root = Card([content], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from app.log\", \"lg\", true)\n\nerrorData = Query(\"log_series\", {file: \"./logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: defaultBuckets, x: \"bucket\", y: \"count\"})\n\ndefaultBuckets = [\n  {bucket: \"09:00\", count: 1},\n  {bucket: \"09:10\", count: 2},\n  {bucket: \"09:20\", count: 6},\n  {bucket: \"09:30\", count: 7},\n  {bucket: \"09:40\", count: 2},\n  {bucket: \"09:50\", count: 1}\n]\n\nintroText = Text(\"This chart plots the number of ERROR-level log lines from app.log, bucketed into ten-minute windows starting at each label on the x-axis. Errors cluster noticeably in the middle of the hour before tapering off.\", \"muted\")\n\nerrorChart = Chart(\"bar\", errorData.data, errorData.x, errorData.y, \"ERROR Lines per 10-Minute Bucket\", 360)\n\ntableCols = [{key: \"bucket\", label: \"Bucket Start\"}, {key: \"count\", label: \"ERROR Count\"}]\nbucketTable = DataTable(\"ERROR counts by bucket\", tableCols, errorData.data, true)\n\ncontent = Stack([introText, errorChart, bucketTable], \"vertical\", \"lg\")"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 2,
+  "systemPromptTokens": 7440,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/openui-lang__ladder-log-chart__sonnet__rep1"
+}

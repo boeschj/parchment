@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-07-14T21:41:49.083Z",
+  "modelIds": {},
+  "claudeCliVersion": null,
+  "scenarios": [
+    {
+      "id": "ladder-csv-table",
+      "title": "Render a 50-row CSV on disk as a sortable table",
+      "exercisesLadder": true,
+      "sourceFileRelativePaths": [
+        "data/results.csv"
+      ],
+      "sourceFileBytes": 3491
+    }
+  ],
+  "harnessConstantsByModel": {
+    "sonnet": {
+      "model": "sonnet",
+      "probes": [
+        {
+          "surface": "canvas-tool",
+          "promptTokens": 16098,
+          "outputTokens": 4,
+          "sessionId": "abf3e119-ae58-4f9b-ae38-242cb6508726",
+          "transcriptPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-evals--scratch-runs-harness-probe/abf3e119-ae58-4f9b-ae38-242cb6508726.jsonl"
+        },
+        {
+          "surface": "written-file",
+          "promptTokens": 15627,
+          "outputTokens": 4,
+          "sessionId": "1e8674c3-248c-43cf-b1c4-e96ca3fbe000",
+          "transcriptPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-evals--scratch-runs-harness-probe/1e8674c3-248c-43cf-b1c4-e96ca3fbe000.jsonl"
+        }
+      ],
+      "promptTokensBySurface": {
+        "canvas-tool": 16098,
+        "written-file": 15627
+      }
+    }
+  },
+  "archiveRelativePath": "evals/results/2026-07-14T21-39-41-581Z",
+  "bootstrap": {
+    "resamples": 10000,
+    "confidence": 0.95,
+    "seed": 20260713
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "runId": "openui-lang__ladder-git-diff__sonnet__rep3",
+  "armId": "openui-lang",
+  "scenarioId": "ladder-git-diff",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 460,
+      "authoredOutputTokens": 408,
+      "authoredArtifactBytes": 344,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$diff"
+      ],
+      "inputTokens": 4,
+      "cacheReadTokens": 34036,
+      "cacheCreationTokens": 14024,
+      "assistantTurnCount": 2,
+      "wallClockMs": 11704,
+      "reportedCostUsd": 0.10200780000000001,
+      "artifact": {
+        "source": "root = Card([diffView], \"server.ts — HEAD~1 vs HEAD\", \"Changes to repo/src/server.ts in the most recent commit\", \"full\")\n\ndiffData = Query(\"git_diff\", {file: \"repo/src/server.ts\", base: \"HEAD~1\"}, {file: \"repo/src/server.ts\", before: \"\", after: \"\"})\n\ndiffView = DiffViewer(diffData.file, diffData.before, diffData.after, \"typescript\", \"none\")",
+        "toolInput": {
+          "title": "server.ts diff (HEAD~1 → HEAD)",
+          "markup": "root = Card([diffView], \"server.ts — HEAD~1 vs HEAD\", \"Changes to repo/src/server.ts in the most recent commit\", \"full\")\n\ndiffData = Query(\"git_diff\", {file: \"repo/src/server.ts\", base: \"HEAD~1\"}, {file: \"repo/src/server.ts\", before: \"\", after: \"\"})\n\ndiffView = DiffViewer(diffData.file, diffData.before, diffData.after, \"typescript\", \"none\")"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 7440,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/openui-lang__ladder-git-diff__sonnet__rep3"
+}

@@ -4,6 +4,143 @@
 model (sonnet), N=5, browser-verified.** Full report:
 `evals/results/2026-07-14T20-00-00-000Z-corrected-harness/report.md`.
 
+---
+
+## Head-to-head vs the competing formats
+
+**This is the section that decides whether the superlative is earned, so its central
+finding leads — and it does not flatter us.**
+
+Until now this benchmark had measured parchment against its own pasting arm and against raw
+HTML, and reported 56x / 53x. It had **never** measured it against an actual competing
+format. It has now: OpenUI Lang (thesys), Google A2UI, minified-key JSON (`terse-json`), and
+raw HTML — each built from its own spec, each given the authoring surface it really uses, on
+the same three ladder scenarios, the same fixtures, the same browser rubric, the same repair
+loop. N=5, sonnet.
+
+### The finding that comes first: we are NOT the only format that can name data instead of carrying it
+
+The whole thesis of the ladder is that a component which lets the model **name** content
+beats one that makes it **carry** content. The premise underneath the headline was that no
+rival format has that mechanism. **That premise is false.**
+
+**OpenUI Lang has `Query(tool, args, defaults)` — a first-class statement in its shipped
+grammar.** It is executed at render time by a host `toolProvider.callTool(name, args)`
+(`@openuidev/lang-core`, `src/runtime/queryManager.ts`), and its result is bound straight
+into a component's props. The model emits the tool name and its arguments and **never emits
+the content** — architecturally identical to a parchment reference, where the daemon reads
+the file and fills the prop. Their own generated prompt does not merely permit this; it
+forbids the alternative: *"NEVER hardcode tool results as literal arrays or objects."*
+
+Given equivalent tools (we wired OpenUI's `git_diff` / `read_csv` / `log_series` to the
+**same** daemon hydrators parchment uses, so a `Query` resolves to the same bytes a
+`<GitDiff>` does), **OpenUI's model reached for `Query` and climbed the ladder on 15/15
+reference runs.** Side by side, the entire authored artifact for the git-diff task:
+
+```
+parchment   <GitDiff file="repo/src/server.ts" base="HEAD~1" />
+
+openui-lang  root = Card([diffView], "server.ts changes", "Diff HEAD~1..HEAD", "full", true)
+             diffData = Query("git_diff", {file: "repo/src/server.ts", base: "HEAD~1"}, {file:"", before:"", after:""})
+             diffView = DiffViewer(diffData.file, diffData.before, diffData.after, "typescript", "none")
+```
+
+Both name the file. Neither pastes a line of the diff. **The 50x compression is a property
+of the mechanism, and OpenUI has the mechanism.** The gap between us and OpenUI is therefore
+not 50x — it is the difference between a self-closing tag and a `Query` statement plus a
+pluck line.
+
+### Content-avoidance mechanism, per arm — verified, not assumed
+
+| Arm | Names content instead of carrying it? | Mechanism (verified) | Climbed the ladder |
+|---|---|---|---|
+| `parchment-markup-high` | **YES** | reference tags/props → daemon hydrates (`{$diff}`, `{$csv}`, `{$log}`) | 14/15 |
+| `openui-lang` | **YES** | `Query(tool,args,defaults)` → host `callTool` → bound to props | **15/15** |
+| `terse-json` | NO | — (a minified tree has nowhere to put a reference) | 0/15 |
+| `a2ui` | NO | — verified against the v1.0 schema set: the only `url` props are `Image`/`Video`/`AudioPlayer` | 0/5 |
+| `raw-jsx` | NO | — a hand-written component cannot name a file | not completed |
+| `raw-html` | NO | — | 0/15 |
+
+### The table (authored output tokens, median, N=5)
+
+**Authored output tokens** = the output tokens of the assistant message carrying the render
+call, **summed across repair turns**, by the same rule for every arm — the identical rule the
+rest of this document uses.
+
+| Scenario | `parchment-markup-high` | `openui-lang` (`Query`) | `terse-json` | `a2ui` | `raw-html` |
+|---|---:|---:|---:|---:|---:|
+| git-diff (250-line change) | **160** | 394 | 9,359 | 9,301 | 23,952 |
+| csv-table (50 rows) | **168** | 385 | 9,995 | 9,237 *(N=1)* | 4,325 |
+| log-chart (100 lines) | 800 | 1,454 | **672** | *not completed* | 3,679 |
+
+`a2ui` csv-table is N=1 (one completed run); its log-chart cell and the `raw-jsx` arm were
+**not completed** before the run was stopped, and are reported as such rather than estimated.
+First-artifact medians (before any repair) are lower for every arm that repairs — parchment
+251, OpenUI 490, terse-json 5,063 on the cells where the rubric's content floor forces a
+second turn; the headline above counts the repair, because a re-paste is a real cost.
+
+### Losses first
+
+1. **`terse-json` beats us on log-chart: 672 vs 800.** A clean loss on total authored tokens.
+   Parchment's *first* artifact is the leanest on the board (251 tokens, a bare `<LogStream>`),
+   but a page that is nothing but a correct six-bar chart paints 124 visible characters and
+   **fails the rubric's 200-character content floor** — so it spends a second turn adding prose,
+   ending at 800. `terse-json` pastes the six bucket counts *and* a six-row table, clears the
+   floor on the first try, and wins. When the referenced answer is six numbers, pasting it is
+   cheaper than referencing it — the ladder pays least exactly where the payload is smallest,
+   and here it goes negative. (The content floor is discussed at length below; we did not touch
+   it.)
+
+2. **On the git-diff *mean*, OpenUI beats us — because it climbed more reliably.** Median
+   parchment 160 < OpenUI 394, so per-artifact-that-climbed we author fewer. But parchment
+   climbed **4/5** on git-diff — one run in five declined the ladder and pasted the file
+   (9,105 tokens) — while OpenUI climbed **5/5**. Weighting every run, parchment's git-diff
+   mean is **1,947** against OpenUI's **385**. On reliability of reaching for the reference,
+   the rival was strictly better on this scenario.
+
+3. **The margin over the strongest rival is a small constant, not an order of magnitude.**
+   Where both formats reference (git-diff, csv), parchment authors **~2.3–2.5x** fewer tokens
+   than OpenUI+`Query` (160 vs 394; 168 vs 385). That gap is tag-density — one self-closing
+   tag against a `Query` statement plus a pluck line — not the ladder. The 50x figure only
+   ever described the distance to formats that *must carry content* (`terse-json`, `a2ui`,
+   `raw-html`), and only on large payloads.
+
+### A2UI, stated fairly
+
+A2UI's *basic* catalog has no Chart and no Table, so it physically cannot render these tasks;
+we gave it a **custom chart-capable catalog** (its own spec tells production users to build
+one) so the comparison is about its format, not its starter kit. With that catalog it
+**renders correctly** — git-diff passed 5/5. It simply has no reference mechanism, so it
+pastes, landing at ~9,300 tokens on git-diff: the same bucket as `terse-json` and `raw-html`,
+and ~58x parchment. Its leaner JSON encoding (props inline, no `props` wrapper, no
+`children:[]`) buys it nothing here, because the cost is the pasted payload, not the envelope.
+
+### The verdict on "the most token-efficient generative UI system for coding agents"
+
+**Not earned as an unqualified superlative.** It is defensible only in the narrow, measured
+form the evidence supports, and must be stated that way:
+
+> On file-referencing tasks (rendering a git diff, a CSV on disk), parchment authors the
+> fewest output tokens of any format measured — but its lead over the strongest rival,
+> **OpenUI Lang with `Query`, is ~2–2.5x, not an order of magnitude**, and OpenUI reached for
+> its reference mechanism *more* reliably on git-diff. On a task whose referenced answer is
+> tiny (six numbers), a compact pasting format (`terse-json`) authors **fewer** total tokens
+> than parchment, because parchment's maximally-compressed artifact is rejected by the rubric's
+> content floor and must be padded.
+
+Where it holds: git-diff and csv-table, on the median, by a modest constant. Where it does
+not: log-chart (a paste format wins), and git-diff reliability/mean (OpenUI wins). The
+order-of-magnitude framing (56x / 53x) is true only against formats with **no** reference
+mechanism, and naming it as parchment's number — now that a rival format demonstrably has
+one — would be the same overclaim we caught OpenUI making with pretty-printed JSON.
+
+*Head-to-head spend this run: **$10.72** (subscription; reported CLI cost across 37 runs).
+`raw-jsx` (React + recharts) and A2UI's csv/log cells were not completed and are marked so.
+`evals/scenarios/` and `bench/acceptance/` were not touched — task definitions and the
+acceptance rubric are byte-identical to the runs above.*
+
+---
+
 ## Read this first: the earlier numbers were measured against a mirror
 
 Every number previously on this page was produced by a harness that **vendored its own
@@ -102,6 +239,11 @@ every arm. It is reported as a limitation, not edited into a win.
 ---
 
 ## The headline table
+
+**This table is parchment against its own pasting arm and raw HTML — the ladder measured
+against formats with NO reference mechanism. For the comparison against formats that DO have
+one (OpenUI's `Query`), read the head-to-head section at the top: the gap there is ~2–2.5x,
+not the 56x below.** The 56x is the distance to pasting, not to the field.
 
 **Authored output tokens** = the output tokens of the single assistant message carrying the
 render call, summed across repair turns, by the same rule for every arm.

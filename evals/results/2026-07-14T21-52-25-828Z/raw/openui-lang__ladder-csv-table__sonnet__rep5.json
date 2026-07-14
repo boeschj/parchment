@@ -1,0 +1,39 @@
+{
+  "runId": "openui-lang__ladder-csv-table__sonnet__rep5",
+  "armId": "openui-lang",
+  "scenarioId": "ladder-csv-table",
+  "model": "sonnet",
+  "replicate": 5,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 630,
+      "authoredOutputTokens": 414,
+      "authoredArtifactBytes": 643,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$csv"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 59889,
+      "cacheCreationTokens": 16130,
+      "assistantTurnCount": 3,
+      "wallClockMs": 16980,
+      "reportedCostUsd": 0.12494070000000002,
+      "artifact": {
+        "source": "root = Card([table], \"Benchmark Results\", \"50 runs across scenarios, models, and rendering arms\", \"full\")\ndata = Query(\"read_csv\", {path: \"./data/results.csv\"}, {rows: [], columns: [\"run_id\",\"scenario\",\"model\",\"arm\",\"tokens_in\",\"tokens_out\",\"latency_ms\",\"passed\"]})\ntable = DataTable(\"results.csv\", columns, data.rows, true)\ncolumns = [\n  {key: \"run_id\", label: \"run_id\"},\n  {key: \"scenario\", label: \"scenario\"},\n  {key: \"model\", label: \"model\"},\n  {key: \"arm\", label: \"arm\"},\n  {key: \"tokens_in\", label: \"tokens_in\"},\n  {key: \"tokens_out\", label: \"tokens_out\"},\n  {key: \"latency_ms\", label: \"latency_ms\"},\n  {key: \"passed\", label: \"passed\"}\n]",
+        "toolInput": {
+          "title": "Render a 50-row CSV on disk as a sortable table",
+          "markup": "root = Card([table], \"Benchmark Results\", \"50 runs across scenarios, models, and rendering arms\", \"full\")\ndata = Query(\"read_csv\", {path: \"./data/results.csv\"}, {rows: [], columns: [\"run_id\",\"scenario\",\"model\",\"arm\",\"tokens_in\",\"tokens_out\",\"latency_ms\",\"passed\"]})\ntable = DataTable(\"results.csv\", columns, data.rows, true)\ncolumns = [\n  {key: \"run_id\", label: \"run_id\"},\n  {key: \"scenario\", label: \"scenario\"},\n  {key: \"model\", label: \"model\"},\n  {key: \"arm\", label: \"arm\"},\n  {key: \"tokens_in\", label: \"tokens_in\"},\n  {key: \"tokens_out\", label: \"tokens_out\"},\n  {key: \"latency_ms\", label: \"latency_ms\"},\n  {key: \"passed\", label: \"passed\"}\n]"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 7440,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/openui-lang__ladder-csv-table__sonnet__rep5"
+}

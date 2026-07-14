@@ -1,0 +1,18 @@
+[
+  {
+    "armId": "openui-lang",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 561,
+    "approximateTokens": 264,
+    "approximateTokensByBytesRule": 141
+  },
+  {
+    "armId": "a2ui",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 8934,
+    "approximateTokens": 4568,
+    "approximateTokensByBytesRule": 2234
+  }
+]

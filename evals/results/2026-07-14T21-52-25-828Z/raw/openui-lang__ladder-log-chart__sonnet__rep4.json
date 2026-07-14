@@ -1,0 +1,39 @@
+{
+  "runId": "openui-lang__ladder-log-chart__sonnet__rep4",
+  "armId": "openui-lang",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 4,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 802,
+      "authoredOutputTokens": 481,
+      "authoredArtifactBytes": 732,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 58937,
+      "cacheCreationTokens": 15177,
+      "assistantTurnCount": 3,
+      "wallClockMs": 11415,
+      "reportedCostUsd": 0.1207911,
+      "artifact": {
+        "source": "root = Card([heading, description, chartComp], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from logs/app.log\", \"lg\", true)\nheading = Heading(\"app.log ERROR rate\", \"h3\")\ndescription = Text(\"Log lines bucketed into 10-minute windows; count of ERROR-level lines per bucket.\", \"muted\")\nerrorSeries = Query(\"log_series\", {file: \"logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: [{\"bucket\": \"09:00\", \"count\": 3}, {\"bucket\": \"09:10\", \"count\": 8}, {\"bucket\": \"09:20\", \"count\": 6}, {\"bucket\": \"09:30\", \"count\": 4}, {\"bucket\": \"09:40\", \"count\": 1}, {\"bucket\": \"09:50\", \"count\": 0}], x: \"bucket\", y: \"count\"})\nchartComp = Chart(\"bar\", errorSeries.data, errorSeries.x, errorSeries.y, \"ERROR lines per 10-minute bucket\", 340)",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "root = Card([heading, description, chartComp], \"Error Rate Over Time\", \"ERROR lines per 10-minute bucket from logs/app.log\", \"lg\", true)\nheading = Heading(\"app.log ERROR rate\", \"h3\")\ndescription = Text(\"Log lines bucketed into 10-minute windows; count of ERROR-level lines per bucket.\", \"muted\")\nerrorSeries = Query(\"log_series\", {file: \"logs/app.log\", groupBy: \"10m\", match: \"ERROR\"}, {data: [{\"bucket\": \"09:00\", \"count\": 3}, {\"bucket\": \"09:10\", \"count\": 8}, {\"bucket\": \"09:20\", \"count\": 6}, {\"bucket\": \"09:30\", \"count\": 4}, {\"bucket\": \"09:40\", \"count\": 1}, {\"bucket\": \"09:50\", \"count\": 0}], x: \"bucket\", y: \"count\"})\nchartComp = Chart(\"bar\", errorSeries.data, errorSeries.x, errorSeries.y, \"ERROR lines per 10-minute bucket\", 340)"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 7440,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/openui-lang__ladder-log-chart__sonnet__rep4"
+}

@@ -1,0 +1,135 @@
+{
+  "runId": "terse-json__ladder-log-chart__sonnet__rep5",
+  "armId": "terse-json",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 5,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1583,
+      "authoredOutputTokens": 1420,
+      "authoredArtifactBytes": 1028,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 56205,
+      "cacheCreationTokens": 16975,
+      "assistantTurnCount": 3,
+      "wallClockMs": 20168,
+      "reportedCostUsd": 0.1432435,
+      "artifact": {
+        "source": "{\"root\":\"a\",\"elements\":{\"a\":{\"type\":\"Card\",\"props\":{\"title\":\"ERROR rate over time\",\"description\":\"logs/app.log — 2026-05-11, 09:00–10:00, bucketed in 10-minute intervals\"},\"children\":[\"s\"]},\"s\":{\"type\":\"Stack\",\"props\":{\"gap\":\"lg\"},\"children\":[\"m\",\"c\"]},\"m\":{\"type\":\"Grid\",\"props\":{\"columns\":3,\"gap\":\"md\"},\"children\":[\"m1\",\"m2\",\"m3\"]},\"m1\":{\"type\":\"Metric\",\"props\":{\"label\":\"Total ERROR lines\",\"value\":\"22\",\"detail\":\"out of 100 log lines\"}},\"m2\":{\"type\":\"Metric\",\"props\":{\"label\":\"Peak bucket\",\"value\":\"09:30\",\"tone\":\"danger\",\"detail\":\"11 errors — circuit breaker opened\"}},\"m3\":{\"type\":\"Metric\",\"props\":{\"label\":\"Busiest window\",\"value\":\"09:20–09:40\",\"tone\":\"warning\",\"detail\":\"16 of 22 errors (73%)\"}},\"c\":{\"type\":\"Chart\",\"props\":{\"kind\":\"bar\",\"title\":\"ERROR lines per 10-minute bucket\",\"x\":\"bucket\",\"y\":\"errors\",\"height\":340,\"data\":[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]}}}}",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "spec": {
+            "root": "a",
+            "elements": {
+              "a": {
+                "type": "Card",
+                "props": {
+                  "title": "ERROR rate over time",
+                  "description": "logs/app.log — 2026-05-11, 09:00–10:00, bucketed in 10-minute intervals"
+                },
+                "children": [
+                  "s"
+                ]
+              },
+              "s": {
+                "type": "Stack",
+                "props": {
+                  "gap": "lg"
+                },
+                "children": [
+                  "m",
+                  "c"
+                ]
+              },
+              "m": {
+                "type": "Grid",
+                "props": {
+                  "columns": 3,
+                  "gap": "md"
+                },
+                "children": [
+                  "m1",
+                  "m2",
+                  "m3"
+                ]
+              },
+              "m1": {
+                "type": "Metric",
+                "props": {
+                  "label": "Total ERROR lines",
+                  "value": "22",
+                  "detail": "out of 100 log lines"
+                }
+              },
+              "m2": {
+                "type": "Metric",
+                "props": {
+                  "label": "Peak bucket",
+                  "value": "09:30",
+                  "tone": "danger",
+                  "detail": "11 errors — circuit breaker opened"
+                }
+              },
+              "m3": {
+                "type": "Metric",
+                "props": {
+                  "label": "Busiest window",
+                  "value": "09:20–09:40",
+                  "tone": "warning",
+                  "detail": "16 of 22 errors (73%)"
+                }
+              },
+              "c": {
+                "type": "Chart",
+                "props": {
+                  "kind": "bar",
+                  "title": "ERROR lines per 10-minute bucket",
+                  "x": "bucket",
+                  "y": "errors",
+                  "height": 340,
+                  "data": [
+                    {
+                      "bucket": "09:00",
+                      "errors": 0
+                    },
+                    {
+                      "bucket": "09:10",
+                      "errors": 1
+                    },
+                    {
+                      "bucket": "09:20",
+                      "errors": 5
+                    },
+                    {
+                      "bucket": "09:30",
+                      "errors": 11
+                    },
+                    {
+                      "bucket": "09:40",
+                      "errors": 4
+                    },
+                    {
+                      "bucket": "09:50",
+                      "errors": 1
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 3925,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/terse-json__ladder-log-chart__sonnet__rep5"
+}
