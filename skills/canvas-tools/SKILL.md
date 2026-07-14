@@ -99,6 +99,10 @@ first time:
   the bytes: `{"$file": "src/a.ts", "lines": "40-80"}`, `{"$diff": "src/a.ts"}`,
   `{"$csv": "data/x.csv"}`, `{"$img": "shot.png"}` (references/content-refs.md). A full
   diff slot is ~15 authored tokens.
+- NEVER read a log, count the lines yourself, and paste the buckets. Ask the daemon
+  the question: `{"$log": "app.log", "match": "ERROR", "groupBy": "10m"}` in a
+  `Chart.data` — it reads, buckets, aggregates, and fills the chart's `x` and `y`.
+  Durations (`30s`…`1d`), `series` per captured field, `p95:<field>` and friends.
 - Large datasets (log series, benchmark runs): put the array in `state` ONCE and
   reference it — `Chart`/`DataTable` data props, or `repeat` for lists. Never restate
   rows in multiple components.
@@ -131,8 +135,9 @@ first time:
   `canvas.submit` / `canvas.intent`, file uploads, edit kinds, form validation. Read
   before building anything the user interacts with.
 - **references/content-refs.md** — render file/diff/CSV/image content by POINTER
-  (`{"$file"}`, `{"$diff"}`, `{"$csv"}`, `{"$img"}`, `watch:true`) instead of pasting it.
-  Read before putting any file, diff, or CSV in a spec.
+  (`{"$file"}`, `{"$diff"}`, `{"$csv"}`, `{"$img"}`, `watch:true`) instead of pasting it,
+  and CHART a log by pointer (`{"$log"}`: the daemon buckets and aggregates it).
+  Read before putting any file, diff, CSV, or log-derived number in a spec.
 - **references/live-data.md** — the `canvas_live` cookbook (source kinds, append vs
   replace, fleet scanner, worked example). Read before using canvas_live.
 - **references/mcp-apps.md** — hosting third-party MCP app UIs. Read before using canvas_app.

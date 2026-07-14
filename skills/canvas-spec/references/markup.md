@@ -27,6 +27,7 @@ it is **naming content instead of emitting it**. Every capability has rungs:
 | table | `<table>…rows…</table>` | `<DataTable rows="[…]"/>` | `<DataTable src="results.csv"/>` |
 | chart | — | `<Chart data="[…]" …/>` | `<Chart src="results.csv" …/>` |
 | logs | paste output | `<Terminal>…paste…</Terminal>` | `<LogStream file="app.log" watch/>` |
+| log CHART | you count the lines yourself | `<Chart data="[…6 points you counted…]"/>` | `<LogStream file="app.log" match="ERROR" groupBy="10m"/>` |
 | prose | `<p>…paste…</p>` | `<Markdown>…paste…</Markdown>` | `<Markdown file="README.md"/>` |
 | image | — | — | `<Image src="shot.png"/>` |
 
@@ -35,10 +36,15 @@ disk.** A `<GitDiff>` is ~16 tokens; pasting both sides of that file is ~15,000 
 a 473x difference on one element. Paste inline **only** when the content exists
 nowhere on disk (you are inventing it).
 
+The log-chart row is the same rule about a NUMBER you would otherwise compute:
+reading a log, aggregating it in your head, and emitting the buckets is rung 1 in
+disguise. Ask the daemon the question instead.
+
 ```html
 <GitDiff file="src/daemon/server.ts" base="HEAD~1"/>   <!-- the whole diff -->
 <DataTable src="bench/results.csv"/>                   <!-- the whole table -->
 <LogStream file="logs/app.log" watch/>                 <!-- a live tail -->
+<LogStream file="logs/app.log" match="ERROR" groupBy="10m"/>  <!-- errors/10min -->
 ```
 
 Reference options: `lines="40-80"` (also `"40"`, `"40-"`, `"-80"`) · `base="HEAD~1"`
@@ -50,6 +56,46 @@ derives them — one column per header cell, in file order, numeric columns type
 and right-aligned. Write `columns` only to override that (show a subset, reorder,
 rename a header); what you write always wins. A `<Chart src=…>` still needs its
 own `x` and `y` — which series to plot is your call, not the file's.
+
+## `<LogStream>` — a tail, or a chart of the log
+
+`groupBy` is the whole difference. Without it, a live tail. With it, the daemon
+reads the file, buckets it in time, aggregates, and fills the chart — you write
+no data points, no axis, no counts, and you never open the log.
+
+```html
+<LogStream file="logs/app.log" watch/>                        <!-- a tail -->
+<LogStream file="logs/app.log" match="ERROR" groupBy="10m"/>  <!-- a chart -->
+```
+
+| Attribute | Meaning |
+|---|---|
+| `file` **(required)** | The log to read. Project-relative, root-confined. |
+| `groupBy` | The time bucket, as a **duration**: `30s` `5m` `10m` `1h` `1d` `2w`. (`hour`/`day`/`week` still work.) Its presence is what makes this a chart. |
+| `match` | Regex a line must match to count. A plain substring (`ERROR`) is a valid regex. |
+| `pattern` | Regex with **named groups** — the line's fields: `pattern="duration_ms=(?<duration_ms>\d+)"`. |
+| `parser` | `jsonl` \| `regex` \| `number` — the same file-tail parser grammar `canvas_live` uses. A `pattern` implies `regex`. |
+| `series` | A captured field: one line per distinct value (ERROR vs WARN as two series). |
+| `metric` | `count` (default) · `rate` (matches per minute) · `sum:` `avg:` `min:` `max:` `p50:` `p95:` `p99:` over a captured field. |
+| `kind` `title` `height` | Passed to the Chart. Default `kind="line"`. |
+| `watch` | Re-aggregate live as the file grows. |
+
+```html
+<!-- ERROR and WARN as two series, from one capture -->
+<LogStream file="logs/app.log" groupBy="10m" pattern="\s(?<level>ERROR|WARN)\s" series="level" kind="bar"/>
+
+<!-- p95 latency per five minutes, live -->
+<LogStream file="logs/app.log" groupBy="5m" pattern="duration_ms=(?<duration_ms>\d+)" metric="p95:duration_ms" watch/>
+```
+
+Lines are timed by an ISO-8601 timestamp anywhere in the line, or by a captured
+`t`/`ts`/`time`/`timestamp` field. Buckets are UTC, and every bucket the file
+spans is plotted — a quiet ten minutes is a real `0`, not a gap.
+
+It **cannot** express: a percentage of total (errors ÷ all lines), a ratio of two
+matches, a distinct-count, an X axis grouped by a field instead of time, or two
+files at once. Those still need real analysis — but do it with your own tools and
+paste only the numbers you truly had to compute.
 
 ## Tags
 
@@ -74,7 +120,9 @@ are the component's props (see the component inventory in the skill core):
 `<FileChange>` `<Markdown>` `<Grid>` `<Card>` `<Stack>` `<Tabs>` `<Badge>` `<Progress>` …
 
 Reference-first aliases: **`<GitDiff file base staged watch/>`** (a DiffViewer the
-daemon fills from git) and **`<LogStream file watch/>`** (a Terminal tailing a file).
+daemon fills from git) and **`<LogStream file watch/>`** (a Terminal tailing a
+file) — which becomes a **Chart the daemon aggregates** the moment you add
+`groupBy` (see `<LogStream>` above).
 
 `<script>`, `<style>`, and unknown tags are rejected. Nothing is ever executed.
 
