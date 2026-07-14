@@ -50,8 +50,19 @@ and is rejected:
  "children": []}
 ```
 
+**`canvas.submit` runs every check on the form before it delivers anything.** If any
+check fails, the failing fields render their messages and NO `<canvas-edit>` reaches
+you — so the payload that lands in your turn has already passed validation, and a
+field the user never touched cannot arrive empty. You do not have to gate the button
+yourself; add `checks` and the form is safe.
+
+`validateOn` only chooses when a field re-checks itself AS THE USER TYPES: `change`
+(every keystroke), `blur` (when the field loses focus — the default for Input and
+Textarea), `submit` (no feedback until the user presses submit). It never decides
+*whether* a check runs on submit; all of them always do.
+
 Check types (any other name is rejected): `required`, `email`, `url`, `numeric`,
 `minLength`, `maxLength`, `min`, `max`, `pattern`, `matches`, `equalTo`, `lessThan`,
-`greaterThan`, `requiredIf`. Drive submit gating with the `validateForm` action
-(`{statePath?}` writes `{valid, errors}`) and bind the submit Button's
-`disabled`/`visible` to `/form/valid`.
+`greaterThan`, `requiredIf`. If you additionally want a validity flag in state (to
+disable a Button, say), dispatch the built-in `validateForm` action — `{statePath?}`,
+default `/formValidation` — and bind to `/formValidation/valid`.

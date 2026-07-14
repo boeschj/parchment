@@ -30,7 +30,8 @@ mock.module("./api.ts", () => ({
 // editKindForPath and elementIdForPath are module-private in canvas-actions.ts
 // (not exported). Both are exercised indirectly below through postStateChanges,
 // their only caller.
-const { postStateChanges, buildCanvasActionHandlers } = await import("./canvas-actions.ts");
+const { postStateChanges, buildCanvasActionHandlers, createFormSubmitHandler } =
+  await import("./canvas-actions.ts");
 
 beforeEach(() => {
   postEditCalls.length = 0;
@@ -140,11 +141,18 @@ describe("postStateChanges elementId derivation", () => {
   });
 });
 
-describe("buildCanvasActionHandlers", () => {
-  it("canvas.submit posts a form-submit edit using the id param as elementId", async () => {
-    const handlers = buildCanvasActionHandlers("session-1", makeSlot(SlotKind.Plan));
+// canvas.submit is NOT in the handler map: it is registered from inside the
+// provider tree (useValidatedCanvasSubmit.ts) because it must run the form's
+// checks before it delivers. A handler that reappears here would be an
+// unvalidated submit path — the exact bug this arrangement removes.
+describe("createFormSubmitHandler", () => {
+  const alwaysValid = () => true;
+  const alwaysInvalid = () => false;
 
-    await handlers["canvas.submit"]?.({ id: "my-form", value: "x" });
+  it("posts a form-submit edit using the id param as elementId when the form validates", async () => {
+    const submit = createFormSubmitHandler("session-1", makeSlot(SlotKind.Plan), alwaysValid);
+
+    await submit({ id: "my-form", value: "x" });
 
     expect(postEditCalls).toEqual([
       {
@@ -154,12 +162,43 @@ describe("buildCanvasActionHandlers", () => {
     ]);
   });
 
-  it("canvas.submit uses a null elementId when id is not a string", async () => {
-    const handlers = buildCanvasActionHandlers("session-1", makeSlot(SlotKind.Plan));
+  it("uses a null elementId when id is not a string", async () => {
+    const submit = createFormSubmitHandler("session-1", makeSlot(SlotKind.Plan), alwaysValid);
 
-    await handlers["canvas.submit"]?.({ value: "x" });
+    await submit({ value: "x" });
 
     expect(postEditCalls[0]?.body.elementId).toBeNull();
+  });
+
+  it("delivers nothing to the agent when a check fails", async () => {
+    const submit = createFormSubmitHandler("session-1", makeSlot(SlotKind.Plan), alwaysInvalid);
+
+    await submit({ id: "my-form", payload: { email: "abc" } });
+
+    expect(postEditCalls).toEqual([]);
+  });
+
+  it("runs validation before it posts, never after", async () => {
+    const callOrder: string[] = [];
+    postEditImpl = async () => {
+      callOrder.push("postEdit");
+    };
+    const submit = createFormSubmitHandler("session-1", makeSlot(SlotKind.Plan), () => {
+      callOrder.push("validateAll");
+      return true;
+    });
+
+    await submit({ id: "my-form" });
+
+    expect(callOrder).toEqual(["validateAll", "postEdit"]);
+  });
+});
+
+describe("buildCanvasActionHandlers", () => {
+  it("registers no canvas.submit handler — the validated one is registered in-tree", () => {
+    const handlers = buildCanvasActionHandlers("session-1", makeSlot(SlotKind.Plan));
+
+    expect(handlers["canvas.submit"]).toBeUndefined();
   });
 
   it("canvas.commentMermaid posts a mermaid-comment edit keyed by the node id", async () => {

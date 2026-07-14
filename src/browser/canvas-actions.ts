@@ -2,10 +2,21 @@ import type { Slot } from "../shared/types.ts";
 import { EditKind } from "../shared/types.ts";
 import { postEdit } from "./api.ts";
 
+export const CANVAS_SUBMIT_ACTION = "canvas.submit";
+
+export type CanvasActionHandler = (params: Record<string, unknown>) => Promise<void>;
+
 // Build the action handler map for the active slot. Each handler is invoked
 // by json-render's ActionProvider when a component emits the matching action
 // from its `on.<event>` binding. Single egress point — components stay pure;
 // the daemon-POST contract lives only here.
+//
+// canvas.submit is deliberately NOT in this map: delivering a form submit
+// requires running the form's validation checks first, and those live in
+// json-render's ValidationProvider, which is mounted INSIDE JSONUIProvider —
+// below the level this map is built at. It is registered from inside the
+// provider tree instead (useValidatedCanvasSubmit.ts), which is the only place
+// that can reach validateAll(). Handlers here must stay validation-free.
 //
 // Continuous edits (PlanFile markdown, DiffViewer after, MermaidEditor
 // source, DataTable cell) flow via state binding + onStateChange, NOT via
@@ -13,20 +24,8 @@ import { postEdit } from "./api.ts";
 export function buildCanvasActionHandlers(
   sessionId: string,
   slot: Slot,
-): Record<string, (params: Record<string, unknown>) => Promise<void>> {
+): Record<string, CanvasActionHandler> {
   return {
-    // json-render deep-resolves {$state:"/path"} expressions in action params
-    // against a live state snapshot before invoking handlers, so a binding
-    // like { payload: { $state: "/form" } } arrives here as concrete data.
-    "canvas.submit": async (params) => {
-      const elementId = typeof params.id === "string" ? params.id : null;
-      await postEdit(sessionId, {
-        slotId: slot.id,
-        elementId,
-        kind: EditKind.FormSubmit,
-        payload: params,
-      });
-    },
     // SECURITY: only the opaque id crosses the wire. The daemon resolves it
     // against the intent menu it recorded when the spec was pushed and
     // rejects ids the agent never offered — the page cannot author or alter
@@ -60,6 +59,54 @@ export function buildCanvasActionHandlers(
       // this don't trigger "No handler registered" warnings.
     },
   };
+}
+
+// ---- Form submit -----------------------------------------------------------
+
+// A form submit is delivered only when every registered check passes.
+//
+// A field carrying `checks` registers them with json-render's ValidationProvider
+// and then re-runs them ITSELF on change or on blur — that, and only that, is
+// what `validateOn` selects. No field ever validates because a submit happened:
+// validateAll() is the sole trigger for the registered checks, and before this
+// handler existed its only caller was json-render's built-in `validateForm`
+// action, which a Button wired to canvas.submit never dispatches. So the checks
+// on a validateOn:"submit" field were registered and never run, and an empty
+// required field submitted clean.
+//
+// Running validateAll() here fixes that for every mode at once, and is the
+// stronger contract regardless of mode: a blur-mode required field the user
+// never focused has also never validated, and must not submit empty either.
+// validateAll() writes each failing field's result into validation state, which
+// is what makes the fields render their own error text — so a refusal is
+// visible per field, not just silent.
+export function createFormSubmitHandler(
+  sessionId: string,
+  slot: Slot,
+  validateAll: () => boolean,
+): CanvasActionHandler {
+  return async (params) => {
+    const isFormValid = validateAll();
+    if (!isFormValid) return;
+    await postFormSubmit(sessionId, slot, params);
+  };
+}
+
+// json-render deep-resolves {$state:"/path"} expressions in action params
+// against a live state snapshot before invoking handlers, so a binding like
+// { payload: { $state: "/form" } } arrives here as concrete data.
+export async function postFormSubmit(
+  sessionId: string,
+  slot: Slot,
+  params: Record<string, unknown>,
+): Promise<void> {
+  const elementId = typeof params.id === "string" ? params.id : null;
+  await postEdit(sessionId, {
+    slotId: slot.id,
+    elementId,
+    kind: EditKind.FormSubmit,
+    payload: params,
+  });
 }
 
 // Map a (slot, state-change) tuple to the appropriate canvas-edit POST.

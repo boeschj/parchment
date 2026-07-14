@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { JSONUIProvider, Renderer, type Spec } from "@json-render/react";
+import type { ValidationFunction } from "@json-render/core";
 import type { Slot, WsEvent } from "../shared/types.ts";
 import { SessionStatus, SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
@@ -38,8 +39,15 @@ import {
   postStateChanges,
   type StateChange,
 } from "./canvas-actions.ts";
+import { useValidatedCanvasSubmit } from "./useValidatedCanvasSubmit.ts";
 
 const STATE_CHANGE_DEBOUNCE_MS = 300;
+
+// The canvas declares no custom validation functions — every check a spec can
+// name is one of json-render's built-ins. Passed as a stable object because
+// ValidationProvider derives validateAll() from it: an inline {} would hand back
+// a new validateAll on every keystroke and re-register canvas.submit each time.
+const NO_CUSTOM_VALIDATION_FUNCTIONS: Record<string, ValidationFunction> = {};
 
 export function App() {
   const sessionId = readSessionIdFromUrl();
@@ -366,16 +374,29 @@ function SlotRenderer({ sessionId, slot }: { sessionId: string; slot: Slot }) {
           registry={registry}
           initialState={(slot.state ?? {}) as Record<string, unknown>}
           handlers={handlers}
+          validationFunctions={NO_CUSTOM_VALIDATION_FUNCTIONS}
           onStateChange={handleStateChange}
         >
-          <Renderer
-            spec={slot.spec as Spec}
-            registry={registry}
-            loading={slot.status === SlotStatus.Rendering}
-          />
+          <SlotSurface sessionId={sessionId} slot={slot} />
         </JSONUIProvider>
       </SlotContextProvider>
     </SlotErrorBoundary>
+  );
+}
+
+// The slot's spec, rendered from inside JSONUIProvider — the only level that can
+// see json-render's ValidationProvider. canvas.submit is registered here (rather
+// than in the handler map above) because it has to run the form's checks before
+// it delivers anything to the agent.
+function SlotSurface({ sessionId, slot }: { sessionId: string; slot: Slot }) {
+  useValidatedCanvasSubmit(sessionId, slot);
+
+  return (
+    <Renderer
+      spec={slot.spec as Spec}
+      registry={registry}
+      loading={slot.status === SlotStatus.Rendering}
+    />
   );
 }
 
