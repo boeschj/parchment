@@ -157,6 +157,57 @@ export type SlotOpsResult = {
 // never re-renders the whole spec.
 export type SlotStateChange = { path: string; value: unknown };
 
+// Live data source vocabulary. Declared here rather than in the daemon because
+// the browser renders the running-source panel and the command-poll approval
+// prompt from it; src/daemon/live/types.ts re-exports LiveSourceKind so daemon
+// modules keep importing it from their own layer.
+export const LiveSourceKind = {
+  FileTail: "file-tail",
+  CommandPoll: "command-poll",
+  HttpPoll: "http-poll",
+  ClaudeSessions: "claude-sessions",
+} as const;
+
+export type LiveSourceKind = (typeof LiveSourceKind)[keyof typeof LiveSourceKind];
+
+// A command-poll source runs an agent-supplied shell command on a timer, so it
+// does not run on the agent's say-so alone: it sits in PendingApproval until a
+// human approves that exact command text in the browser. Every other kind is
+// Running from the moment it is registered.
+export const LiveSourceStatus = {
+  Running: "running",
+  PendingApproval: "pending-approval",
+} as const;
+
+export type LiveSourceStatus = (typeof LiveSourceStatus)[keyof typeof LiveSourceStatus];
+
+// How long a command-poll approval lasts. Session approvals are held in daemon
+// memory and die with the daemon; only a Persistent approval is written to
+// ~/.parchment/approved-commands.json and survives a restart. That asymmetry is
+// deliberate — see src/daemon/live/approved-commands.ts.
+export const CommandApprovalScope = {
+  Persistent: "persistent",
+  Session: "session",
+} as const;
+
+export type CommandApprovalScope =
+  (typeof CommandApprovalScope)[keyof typeof CommandApprovalScope];
+
+// What the daemon tells the browser about one live source. `target` is the
+// human-meaningful thing the source reads — for command-poll it is the EXACT
+// command text, because that is what the approval prompt must show.
+export type LiveSourceView = {
+  slotId: string;
+  sourceId: string;
+  kind: LiveSourceKind;
+  target: string;
+  statePath: string;
+  intervalMs: number | null;
+  status: LiveSourceStatus;
+  startedAt: number;
+  lastError: string | null;
+};
+
 export type WsEvent =
   | { kind: "snapshot"; data: { sessionId: string; slots: Slot[] } }
   | { kind: "slot-added"; data: Slot }
@@ -167,7 +218,8 @@ export type WsEvent =
   | { kind: "reset"; data: { sessionId: string } }
   | { kind: "transcript-snapshot"; data: { entries: TranscriptEntry[] } }
   | { kind: "transcript-append"; data: { entries: TranscriptEntry[] } }
-  | { kind: "slot-ops"; data: { requestId: string; ops: SlotOps } };
+  | { kind: "slot-ops"; data: { requestId: string; ops: SlotOps } }
+  | { kind: "live-sources"; data: { sources: LiveSourceView[] } };
 
 export type CanvasInjectionPayload = {
   count: number;

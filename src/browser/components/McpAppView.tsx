@@ -91,7 +91,7 @@ export function McpAppView({ props }: RenderProps) {
           {...(toolResult !== undefined ? { toolResult } : {})}
           onCallTool={async (params) =>
             CallToolResultSchema.parse(
-              await postAppBridgeCall(props.server, {
+              await postAppBridgeCall(sessionId, slotId, {
                 method: AppBridgeMethod.CallTool,
                 // SECURITY: only name + arguments cross the bridge; anything
                 // else the iframe attached (_meta, progress tokens) is dropped.
@@ -101,7 +101,7 @@ export function McpAppView({ props }: RenderProps) {
           }
           onReadResource={async (params) =>
             ReadResourceResultSchema.parse(
-              await postAppBridgeCall(props.server, {
+              await postAppBridgeCall(sessionId, slotId, {
                 method: AppBridgeMethod.ReadResource,
                 params: { uri: params.uri },
               }),
@@ -109,7 +109,7 @@ export function McpAppView({ props }: RenderProps) {
           }
           onListResources={async (params) =>
             ListResourcesResultSchema.parse(
-              await postAppBridgeCall(props.server, {
+              await postAppBridgeCall(sessionId, slotId, {
                 method: AppBridgeMethod.ListResources,
                 params: cursorOnly(params),
               }),
@@ -117,7 +117,7 @@ export function McpAppView({ props }: RenderProps) {
           }
           onListResourceTemplates={async (params) =>
             ListResourceTemplatesResultSchema.parse(
-              await postAppBridgeCall(props.server, {
+              await postAppBridgeCall(sessionId, slotId, {
                 method: AppBridgeMethod.ListResourceTemplates,
                 params: cursorOnly(params),
               }),
@@ -125,7 +125,7 @@ export function McpAppView({ props }: RenderProps) {
           }
           onListPrompts={async (params) =>
             ListPromptsResultSchema.parse(
-              await postAppBridgeCall(props.server, {
+              await postAppBridgeCall(sessionId, slotId, {
                 method: AppBridgeMethod.ListPrompts,
                 params: cursorOnly(params),
               }),

@@ -209,7 +209,7 @@ export async function putLiveSources(
   sessionId: string,
   slotId: string,
   sources: unknown[],
-): Promise<{ sourceIds: string[] }> {
+): Promise<{ sourceIds: string[]; pendingApproval: string[] }> {
   await ensureDaemonAlive();
   const response = await authorizedFetch(
     `/api/sessions/${encodeURIComponent(sessionId)}/live`,
@@ -219,8 +219,11 @@ export async function putLiveSources(
     const text = await response.text();
     throw new CanvasDaemonError(`registering live sources failed (${response.status}): ${text}`);
   }
-  const payload = (await response.json()) as { sourceIds: string[] };
-  return { sourceIds: payload.sourceIds ?? [] };
+  const payload = (await response.json()) as {
+    sourceIds: string[];
+    pendingApproval?: string[];
+  };
+  return { sourceIds: payload.sourceIds ?? [], pendingApproval: payload.pendingApproval ?? [] };
 }
 
 export async function sendSlotOps(sessionId: string, ops: SlotOps): Promise<SlotOpsResult> {

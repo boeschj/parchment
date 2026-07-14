@@ -3,15 +3,11 @@
 // and the engine (normalized, JSON-serializable configs persisted to disk).
 
 import * as z from "zod/v4";
+import { LiveSourceKind } from "../../shared/types.ts";
 
-export const LiveSourceKind = {
-  FileTail: "file-tail",
-  CommandPoll: "command-poll",
-  HttpPoll: "http-poll",
-  ClaudeSessions: "claude-sessions",
-} as const;
-
-export type LiveSourceKind = (typeof LiveSourceKind)[keyof typeof LiveSourceKind];
+// The kind vocabulary lives in shared/types.ts (the browser renders it too);
+// re-exported here so daemon modules keep importing it from their own layer.
+export { LiveSourceKind };
 
 export const TailLineParser = {
   Jsonl: "jsonl",
@@ -221,6 +217,28 @@ function normalizeClaudeSessions(input: LiveSourceInput): NormalizeSourceResult 
       limit: Math.min(input.limit ?? DEFAULT_FLEET_SESSION_LIMIT, MAX_FLEET_SESSION_LIMIT),
     },
   };
+}
+
+// What this source reads, as one line a human can judge. For command-poll it
+// is the EXACT command text — the approval prompt shows this, so it must never
+// be abbreviated or reformatted.
+export function liveSourceTarget(config: LiveSourceConfig): string {
+  switch (config.kind) {
+    case LiveSourceKind.FileTail:
+      return config.path;
+    case LiveSourceKind.CommandPoll:
+      return config.command;
+    case LiveSourceKind.HttpPoll:
+      return config.url;
+    case LiveSourceKind.ClaudeSessions:
+      return `claude sessions (last ${config.sinceHours}h, max ${config.limit})`;
+  }
+}
+
+// file-tail watches the file rather than polling it, so it has no interval.
+export function liveSourceIntervalMs(config: LiveSourceConfig): number | null {
+  if (config.kind === LiveSourceKind.FileTail) return null;
+  return config.intervalMs;
 }
 
 function invalid(input: LiveSourceInput, message: string): NormalizeSourceResult {

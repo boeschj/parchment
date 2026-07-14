@@ -21,6 +21,9 @@ export const ErrorCode = {
   MethodNotAllowed: "method_not_allowed",
   NotFound: "not_found",
   BadRequest: "bad_request",
+  // An app iframe tried to call a tool its server never declared app-visible
+  // (SEP-1865 _meta.ui.visibility). See daemon/apps/visibility.ts.
+  AppToolNotVisible: "app_tool_not_visible",
 } as const;
 
 function parseHostnameFromHeader(hostHeader: string | null): string | null {

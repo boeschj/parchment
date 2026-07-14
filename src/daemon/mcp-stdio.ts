@@ -207,7 +207,7 @@ server.registerTool(
   {
     title: "Stream Live Data into a Slot",
     description:
-      "Attach live data sources to a rendered slot so its state keeps updating with no further tool calls. Render a spec whose components bind to state paths seeded as [], then register sources here targeting them; each call replaces the slot's full source set ([] stops streaming). claude-sessions is a built-in fleet+cost scanner. Cookbook: canvas-tools references/live-data.md.",
+      "Attach live data sources to a rendered slot so its state keeps updating with no further tool calls. Render a spec whose components bind to state paths seeded as [], then register sources here targeting them; each call replaces the slot's full source set ([] stops streaming). claude-sessions is a built-in fleet+cost scanner. NOTE: command-poll sources do NOT start on your say-so — the user must approve the exact command in the canvas first, and the tool result tells you which are waiting. Cookbook: canvas-tools references/live-data.md.",
     inputSchema: z.object({
       slotId: z.string().describe("Slot to feed, from a prior canvas_render."),
       sources: z
@@ -218,7 +218,11 @@ server.registerTool(
   async ({ slotId, sources }) => {
     try {
       const resolvedSessionId = await resolveSessionId();
-      const { sourceIds } = await putLiveSources(resolvedSessionId, slotId, sources);
+      const { sourceIds, pendingApproval } = await putLiveSources(
+        resolvedSessionId,
+        slotId,
+        sources,
+      );
       if (sourceIds.length === 0) {
         return {
           content: [
@@ -230,7 +234,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `Streaming ${sourceIds.join(", ")} into slot ${slotId}. State updates flow with no further tool calls. View: ${canvasSessionUrl(resolvedSessionId)}`,
+            text: `Streaming ${sourceIds.join(", ")} into slot ${slotId}. State updates flow with no further tool calls.${pendingApprovalNote(pendingApproval)} View: ${canvasSessionUrl(resolvedSessionId)}`,
           },
         ],
       };
@@ -239,6 +243,14 @@ server.registerTool(
     }
   },
 );
+
+// command-poll runs a shell command on a timer, so the user approves it in the
+// canvas before it executes. Say so plainly: an agent told "streaming" while a
+// source sits parked will keep waiting for data that is never coming.
+function pendingApprovalNote(pendingApproval: string[]): string {
+  if (pendingApproval.length === 0) return "";
+  return ` NOT RUNNING YET: ${pendingApproval.join(", ")} ${pendingApproval.length === 1 ? "is" : "are"} waiting for the user to approve the command in the canvas — tell them to approve it there.`;
+}
 
 server.registerTool(
   "canvas_app",

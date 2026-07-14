@@ -16,6 +16,7 @@ import {
   ChevronsLeftIcon,
   DocIcon,
   LibraryIcon,
+  LiveIcon,
   MoonIcon,
   SlotKindIcon,
   SunIcon,
@@ -41,6 +42,7 @@ const SURFACE_ITEMS: FixedItem[] = [
   { surface: Surface.Transcript, label: "Transcript", icon: <TranscriptIcon width={ICON_SIZE} height={ICON_SIZE} /> },
   { surface: Surface.Plan, label: "Plan", icon: <DocIcon width={ICON_SIZE} height={ICON_SIZE} /> },
   { surface: Surface.Library, label: "Library", icon: <LibraryIcon width={ICON_SIZE} height={ICON_SIZE} /> },
+  { surface: Surface.Live, label: "Live sources", icon: <LiveIcon width={ICON_SIZE} height={ICON_SIZE} /> },
 ];
 
 type FlyoutTarget = { slotId: string; top: number; left: number };
@@ -50,6 +52,8 @@ type LeftRailProps = {
   view: CanvasView;
   onSelectView: (view: CanvasView) => void;
   hasPlan: boolean;
+  hasLiveSources: boolean;
+  hasPendingApprovals: boolean;
   theme: Theme;
   onToggleTheme: () => void;
   themeChoice: ThemeChoice;
@@ -62,6 +66,8 @@ export function LeftRail({
   view,
   onSelectView,
   hasPlan,
+  hasLiveSources,
+  hasPendingApprovals,
   theme,
   onToggleTheme,
   themeChoice,
@@ -75,7 +81,9 @@ export function LeftRail({
   const themeIcon = theme === Theme.Dark ? <SunIcon width={ICON_SIZE} height={ICON_SIZE} /> : <MoonIcon width={ICON_SIZE} height={ICON_SIZE} />;
   const themeLabel = theme === Theme.Dark ? "Switch to light mode" : "Switch to dark mode";
 
-  const surfaceItems = SURFACE_ITEMS.filter((item) => hasPlan || item.surface !== Surface.Plan);
+  const surfaceItems = SURFACE_ITEMS.filter((item) =>
+    isSurfaceAvailable(item.surface, hasPlan, hasLiveSources),
+  );
   const artifacts = sortArtifactsByNewest(slots);
   const hasOverflow = artifacts.length > ARTIFACT_OVERFLOW_THRESHOLD;
   const showAll = isExpanded && hasOverflow;
@@ -110,6 +118,7 @@ export function LeftRail({
             label={item.label}
             expanded={showAll}
             isActive={view.type === "surface" && view.surface === item.surface}
+            needsAttention={item.surface === Surface.Live && hasPendingApprovals}
             onSelect={() => onSelectView({ type: "surface", surface: item.surface })}
           />
         ))}
@@ -263,6 +272,14 @@ function Flyout({ slot, top, left }: { slot: Slot; top: number; left: number }) 
 }
 
 // --- helpers ---------------------------------------------------------------
+
+// Plan and Live sources are conditional surfaces: an empty one is a dead rail
+// item, so each appears only once the session actually has something in it.
+function isSurfaceAvailable(surface: Surface, hasPlan: boolean, hasLiveSources: boolean): boolean {
+  if (surface === Surface.Plan) return hasPlan;
+  if (surface === Surface.Live) return hasLiveSources;
+  return true;
+}
 
 function sortArtifactsByNewest(slots: Slot[]): Slot[] {
   return [...slots].sort((a, b) => b.updatedAt - a.updatedAt);

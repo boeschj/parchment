@@ -1,7 +1,9 @@
 import type {
+  CommandApprovalScope,
   EditKind,
   LibraryEntry,
   LibraryListing,
+  LiveSourceView,
   SessionSummary,
   Slot,
   SlotOpsResult,
@@ -98,24 +100,72 @@ export async function fetchSessions(): Promise<SessionSummary[]> {
 }
 
 // Relay a whitelisted JSON-RPC call from an app iframe to its app server.
-// The daemon validates the method against the bridge whitelist again — this
-// function is a dumb pipe.
+// This function is a dumb pipe: it names the SLOT the iframe belongs to and the
+// daemon does the rest — it resolves the server from that slot's grant and
+// rejects any tool the server did not declare app-visible. The page never gets
+// to say which server a call reaches, so a compromised iframe cannot argue its
+// way onto another app's server.
 export async function postAppBridgeCall(
-  serverName: string,
+  sessionId: string,
+  slotId: string,
   call: { method: string; params: Record<string, unknown> },
 ): Promise<unknown> {
   const headers = await authorizedHeaders();
-  const response = await fetch(`/api/apps/${encodeURIComponent(serverName)}/bridge`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(call),
-  });
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/apps/${encodeURIComponent(slotId)}/bridge`,
+    { method: "POST", headers, body: JSON.stringify(call) },
+  );
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`app bridge call failed (${response.status}): ${text}`);
   }
   const payload = (await response.json()) as { result: unknown };
   return payload.result;
+}
+
+export async function fetchLiveSources(sessionId: string): Promise<LiveSourceView[]> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/live`);
+  if (!response.ok) throw new Error(`fetchLiveSources failed: ${response.status}`);
+  const payload = (await response.json()) as { sources?: LiveSourceView[] };
+  return payload.sources ?? [];
+}
+
+// The user consenting to a command-poll source: this is the ONLY way a
+// recurring shell command starts running.
+export async function approveLiveSource(
+  sessionId: string,
+  slotId: string,
+  sourceId: string,
+  scope: CommandApprovalScope,
+): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/live/approve`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ slotId, sourceId, scope }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`approveLiveSource failed (${response.status}): ${text}`);
+  }
+}
+
+// Stop a running source, or deny a pending one — the same operation either way.
+export async function stopLiveSource(
+  sessionId: string,
+  slotId: string,
+  sourceId: string,
+): Promise<void> {
+  const headers = await authorizedHeaders();
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/live/stop`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ slotId, sourceId }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`stopLiveSource failed (${response.status}): ${text}`);
+  }
 }
 
 // Ship file bytes to the daemon, which stores them under ~/.parchment/uploads

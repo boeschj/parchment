@@ -19,10 +19,21 @@ type RailButtonProps = {
   isActive: boolean;
   expanded: boolean;
   onSelect: () => void;
+  // Draws the attention dot — used when a surface is waiting on the user
+  // (a command-poll source pending approval).
+  needsAttention?: boolean;
 };
 
-export function RailButton({ icon, label, isActive, expanded, onSelect }: RailButtonProps) {
+export function RailButton({
+  icon,
+  label,
+  isActive,
+  expanded,
+  onSelect,
+  needsAttention = false,
+}: RailButtonProps) {
   const className = railItemClass(expanded, isActive);
+  const showActiveDot = isActive && !expanded && !needsAttention;
 
   return (
     <button
@@ -35,7 +46,8 @@ export function RailButton({ icon, label, isActive, expanded, onSelect }: RailBu
     >
       <span className="rail-item__glyph">{icon}</span>
       {expanded ? <span className="rail-item__label">{label}</span> : null}
-      {isActive && !expanded ? <span className="rail-active-dot" /> : null}
+      {needsAttention ? <span className="rail-unseen-dot" /> : null}
+      {showActiveDot ? <span className="rail-active-dot" /> : null}
     </button>
   );
 }

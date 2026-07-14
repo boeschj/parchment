@@ -33,13 +33,21 @@ server.registerResource(
   }),
 );
 
+// Tool visibility (SEP-1865, "Resource Discovery" → "Visibility"): a tool is
+// callable from the app's UI only if its `_meta.ui.visibility` includes "app".
+// parchment enforces this and denies by default, so an undeclared tool is
+// unreachable from the iframe — the three tools below are, deliberately, one of
+// each case.
+
+// Agent-callable, and the tool whose result parchment renders. It does NOT need
+// "app": the agent opens the board, the iframe never calls this.
 server.registerTool(
   "show_task_board",
   {
     title: "Show the task board",
     description: "Render the interactive task board UI.",
     inputSchema: z.object({}),
-    _meta: { "ui/resourceUri": BOARD_RESOURCE_URI },
+    _meta: { ui: { resourceUri: BOARD_RESOURCE_URI, visibility: ["model"] } },
   },
   async () => ({
     content: [
@@ -53,12 +61,15 @@ server.registerTool(
   }),
 );
 
+// The one tool the board's UI calls back. Declaring "app" is what makes the
+// host's bridge let it through.
 server.registerTool(
   "add_task",
   {
     title: "Add a task",
     description: "Add a task to the board.",
     inputSchema: z.object({ title: z.string().min(1) }),
+    _meta: { ui: { visibility: ["model", "app"] } },
   },
   async ({ title }) => {
     tasks.push(title);
@@ -69,6 +80,8 @@ server.registerTool(
   },
 );
 
+// Declares no visibility at all. parchment's bridge refuses it to the iframe —
+// this is the negative case the app-visibility boundary exists to produce.
 server.registerTool(
   "list_tasks",
   {
@@ -108,6 +121,7 @@ function boardHtml(): string {
   <input id="title" placeholder="New task title" aria-label="New task title">
   <button id="add">Add task</button>
   <button id="send" class="secondary">Send board to model</button>
+  <button id="probe" class="secondary">Call undeclared tool</button>
 </div>
 <p id="status">connecting to host…</p>
 <script>
@@ -217,6 +231,18 @@ function boardHtml(): string {
 
   document.getElementById("send").addEventListener("click", () => {
     void updateModelContext();
+  });
+
+  // list_tasks declares no _meta.ui.visibility, so the host must refuse it to
+  // this iframe. The refusal is the feature — show it.
+  document.getElementById("probe").addEventListener("click", async () => {
+    setStatus("calling list_tasks (not declared app-visible)…");
+    try {
+      await request("tools/call", { name: "list_tasks", arguments: {} });
+      setStatus("UNEXPECTED: the host allowed an undeclared tool");
+    } catch (error) {
+      setStatus("blocked by host: " + error.message);
+    }
   });
 
   const resizeObserver = new ResizeObserver(() => {

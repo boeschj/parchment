@@ -4,15 +4,18 @@ import type { Slot, WsEvent } from "../shared/types.ts";
 import { SessionStatus, SlotStatus } from "../shared/types.ts";
 import { registry } from "./registry.ts";
 import { SlotContextProvider } from "./SlotContext.tsx";
+import { CommandApprovalPrompt } from "./components/CommandApprovalPrompt.tsx";
 import { LeftRail } from "./components/LeftRail.tsx";
 import { LibraryPanel } from "./components/LibraryPanel.tsx";
+import { LiveSourcesPanel } from "./components/LiveSourcesPanel.tsx";
 import { SlotKindIcon } from "./components/icons.tsx";
 import { SlotErrorBoundary } from "./components/SlotErrorBoundary.tsx";
 import { SlotExportMenu } from "./components/SlotExportMenu.tsx";
 import { TranscriptView } from "./components/TranscriptView.tsx";
 import { SessionSwitcher } from "./components/SessionSwitcher.tsx";
 import { useSessions } from "./useSessions.ts";
-import type { SessionSummary } from "../shared/types.ts";
+import { pendingApprovalSources, useLiveSources } from "./useLiveSources.ts";
+import type { CommandApprovalScope, LiveSourceView, SessionSummary } from "../shared/types.ts";
 import { createSlotOpsListener } from "./slot-ops/ops-listener.ts";
 import { useWsEventSubscription } from "./useWsEventSubscription.ts";
 import type { TranscriptModel } from "./transcript/parse.ts";
@@ -42,6 +45,7 @@ export function App() {
   const sessionId = readSessionIdFromUrl();
   const { slots, transcript, connected, subscribeToEvents } = useCanvasWebSocket(sessionId);
   const sessions = useSessions();
+  const { sources, approve, stop } = useLiveSources(sessionId, subscribeToEvents);
   const { theme, toggleTheme } = useThemeToggle();
   const { themeChoice, setThemeChoice } = useThemeChoice();
   const [viewChoice, setViewChoice] = useState<ViewChoice | null>(null);
@@ -51,6 +55,15 @@ export function App() {
   const planSlot = latestPlanSlot(slots);
   const currentSession = sessions.find((session) => session.sessionId === sessionId);
   const isClaudeWorking = currentSession?.status === SessionStatus.Working;
+  const pending = pendingApprovalSources(sources);
+
+  const handleApprove = (source: LiveSourceView, scope: CommandApprovalScope): void => {
+    void approve(source, scope);
+  };
+
+  const handleStop = (source: LiveSourceView): void => {
+    void stop(source);
+  };
 
   // Claude's slot ops execute at app level so slot snapshots work no matter
   // which surface is showing.
@@ -97,6 +110,8 @@ export function App() {
             view={view}
             onSelectView={selectView}
             hasPlan={planSlot !== null}
+            hasLiveSources={sources.length > 0}
+            hasPendingApprovals={pending.length > 0}
             theme={theme}
             onToggleTheme={toggleTheme}
             themeChoice={themeChoice}
@@ -104,6 +119,14 @@ export function App() {
             newestSeenUpdatedAt={viewChoice?.newestSeenUpdatedAt ?? newestSlotUpdatedAt(slots)}
           />
           <div className="flex-1 min-w-0 flex flex-col">
+            {/* Consent lives above every surface: a recurring shell command the
+                agent asked for must not be discoverable only by going looking. */}
+            <CommandApprovalPrompt
+              pending={pending}
+              slots={slots}
+              onApprove={handleApprove}
+              onDeny={handleStop}
+            />
             <ViewContent
               sessionId={sessionId}
               view={view}
@@ -112,6 +135,8 @@ export function App() {
               transcript={transcript}
               connected={connected}
               isClaudeWorking={isClaudeWorking}
+              liveSources={sources}
+              onStopLiveSource={handleStop}
               onOpenInSlot={(slot) => selectView({ type: "slot", slotId: slot.id })}
             />
           </div>
@@ -129,6 +154,8 @@ function ViewContent({
   transcript,
   connected,
   isClaudeWorking,
+  liveSources,
+  onStopLiveSource,
   onOpenInSlot,
 }: {
   sessionId: string;
@@ -138,6 +165,8 @@ function ViewContent({
   transcript: TranscriptModel;
   connected: boolean;
   isClaudeWorking: boolean;
+  liveSources: LiveSourceView[];
+  onStopLiveSource: (source: LiveSourceView) => void;
   onOpenInSlot: (slot: Slot) => void;
 }) {
   if (view.type === "slot") {
@@ -160,6 +189,10 @@ function ViewContent({
 
   if (view.surface === Surface.Library) {
     return <LibraryPanel sessionId={sessionId} onOpenInSlot={onOpenInSlot} />;
+  }
+
+  if (view.surface === Surface.Live) {
+    return <LiveSourcesPanel sources={liveSources} slots={slots} onStop={onStopLiveSource} />;
   }
 
   if (transcript.items.length === 0) {

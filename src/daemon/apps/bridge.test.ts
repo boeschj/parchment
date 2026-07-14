@@ -1,12 +1,14 @@
 import { describe, it, expect } from "bun:test";
 import {
   validateBridgeCall,
+  authorizeBridgeCall,
   extractEmbeddedUiResource,
   uiResourceUriFromToolMeta,
   resourceContentsToAppUi,
   cspFromResourceMeta,
   resultTextSummary,
   isSupportedAppMime,
+  type BridgeCall,
 } from "./bridge.ts";
 import { AppResourceMimeType } from "../../shared/mcp-apps.ts";
 
@@ -71,6 +73,64 @@ describe("validateBridgeCall", () => {
     expect(validateBridgeCall("tools/call").ok).toBe(false);
     expect(validateBridgeCall(null).ok).toBe(false);
     expect(validateBridgeCall(42).ok).toBe(false);
+  });
+});
+
+// SEP-1865: "Host MUST reject tools/call requests from apps for tools that
+// don't include "app" in visibility". The allowlist is the app slot's grant.
+describe("authorizeBridgeCall", () => {
+  const helloApp = { server: "hello-app", appVisibleTools: ["add_task"] };
+
+  function toolCall(name: string): BridgeCall {
+    return { method: "tools/call", params: { name } };
+  }
+
+  it("allows a tool the server declared app-visible", () => {
+    expect(authorizeBridgeCall(toolCall("add_task"), helloApp).ok).toBe(true);
+  });
+
+  it("rejects a tool the server never declared app-visible", () => {
+    const outcome = authorizeBridgeCall(toolCall("list_tasks"), helloApp);
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error).toContain('"list_tasks" is not app-visible');
+    expect(outcome.error).toContain("hello-app");
+    expect(outcome.error).toContain("add_task");
+  });
+
+  it("rejects EVERY tool when the server declares no visibility, and explains why", () => {
+    const silentServer = { server: "legacy-app", appVisibleTools: [] };
+
+    const outcome = authorizeBridgeCall(toolCall("anything"), silentServer);
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error).toContain("declares no app-visible tools");
+    expect(outcome.error).toContain("_meta.ui.visibility");
+    expect(outcome.error).toContain("an app that declares nothing gets nothing");
+  });
+
+  // The grant is per-slot and carries its own server's allowlist, so a tool
+  // that exists on a DIFFERENT app's server is simply not in this one.
+  it("does not let one app's iframe reach a second app's tools", () => {
+    const weatherApp = { server: "weather-app", appVisibleTools: ["refresh_forecast"] };
+
+    const fromHelloApp = authorizeBridgeCall(toolCall("refresh_forecast"), helloApp);
+    const fromWeatherApp = authorizeBridgeCall(toolCall("add_task"), weatherApp);
+
+    expect(fromHelloApp.ok).toBe(false);
+    expect(fromWeatherApp.ok).toBe(false);
+    if (fromHelloApp.ok) return;
+    expect(fromHelloApp.error).toContain("hello-app");
+  });
+
+  // Visibility scopes tools/call. The other whitelisted methods are scoped by
+  // CONNECTION — the grant picks the server — which is what the spec requires.
+  it("does not tool-check the non-tools/call methods", () => {
+    expect(authorizeBridgeCall({ method: "resources/read", params: { uri: "ui://x/y" } }, helloApp).ok).toBe(true);
+    expect(authorizeBridgeCall({ method: "resources/list", params: {} }, helloApp).ok).toBe(true);
+    expect(authorizeBridgeCall({ method: "prompts/list", params: {} }, helloApp).ok).toBe(true);
   });
 });
 

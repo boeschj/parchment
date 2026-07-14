@@ -20,7 +20,10 @@ import {
   listAppTools,
   readAppResource,
 } from "./connections.ts";
+import { recordAppSlotGrant, type AppSlotGrant } from "./grants.ts";
+import { appVisibleToolNames } from "./visibility.ts";
 import { AppBridgeMethod } from "../../shared/mcp-apps.ts";
+import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 
 export type OpenAppInput = {
   sessionId: string;
@@ -40,6 +43,9 @@ export type OpenAppOutcome = {
   slot: Slot;
   resourceUri: string;
   summary: string;
+  // The tools this app's UI may call back — surfaced to the agent so a server
+  // that forgot to declare visibility is diagnosable without reading the log.
+  appVisibleTools: readonly string[];
 };
 
 export async function openAppInSlot(input: OpenAppInput): Promise<OpenAppOutcome> {
@@ -62,8 +68,14 @@ export async function openAppInSlot(input: OpenAppInput): Promise<OpenAppOutcome
 
   const connection = await getAppConnection(input.server, config);
 
+  // The server's tool declarations are read ONCE, here, and become the slot's
+  // allowlist. Note the tool the agent calls to open the app needs no "app"
+  // visibility — the agent is calling it, not the iframe.
+  const tools = await listAppTools(connection);
+  const appVisibleTools = appVisibleToolNames(tools.tools);
+
   const opened = input.tool
-    ? await openViaTool(connection, input.tool, input.toolArgs ?? {})
+    ? await openViaTool(connection, tools, input.tool, input.toolArgs ?? {})
     : await openViaResource(connection, input.resource as string);
 
   const props: McpAppSlotProps = {
@@ -87,18 +99,31 @@ export async function openAppInSlot(input: OpenAppInput): Promise<OpenAppOutcome
     ...(input.slotId !== undefined ? { slotId: input.slotId } : {}),
   });
 
-  return { slot, resourceUri: opened.ui.resourceUri, summary: opened.summary };
+  const grant = recordAppSlotGrant({
+    sessionId: input.sessionId,
+    slotId: slot.id,
+    server: input.server,
+    appVisibleTools,
+  });
+
+  return {
+    slot,
+    resourceUri: opened.ui.resourceUri,
+    summary: opened.summary,
+    appVisibleTools: grant.appVisibleTools,
+  };
 }
 
-// Forward one already-validated bridge call from an app iframe to its app
+// Forward one already-authorized bridge call from an app iframe to its app
 // server. SECURITY: callers must only pass calls that came through
-// validateBridgeCall — the method set here mirrors that whitelist exactly.
-export async function executeBridgeCall(serverName: string, call: BridgeCall): Promise<unknown> {
-  const config = resolveAppServer(serverName);
+// validateBridgeCall (which method) AND authorizeBridgeCall against this same
+// grant (which tool). The server is the grant's, never the request's.
+export async function executeBridgeCall(grant: AppSlotGrant, call: BridgeCall): Promise<unknown> {
+  const config = resolveAppServer(grant.server);
   if (!config) {
-    throw new Error(`unknown app server "${serverName}"`);
+    throw new Error(`unknown app server "${grant.server}"`);
   }
-  const connection = await getAppConnection(serverName, config);
+  const connection = await getAppConnection(grant.server, config);
 
   switch (call.method) {
     case AppBridgeMethod.CallTool:
@@ -122,10 +147,10 @@ type OpenedAppUi = {
 
 async function openViaTool(
   connection: Awaited<ReturnType<typeof getAppConnection>>,
+  tools: ListToolsResult,
   toolName: string,
   toolArgs: Record<string, unknown>,
 ): Promise<OpenedAppUi> {
-  const tools = await listAppTools(connection);
   const tool = tools.tools.find((candidate) => candidate.name === toolName);
   if (!tool) {
     const available = tools.tools.map((candidate) => candidate.name).join(", ");

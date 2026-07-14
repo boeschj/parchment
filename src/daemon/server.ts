@@ -37,21 +37,26 @@ import {
   clearOverlay,
 } from "./edits.ts";
 import {
+  approveSlotSource,
+  listPendingApprovalSourceIds,
   listSessionLiveSources,
   rehydratePersistedLiveSources,
   setSlotLiveSources,
   stopAllLiveSources,
   stopSessionLiveSources,
+  stopSlotSource,
 } from "./live/engine.ts";
+import { CommandApprovalScope } from "./live/approved-commands.ts";
 import {
   LiveSourceInputSchema,
   normalizeLiveSource,
   type LiveSourceConfig,
 } from "./live/types.ts";
 import { extractIntentMenu, resolveIntent } from "./intents.ts";
-import { validateBridgeCall } from "./apps/bridge.ts";
+import { authorizeBridgeCall, validateBridgeCall } from "./apps/bridge.ts";
 import { listAppServerNames } from "./apps/config.ts";
 import { closeAllAppConnections } from "./apps/connections.ts";
+import { resolveAppSlotGrant } from "./apps/grants.ts";
 import { executeBridgeCall, openAppInSlot } from "./apps/open.ts";
 import { SANDBOX_PAGE_HTML, SANDBOX_PAGE_PATH } from "./apps/sandbox-page.ts";
 import { storeUpload } from "./uploads.ts";
@@ -187,16 +192,6 @@ async function handleFetch(
 
   if (path === "/api/apps" && request.method === "GET") {
     return jsonResponse({ servers: listAppServerNames() });
-  }
-
-  // App bridge: the browser relays whitelisted JSON-RPC calls from an app
-  // iframe here. Token-guarded (mutating POST); the iframe itself can never
-  // reach this endpoint — its opaque origin and CSP block direct daemon
-  // access, so only parchment's own page code brokers calls.
-  const bridgeMatch = path.match(/^\/api\/apps\/([^/]+)\/bridge$/);
-  if (bridgeMatch && request.method === "POST") {
-    const serverName = decodeURIComponent(bridgeMatch[1]!);
-    return handleAppBridge(request, serverName);
   }
 
   // The MCP app sandbox proxy. The canvas loads it via the daemon's OTHER
@@ -413,6 +408,20 @@ async function handleSessionRoute(
     return handleAppOpen(request, sessionId);
   }
 
+  // App bridge: the browser relays whitelisted JSON-RPC calls from an app
+  // iframe here, naming the SLOT the iframe belongs to. Token-guarded
+  // (mutating POST); the iframe itself can never reach this endpoint — its
+  // opaque origin and CSP block direct daemon access, so only parchment's own
+  // page code brokers calls.
+  //
+  // SECURITY: the slot's grant — not the request — decides which server the
+  // call reaches and which tools it may name. See apps/grants.ts.
+  const appBridgeMatch = subPath.match(/^\/apps\/([^/]+)\/bridge$/);
+  if (appBridgeMatch && method === "POST") {
+    const slotId = decodeURIComponent(appBridgeMatch[1]!);
+    return handleAppBridge(request, sessionId, slotId);
+  }
+
   if (subPath === "/edits" && method === "GET") {
     const payload = buildInjectionPayload(sessionId);
     const format = new URL(request.url).searchParams.get("format");
@@ -469,7 +478,59 @@ async function handleSessionRoute(
       return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, validated.error);
     }
     setSlotLiveSources(sessionId, body.slotId, validated.configs);
-    return jsonResponse({ ok: true, sourceIds: validated.configs.map((config) => config.id) });
+    return jsonResponse({
+      ok: true,
+      sourceIds: validated.configs.map((config) => config.id),
+      // command-poll sources do not run until the user approves them, so the
+      // agent is told which ones are parked rather than left believing it is
+      // streaming data that will never arrive.
+      pendingApproval: listPendingApprovalSourceIds(sessionId, body.slotId),
+    });
+  }
+
+  // The user approving (or denying) a command-poll source in the browser. Deny
+  // and Stop are the same operation: forget the source so it neither runs nor
+  // comes back on the next boot.
+  if (subPath === "/live/approve" && method === "POST") {
+    const body = (await request.json()) as { slotId?: string; sourceId?: string; scope?: string };
+    if (typeof body.slotId !== "string" || typeof body.sourceId !== "string") {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "slotId and sourceId required");
+    }
+    if (!isCommandApprovalScope(body.scope)) {
+      return errorResponse(
+        HttpStatus.BadRequest,
+        ErrorCode.BadRequest,
+        `scope must be one of: ${Object.values(CommandApprovalScope).join(", ")}`,
+      );
+    }
+    const approved = approveSlotSource(sessionId, body.slotId, body.sourceId, body.scope);
+    if (!approved) {
+      return errorResponse(
+        HttpStatus.NotFound,
+        ErrorCode.NotFound,
+        `no command-poll source '${body.sourceId}' pending approval on slot ${body.slotId}`,
+      );
+    }
+    console.log(
+      `parchment: user approved command-poll '${approved.sourceId}' (${body.scope}) — ${approved.target}`,
+    );
+    return jsonResponse({ ok: true, source: approved });
+  }
+
+  if (subPath === "/live/stop" && method === "POST") {
+    const body = (await request.json()) as { slotId?: string; sourceId?: string };
+    if (typeof body.slotId !== "string" || typeof body.sourceId !== "string") {
+      return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, "slotId and sourceId required");
+    }
+    const stopped = stopSlotSource(sessionId, body.slotId, body.sourceId);
+    if (!stopped) {
+      return errorResponse(
+        HttpStatus.NotFound,
+        ErrorCode.NotFound,
+        `no live source '${body.sourceId}' on slot ${body.slotId}`,
+      );
+    }
+    return jsonResponse({ ok: true });
   }
 
   if (subPath === "/reset" && method === "POST") {
@@ -615,6 +676,7 @@ async function handleAppOpen(request: Request, sessionId: string): Promise<Respo
       slot: outcome.slot,
       resourceUri: outcome.resourceUri,
       summary: outcome.summary,
+      appVisibleTools: outcome.appVisibleTools,
     });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
@@ -622,19 +684,57 @@ async function handleAppOpen(request: Request, sessionId: string): Promise<Respo
   }
 }
 
-async function handleAppBridge(request: Request, serverName: string): Promise<Response> {
+// SECURITY: three gates, in order — the method must be on the bridge whitelist,
+// the slot must hold a live app grant, and the named tool must be app-visible
+// on that grant's server. Every refusal is logged: an app iframe reaching for a
+// tool it was never given is exactly the event an operator needs to see.
+async function handleAppBridge(
+  request: Request,
+  sessionId: string,
+  slotId: string,
+): Promise<Response> {
   const body = await request.json().catch(() => null);
   const validation = validateBridgeCall(body);
   if (!validation.ok) {
+    logBridgeRejection(sessionId, slotId, validation.error);
     return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, validation.error);
   }
+
   try {
-    const result = await executeBridgeCall(serverName, validation.call);
+    const grant = await resolveAppSlotGrant(sessionId, slotId);
+    if (!grant) {
+      const message = `slot ${slotId} is not an open MCP app slot — no app grant to authorize against`;
+      logBridgeRejection(sessionId, slotId, message);
+      return errorResponse(HttpStatus.NotFound, ErrorCode.NotFound, message);
+    }
+
+    const authorization = authorizeBridgeCall(validation.call, grant);
+    if (!authorization.ok) {
+      logBridgeRejection(sessionId, slotId, authorization.error);
+      return errorResponse(
+        HttpStatus.Forbidden,
+        ErrorCode.AppToolNotVisible,
+        authorization.error,
+      );
+    }
+
+    const result = await executeBridgeCall(grant, validation.call);
     return jsonResponse({ ok: true, result });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     return errorResponse(HttpStatus.BadRequest, ErrorCode.BadRequest, message);
   }
+}
+
+function logBridgeRejection(sessionId: string, slotId: string, reason: string): void {
+  console.warn(`parchment: app bridge REJECTED (session ${sessionId}, slot ${slotId}): ${reason}`);
+}
+
+function isCommandApprovalScope(value: unknown): value is CommandApprovalScope {
+  return (
+    typeof value === "string" &&
+    Object.values(CommandApprovalScope).some((candidate) => candidate === value)
+  );
 }
 
 function isSlotKind(value: unknown): value is import("../shared/types.ts").SlotKind {

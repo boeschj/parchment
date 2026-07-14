@@ -4,6 +4,7 @@
 // width/height (or lucide's size prop).
 
 import {
+  Activity,
   AppWindow,
   ChartColumn,
   Check,
@@ -39,6 +40,7 @@ export const SunIcon = Sun;
 export const MoonIcon = Moon;
 export const ChevronsLeftIcon = ChevronsLeft;
 export const LibraryIcon = Library;
+export const LiveIcon = Activity;
 export const PaletteIcon = Palette;
 export const TrashIcon = Trash2;
 export const CheckIcon = Check;

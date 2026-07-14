@@ -88,6 +88,56 @@ function isWhitelistedMethod(method: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// App-visibility authorization (SEP-1865, "Resource Discovery" → "Visibility").
+//
+// SECURITY: validateBridgeCall says WHICH METHOD may cross the bridge. This
+// says WHICH TOOL — "Host MUST reject tools/call requests from apps for tools
+// that don't include "app" in visibility". The allowlist is the app slot's
+// grant, computed from the server's own declarations when the app was opened
+// (see grants.ts / visibility.ts); the iframe has no say in it.
+//
+// The other whitelisted methods need no per-name check: they are all scoped to
+// the grant's server connection, and the spec scopes the app's reach by
+// connection ("callable by the app from the same server connection only"). It
+// declares no per-resource visibility, so resources/read of the app's OWN
+// server stays allowed — reaching a SECOND server is what is impossible here,
+// because the server is resolved from the slot's grant, not from the request.
+// ---------------------------------------------------------------------------
+
+type ToolAllowlist = {
+  server: string;
+  appVisibleTools: readonly string[];
+};
+
+export type BridgeAuthorization = { ok: true } | { ok: false; error: string };
+
+export function authorizeBridgeCall(call: BridgeCall, allowlist: ToolAllowlist): BridgeAuthorization {
+  const isToolCall = call.method === AppBridgeMethod.CallTool;
+  if (!isToolCall) return { ok: true };
+
+  const toolName = call.params.name;
+  if (allowlist.appVisibleTools.includes(toolName)) return { ok: true };
+
+  return { ok: false, error: notVisibleError(toolName, allowlist) };
+}
+
+function notVisibleError(toolName: string, allowlist: ToolAllowlist): string {
+  const declaresNothing = allowlist.appVisibleTools.length === 0;
+  if (declaresNothing) {
+    return (
+      `app server "${allowlist.server}" declares no app-visible tools, so its UI may not call "${toolName}" — or anything else. ` +
+      `Per MCP Apps (SEP-1865), a tool is callable from an app's UI only if the server declares it: ` +
+      `_meta.ui.visibility must include "app". parchment denies by default when that declaration is absent — ` +
+      `an app that declares nothing gets nothing.`
+    );
+  }
+  return (
+    `tool "${toolName}" is not app-visible on server "${allowlist.server}": its _meta.ui.visibility does not include "app" (SEP-1865). ` +
+    `Tools this server's UI may call: ${allowlist.appVisibleTools.join(", ")}.`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // UI resource extraction (SEP-1865 + mcp-ui + OpenAI Apps SDK MIME variants).
 // ---------------------------------------------------------------------------
 
