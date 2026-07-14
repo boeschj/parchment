@@ -164,7 +164,7 @@ server.registerTool(
   {
     title: "Compose a Generative UI",
     description:
-      "DEFAULT tool for rich content — charts, tables, diagrams, forms, documents, dashboards — composed from a 52-component catalog. Specs carry `state`, $state/$bindState/$template expressions, repeat lists, and `on` event bindings (interactive forms). Invalid specs return a precise issue list — fix and re-push with the same slotId. Composition and grammar: the canvas-tools and canvas-spec skills.",
+      "DEFAULT tool for rich content — charts, tables, diagrams, forms, documents, dashboards — composed from a 52-component catalog. Specs carry `state`, $state/$bindState/$template expressions, repeat lists, and `on` event bindings (interactive forms). Prop values also accept reference forms the daemon hydrates from local sources — {\"$file\"}, {\"$diff\"}, {\"$csv\"}, {\"$img\"}, optionally {\"watch\":true} (see canvas-tools references/content-refs.md). Invalid specs return a precise issue list — fix and re-push with the same slotId. Composition and grammar: the canvas-tools and canvas-spec skills.",
     inputSchema: z.object({
       title: z.string().describe("Slot title shown in the tab strip."),
       kind: z
