@@ -7,24 +7,38 @@
 // one word else. That property is what the ablation rests on, and surface.test.ts
 // enforces it.
 //
+// EVERY FACT is read off the product (vocabulary.ts explains how): which props
+// exist, which are required, what values they take, what a reference hydrates,
+// what buckets a log takes. This module only decides how to SAY them.
+//
 // The harness measures real token counts; these functions just return the text.
 
 import { Fidelity } from "../types.ts";
-import { textContentPropOf } from "../vendor/markup/conventions.ts";
+import { textContentPropOf } from "../../src/daemon/markup/conventions.ts";
 import {
+  BUCKET_SYNTAX_PLACEHOLDER,
   COMPONENT_SURFACE,
   DOCUMENTED_COMPONENTS,
   HYDRATED_PROPS_PLACEHOLDER,
+  LOG_BUCKET_SYNTAX,
   REFERENCE_SURFACE,
   STANDALONE_REFERENCE_COMPONENTS,
   STRUCTURAL_TAGS,
   STRUCTURAL_TAG_SURFACE,
   SURFACE_COMPONENTS,
+  acceptsChildrenIn,
+  compilesToOf,
   documentedPropNamesOf,
+  hydratedPropsOf,
+  isRequiredProp,
+  isStandaloneReference,
   layeredReferenceFor,
+  notationOf,
+  standaloneAttrMeaningOf,
+  standaloneReferenceAttrsOf,
+  takesCompiledPropType,
   type DocumentedComponentName,
   type ExampleValue,
-  type PropSpec,
   type StandaloneReferenceName,
   type SurfaceComponentName,
   type Vocabulary,
@@ -51,15 +65,35 @@ const ROOT_KEY_PLACEHOLDER = "a";
 const EXAMPLE_PREFIX = "  e.g. ";
 const PROP_INDENT = "  ";
 const NOTE_INDENT = "  ";
+const NOTATION_SEPARATOR = " — ";
+const UNTYPED_NOTATION = "any";
 
 export function renderSurfaceReference(input: SurfaceReferenceInput): string {
   const sections = [
     renderGrammarSection(input),
-    renderContentSection(input.fidelity),
+    renderContentSection(input),
+    ...renderReferenceExpressionSection(input),
     renderComponentSection(input),
     ...renderStructuralTagSection(input),
   ];
   return sections.join(SECTION_SEPARATOR);
+}
+
+// The two notations reach the SAME reference grammar by different doors, and each
+// arm is shown the door it actually has.
+//
+//   markup: sugar — <GitDiff file=…/>, <DataTable src=…/>. The compiler lowers
+//     them into the expressions below, so they are documented as tags and props.
+//   json/terse: the expressions themselves, which is what the shipped spec
+//     grammar takes (src/shared/expressions.ts). Documenting `src` as a DataTable
+//     PROP here would be a lie the validator rejects — the model would author a
+//     prop that does not exist and lose a run it never had a chance at.
+function usesMarkupReferenceSugar(input: SurfaceReferenceInput): boolean {
+  return input.notation === Notation.Markup;
+}
+
+function showsLadder(input: SurfaceReferenceInput): boolean {
+  return input.fidelity === Fidelity.High;
 }
 
 // ---- Grammar ----------------------------------------------------------------
@@ -160,9 +194,10 @@ function renderSpecSkeleton(vocabulary: Vocabulary, notation: Notation): string 
 
 // ---- Content / the fidelity rung --------------------------------------------
 
-function renderContentSection(fidelity: Fidelity): string {
-  if (fidelity === Fidelity.High) return HIGH_FIDELITY_CONTENT_SECTION;
-  return LOW_FIDELITY_CONTENT_SECTION;
+function renderContentSection(input: SurfaceReferenceInput): string {
+  if (!showsLadder(input)) return LOW_FIDELITY_CONTENT_SECTION;
+  if (usesMarkupReferenceSugar(input)) return HIGH_FIDELITY_MARKUP_CONTENT_SECTION;
+  return HIGH_FIDELITY_SPEC_CONTENT_SECTION;
 }
 
 const LOW_FIDELITY_CONTENT_SECTION = [
@@ -173,7 +208,7 @@ const LOW_FIDELITY_CONTENT_SECTION = [
   "file contents, the code, the rows, and the data points inline.",
 ].join("\n");
 
-const HIGH_FIDELITY_CONTENT_SECTION = [
+const HIGH_FIDELITY_MARKUP_CONTENT_SECTION = [
   "# Content",
   "",
   "You can either paste content inline, or hand the daemon a path and let it fetch the",
@@ -182,16 +217,107 @@ const HIGH_FIDELITY_CONTENT_SECTION = [
   "a reference. Props marked (required unless referenced) must be present otherwise.",
 ].join("\n");
 
+const HIGH_FIDELITY_SPEC_CONTENT_SECTION = [
+  "# Content",
+  "",
+  "You can either paste content inline, or hand the daemon a path and let it fetch the",
+  "bytes for you. A prop's VALUE may be a reference object naming a file (see References",
+  "below); the daemon reads it at render time and fills that prop, plus the props listed",
+  "beside it — omit those when you use a reference. Props marked (required unless",
+  "referenced) must be present otherwise.",
+].join("\n");
+
+// ---- References (the spec notations' door onto the ladder) --------------------
+//
+// The shipped expression grammar, rendered from the product's own tables. A JSON
+// arm authors these directly; the markup dialect sugars them into tags, which is
+// why this section is markup's alternative rather than its companion.
+
+function renderReferenceExpressionSection(input: SurfaceReferenceInput): readonly string[] {
+  if (!showsLadder(input)) return [];
+  if (usesMarkupReferenceSugar(input)) return [];
+
+  const { vocabulary } = input;
+  const lines = REFERENCE_EXPRESSIONS.map((expression) =>
+    renderReferenceExpressionLine(expression, vocabulary),
+  );
+
+  return [
+    [
+      "# References",
+      "",
+      "A prop's value may NAME a file instead of carrying it. The daemon reads it at render",
+      "time, fills that prop, and fills the props listed after it — omit all of them.",
+      "",
+      ...lines,
+      "",
+      `A ${vocabulary.componentName("DiffViewer")} takes its reference at the ELEMENT level, because a diff has two sides:`,
+      `  ${renderElementLevelDiffExample(vocabulary)}`,
+      `  fills ${joinWithAnd(hydratedPropsOf("GitDiff").map((prop) => vocabulary.propName("DiffViewer", prop)))} — you never emit a line of the file.`,
+    ].join("\n"),
+  ];
+}
+
+type ReferenceExpressionDoc = {
+  readonly expression: string;
+  readonly component: SurfaceComponentName;
+  readonly fills: string;
+  readonly supplies: readonly string[];
+};
+
+// Each entry is the product's grammar (src/shared/expressions.ts) aimed at a
+// component this prompt documents. `fills` and `supplies` are read off the same
+// tables the hydrator and the validator read, via hydratedPropsOf.
+const REFERENCE_EXPRESSIONS: readonly ReferenceExpressionDoc[] = [
+  {
+    expression: '{"$file": "src/a.ts", "lines": "40-80"}',
+    component: "CodeBlock",
+    fills: "code",
+    supplies: [],
+  },
+  {
+    expression: '{"$csv": "data/x.csv"}',
+    component: "DataTable",
+    fills: "rows",
+    supplies: ["columns"],
+  },
+  {
+    expression: '{"$log": "app.log", "groupBy": "10m", "match": "ERROR"}',
+    component: "Chart",
+    fills: "data",
+    supplies: ["x", "y"],
+  },
+];
+
+function renderReferenceExpressionLine(
+  doc: ReferenceExpressionDoc,
+  vocabulary: Vocabulary,
+): string {
+  const component = vocabulary.componentName(doc.component);
+  const filled = vocabulary.propName(doc.component, doc.fills);
+  const alsoFilled = doc.supplies.map((prop) => vocabulary.propName(doc.component, prop));
+  const beside = alsoFilled.length === 0 ? "" : `, and its ${joinWithAnd(alsoFilled)}`;
+  return `${PROP_INDENT}${doc.expression} — as ${component}.${filled}${beside}.`;
+}
+
+function renderElementLevelDiffExample(vocabulary: Vocabulary): string {
+  const type = vocabulary.componentName("DiffViewer");
+  return `{"type": "${type}", "props": {"$diff": "src/a.ts", "base": "HEAD~1"}}`;
+}
+
 // ---- Components --------------------------------------------------------------
 
 function renderComponentSection(input: SurfaceReferenceInput): string {
-  const visibleComponents = componentsFor(input.fidelity);
-  const blocks = visibleComponents.map((component) => renderComponentBlock(component, input));
+  const blocks = componentsFor(input).map((component) => renderComponentBlock(component, input));
   return ["# Components", "", ...blocks].join("\n");
 }
 
-function componentsFor(fidelity: Fidelity): readonly DocumentedComponentName[] {
-  if (fidelity === Fidelity.High) return DOCUMENTED_COMPONENTS;
+// <GitDiff> and <LogStream> are MARKUP tags: the compiler lowers them, and no
+// such component exists in the spec grammar. A spec arm reaches the same rung
+// through the reference expressions above, so showing it a tag it cannot author
+// would be documenting a component the validator rejects.
+export function componentsFor(input: SurfaceReferenceInput): readonly DocumentedComponentName[] {
+  if (showsLadder(input) && usesMarkupReferenceSugar(input)) return DOCUMENTED_COMPONENTS;
   return SURFACE_COMPONENTS;
 }
 
@@ -205,57 +331,56 @@ function renderComponentBlock(
   return renderSurfaceComponentBlock(component, input);
 }
 
-function isStandaloneReference(
-  component: DocumentedComponentName,
-): component is StandaloneReferenceName {
-  return (STANDALONE_REFERENCE_COMPONENTS as readonly string[]).includes(component);
-}
-
 function renderSurfaceComponentBlock(
   component: SurfaceComponentName,
   input: SurfaceReferenceInput,
 ): string {
   const spec = COMPONENT_SURFACE[component];
-  const { vocabulary, fidelity, notation } = input;
+  const { vocabulary, notation } = input;
   const layered = layeredReferenceFor(component);
-  const showsReference = fidelity === Fidelity.High && layered !== null;
-  const hydratedProps = showsReference && layered !== null ? layered.hydratedProps : [];
+  // The reference ATTRIBUTES (src=, file=) are markup sugar. A spec arm was shown
+  // the expression form instead — but it reaches the same hydrated props, so it
+  // still needs to be told which of them the daemon fills.
+  const showsAttrs = showsLadder(input) && usesMarkupReferenceSugar(input) && layered !== null;
+  const hydratedProps = showsLadder(input) && layered !== null ? hydratedPropsOf(component) : [];
 
   const headline = `${vocabulary.componentName(component)} — ${spec.purpose}`;
 
-  const surfacePropLines = Object.entries(spec.props).map(([prop, propSpec]) =>
+  const surfacePropLines = Object.entries(spec.props).map(([prop, meaning]) =>
     renderPropLine({
       component,
       prop,
-      propSpec,
+      meaning,
+      notationText: notationOf(component, prop),
       vocabulary,
       notation,
-      label: surfacePropLabel(prop, propSpec, hydratedProps),
+      label: surfacePropLabel(component, prop, hydratedProps),
     }),
   );
 
   const referencePropLines =
-    showsReference && layered !== null
-      ? Object.entries(layered.props).map(([prop, propSpec]) =>
+    showsAttrs && layered !== null
+      ? Object.entries(layered.attrs).map(([prop, meaning]) =>
           renderPropLine({
             component,
             prop,
-            propSpec,
+            meaning,
+            notationText: null,
             vocabulary,
             notation,
-            label: referencePropLabel(propSpec),
+            label: PropLabel.Reference,
           }),
         )
       : [];
 
   const hydrationNoteLines =
-    showsReference && layered !== null
-      ? [`${NOTE_INDENT}${renderHydrationNote(layered.hydrationNote, component, layered.hydratedProps, vocabulary)}`]
+    showsAttrs && layered !== null
+      ? [`${NOTE_INDENT}${renderHydrationNote(layered.hydrationNote, component, hydratedProps, vocabulary)}`]
       : [];
 
   const inlineExample = renderExample(component, spec.example, input);
   const referenceExample =
-    showsReference && layered !== null ? [renderExample(component, layered.example, input)] : [];
+    showsAttrs && layered !== null ? [renderExample(component, layered.example, input)] : [];
 
   return [
     headline,
@@ -274,21 +399,56 @@ function renderStandaloneReferenceBlock(
 ): string {
   const spec = REFERENCE_SURFACE[component];
   const { vocabulary, notation } = input;
+  const compilesTo = compilesToOf(component);
 
   const headline = `${vocabulary.componentName(component)} — ${spec.purpose}`;
-  const propLines = Object.entries(spec.props).map(([prop, propSpec]) =>
+  const propLines = standaloneReferenceAttrsOf(component).map((attr) =>
     renderPropLine({
       component,
-      prop,
-      propSpec,
+      prop: attr,
+      meaning: withBucketSyntax(standaloneAttrMeaningOf(component, attr)),
+      notationText: standaloneAttrNotation(component, compilesTo, attr),
       vocabulary,
       notation,
-      label: requiredLabel(propSpec),
+      label: standaloneAttrLabel(component, attr),
     }),
   );
   const example = renderExample(component, spec.example, input);
 
   return [headline, ...propLines, example, ""].join("\n");
+}
+
+// `file` is the one attribute a reference tag cannot do without: it is the whole
+// point of the tag.
+const REFERENCE_PATH_ATTR = "file";
+
+// A <LogStream> without a bucket is a live tail, not a chart — the compiler says
+// so, and rejects an aggregation without one. The prompt must say so too, or the
+// model cannot tell which of the two it is asking for.
+const LOG_BUCKET_ATTR = "groupBy";
+
+function standaloneAttrLabel(component: StandaloneReferenceName, attr: string): string | null {
+  if (attr === REFERENCE_PATH_ATTR) return PropLabel.Required;
+  if (component === "LogStream" && attr === LOG_BUCKET_ATTR) return PropLabel.Required;
+  return null;
+}
+
+// An attribute the grammar table leaves untyped is a real prop of the component
+// this tag compiles to, so its accepted values come from THAT schema. The rest
+// are reference-only (a path, a flag, a duration) and their sentence says it.
+function standaloneAttrNotation(
+  component: StandaloneReferenceName,
+  compilesTo: string,
+  attr: string,
+): string | null {
+  if (!takesCompiledPropType(component, attr)) return null;
+  const notationText = notationOf(compilesTo as SurfaceComponentName, attr);
+  if (notationText === UNTYPED_NOTATION) return null;
+  return notationText;
+}
+
+function withBucketSyntax(meaning: string): string {
+  return meaning.replace(BUCKET_SYNTAX_PLACEHOLDER, LOG_BUCKET_SYNTAX);
 }
 
 // ---- Prop lines --------------------------------------------------------------
@@ -297,49 +457,47 @@ const PropLabel = {
   Required: "required",
   RequiredUnlessReferenced: "required unless referenced",
   Reference: "reference",
-  ReferenceRequired: "reference, required",
   Content: "content",
 } as const;
 
 type PropLineInput = {
   readonly component: DocumentedComponentName;
   readonly prop: string;
-  readonly propSpec: PropSpec;
+  readonly meaning: string;
+  // The accepted values, from the schema. Null when the attribute has no schema
+  // (a reference path is a path).
+  readonly notationText: string | null;
   readonly vocabulary: Vocabulary;
   readonly notation: Notation;
   readonly label: string | null;
 };
 
 function renderPropLine(input: PropLineInput): string {
-  const { component, prop, propSpec, vocabulary, notation, label } = input;
+  const { component, prop, meaning, notationText, vocabulary, notation, label } = input;
   const name = vocabulary.propName(component, prop);
   const labels = [label, contentLabelFor(component, prop, notation)].filter(isPresent);
   const suffix = labels.length > 0 ? ` (${labels.join(", ")})` : "";
-  return `${PROP_INDENT}${name}${suffix}: ${propSpec.meaning}`;
+  const described = notationText === null ? meaning : `${notationText}${NOTATION_SEPARATOR}${meaning}`;
+  return `${PROP_INDENT}${name}${suffix}: ${described}`;
 }
 
 function isPresent(label: string | null): label is string {
   return label !== null;
 }
 
+// Required-ness is the CONTRACT's, never this file's. A prop the daemon requires
+// and the prompt calls optional is a loss the arm did not earn; the reverse is a
+// tax it did not owe.
 function surfacePropLabel(
+  component: SurfaceComponentName,
   prop: string,
-  propSpec: PropSpec,
   hydratedProps: readonly string[],
 ): string | null {
+  const required = isRequiredProp(component, prop);
   const isHydrated = hydratedProps.includes(prop);
-  if (isHydrated && propSpec.required) return PropLabel.RequiredUnlessReferenced;
+  if (isHydrated && required) return PropLabel.RequiredUnlessReferenced;
   if (isHydrated) return null;
-  return requiredLabel(propSpec);
-}
-
-function referencePropLabel(propSpec: PropSpec): string {
-  if (propSpec.required) return PropLabel.ReferenceRequired;
-  return PropLabel.Reference;
-}
-
-function requiredLabel(propSpec: PropSpec): string | null {
-  if (propSpec.required) return PropLabel.Required;
+  if (required) return PropLabel.Required;
   return null;
 }
 
@@ -396,6 +554,20 @@ export function inlineMarkupExampleFor(
   return renderMarkupExample(component, COMPONENT_SURFACE[component].example, vocabulary);
 }
 
+// The reference example the high-fidelity prompt shows, for the same reason: it
+// is fed to the real compiler and must come back clean.
+export function referenceMarkupExampleFor(
+  component: DocumentedComponentName,
+  vocabulary: Vocabulary,
+): string | null {
+  if (isStandaloneReference(component)) {
+    return renderMarkupExample(component, REFERENCE_SURFACE[component].example, vocabulary);
+  }
+  const layered = layeredReferenceFor(component);
+  if (layered === null) return null;
+  return renderMarkupExample(component, layered.example, vocabulary);
+}
+
 function renderMarkupExample(
   component: DocumentedComponentName,
   example: Readonly<Record<string, ExampleValue>>,
@@ -414,13 +586,13 @@ function renderMarkupExample(
   if (contentValue !== undefined) {
     return `<${openingTag}>${String(contentValue)}</${tag}>`;
   }
-  if (acceptsChildrenInSurface(component)) {
+  if (acceptsChildrenIn(component)) {
     return `<${openingTag}>${CHILDREN_PLACEHOLDER_MARKUP}</${tag}>`;
   }
   return `<${openingTag} />`;
 }
 
-// Attribute spelling exactly as evals/vendor/markup/attributes.ts parses it: JSON
+// Attribute spelling exactly as src/daemon/markup/attributes.ts parses it: JSON
 // values single-quoted so their double quotes survive, booleans bare when true.
 function renderMarkupAttribute(name: string, value: ExampleValue): string | null {
   if (value === true) return name;
@@ -447,7 +619,7 @@ function renderSpecExample(
   }
 
   const type = vocabulary.componentName(component);
-  const hasChildren = acceptsChildrenInSurface(component);
+  const hasChildren = acceptsChildrenIn(component);
 
   if (notation === Notation.TerseJson) {
     const terse = {
@@ -465,18 +637,16 @@ function renderSpecExample(
   return JSON.stringify(verbose);
 }
 
-function acceptsChildrenInSurface(component: DocumentedComponentName): boolean {
-  if (isStandaloneReference(component)) return false;
-  return COMPONENT_SURFACE[component].acceptsChildren;
-}
-
 // ---- Semantic HTML shortcuts (markup only) -----------------------------------
 
 function renderStructuralTagSection(input: SurfaceReferenceInput): readonly string[] {
   if (input.notation !== Notation.Markup) return [];
   const lines = STRUCTURAL_TAGS.map((tag) => {
     const name = input.vocabulary.tagName(tag);
-    return `${PROP_INDENT}<${name}>: ${STRUCTURAL_TAG_SURFACE[tag].meaning}`;
+    return `${PROP_INDENT}<${name}>: ${STRUCTURAL_TAG_SURFACE[tag]}`;
   });
   return [["# Shortcuts", "", ...lines].join("\n")];
 }
+
+// Re-exported so the arms can keep importing one module for the whole surface.
+export { STANDALONE_REFERENCE_COMPONENTS };

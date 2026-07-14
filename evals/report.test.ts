@@ -502,12 +502,22 @@ describe("the honesty requirements", () => {
     expect(density).toContain("Known error:");
   });
 
-  test("the methodology says plainly that the reference components are NOT shipped", () => {
+  // This test used to demand the opposite sentence — that the reference components
+  // were NOT shipped and the eval resolved them itself. That was true when the
+  // harness was written and false by the time it published, because the harness
+  // kept a vendored copy of a product that had since merged. The honesty
+  // requirement is not "say it is unshipped"; it is "say which code ran". So the
+  // report must now name the shipped modules it drives, AND disclose that earlier
+  // numbers came from a mirror.
+  test("the methodology names the shipped code it drives, and discloses the old mirror", () => {
     const methodology = sectionOf(renderSyntheticReport(), "## Methodology");
-    expect(methodology).toContain("WHAT IS NOT SHIPPED");
+    expect(methodology).toContain("WHAT IS UNDER TEST: THE SHIPPED PRODUCT");
+    expect(methodology).toContain("src/daemon/markup");
+    expect(methodology).toContain("src/daemon/spec-validation");
+    expect(methodology).toContain("src/daemon/hydrate");
     expect(methodology).toContain("GitDiff");
-    expect(methodology).toContain("NOT YET REAL");
-    expect(methodology).toContain("does not exist yet");
+    expect(methodology).toContain("VENDORED COPY");
+    expect(methodology).toContain("a number about a mirror");
   });
 
   test("strict tool use is declared NOT TESTED, and named as THE open question", () => {

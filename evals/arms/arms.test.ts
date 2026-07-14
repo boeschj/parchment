@@ -233,17 +233,35 @@ describe("the scrambled arms are scrambled and the real arms are not", () => {
 // ---- The ladder is present exactly where it should be ------------------------
 
 describe("only the high arms are shown the reference surface", () => {
-  const HIGH_ARM_IDS = [ArmId.ParchmentMarkupHigh, ArmId.ParchmentJsonHigh] as const;
+  // Each high arm is shown the ladder through the door IT can author. The markup
+  // dialect has reference tags; the spec grammar does not — it has the reference
+  // EXPRESSIONS the compiler lowers those tags into. Showing a JSON arm <GitDiff>
+  // would document a component the validator rejects, and the arm would lose a run
+  // it never had a chance at: a manufactured loss for one of our own arms, which is
+  // the same sin as a manufactured win.
+  const MARKUP_HIGH_ARM_IDS = [ArmId.ParchmentMarkupHigh] as const;
+  const SPEC_HIGH_ARM_IDS = [ArmId.ParchmentJsonHigh] as const;
   const LOW_ARM_IDS = [
     ArmId.ParchmentMarkupLow,
     ArmId.ParchmentJsonLow,
     ArmId.TerseJson,
   ] as const;
 
-  test.each([...HIGH_ARM_IDS])("%s is shown the reference components", (id) => {
+  test.each([...MARKUP_HIGH_ARM_IDS])("%s is shown the reference tags", (id) => {
     const prompt = armFor(id).systemPrompt;
     for (const component of STANDALONE_REFERENCE_COMPONENTS) {
       expect(prompt).toContain(component);
+    }
+  });
+
+  test.each([...SPEC_HIGH_ARM_IDS])("%s is shown the reference expressions instead", (id) => {
+    const prompt = armFor(id).systemPrompt;
+    expect(prompt).toContain("$diff");
+    expect(prompt).toContain("$csv");
+    expect(prompt).toContain("$log");
+    // And never a tag it cannot author.
+    for (const component of STANDALONE_REFERENCE_COMPONENTS) {
+      expect(prompt).not.toContain(`${component} —`);
     }
   });
 
@@ -252,6 +270,7 @@ describe("only the high arms are shown the reference surface", () => {
     for (const component of STANDALONE_REFERENCE_COMPONENTS) {
       expect(prompt).not.toContain(component);
     }
+    expect(prompt).not.toContain("$diff");
     expect(prompt).toContain("there is no way to point a component at");
   });
 

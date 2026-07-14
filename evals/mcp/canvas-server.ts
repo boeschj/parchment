@@ -1,46 +1,44 @@
 #!/usr/bin/env bun
-// The eval's canvas MCP server: the daemon parchment WILL have, stood up in
-// evals/ so the eval does not have to merge two unfinished branches into main
-// tonight.
+// The eval's canvas MCP server: a THIN WRAPPER over the shipped canvas_render,
+// and nothing more.
 //
-// WHAT IS "PREVIEWED" HERE vs WHAT IS STOCK — read this before trusting a number
-// this server produced:
+// It used to be a reimplementation. The markup compiler and the reference
+// hydrator were unmerged branches when the eval was written, so this server drove
+// a vendored copy of one and a stub of the other. Both merged (b12803c, 43e3ed2)
+// and the copies stayed — which meant the benchmark was measuring a mirror of the
+// product, not the product. Every number it produced was, strictly, about code
+// nobody ships. That is fixed here: this file now runs the SAME pipeline as
+// src/daemon/mcp-stdio.ts, line for line —
 //
-//   PREVIEWED (the two unmerged features the eval exists to measure):
-//     1. `markup` — canvas_render accepts a markup document, not only a JSON
-//        spec. Lives on the unmerged markup branch (vendored at evals/vendor).
-//     2. Reference tags — <GitDiff>, <LogStream>, DataTable src=, CodeBlock
-//        file=/lines= are hydrated from disk at push time. Lives on the unmerged
-//        hydration branch (stubbed at evals/hydration).
-//   Those two, and NOTHING else, are what this server adds.
+//     compileMarkup  →  prepareSpec  →  POST /slots
+//                                        (the daemon hydrates the references)
 //
-//   STOCK, REIMPLEMENTED FAITHFULLY (the eval must not flatter us):
-//     - Validation is the PRODUCT's own prepareSpec, unchanged. A genuinely
-//       invalid spec is REJECTED here exactly as it is in production.
-//     - The rejection text is the product's, word for word, including
-//       "Fix these exact issues and re-push with the same slotId."
-//     - The push is the same POST /api/sessions/<id>/slots the real MCP server
-//       makes, against a daemon on a scratch HOME.
-//     - The tool is named canvas_render under server key "canvas", so the model
-//       sees `mcp__canvas__canvas_render` — the real tool's name.
+// WHY THE WRAPPER STILL EXISTS, given it forks nothing:
+//   1. It talks to a SCRATCH daemon (evals/daemon.ts, HOME=scratch, port 7830+),
+//      so an eval run can never write a slot into the operator's real canvas.
+//   2. It exposes canvas_render and NOTHING else. A model handed canvas_snapshot
+//      or canvas_patch would burn turns on tools the comparison does not control
+//      for; every arm must get exactly the tools its authoring surface needs.
+//   3. It knows which AUTHORING NOTATION the document will arrive in. A scrambled
+//      arm writes <C22 a1=…>; a terse arm writes {"r":…,"e":…}. Turning those back
+//      into the product's dialect is the eval's job and no one else's — and it
+//      happens BEFORE the product's own path, never inside it.
 //
-// A LOOSER VALIDATOR HERE WOULD BE A RIGGED BENCHMARK. If a parchment arm
-// authors a genuinely broken spec, it must fail, and it must fail with the same
-// message a real user would get — no friendlier hint, and no hint an HTML arm
-// would not also get from its own toolchain.
+// A LOOSER VALIDATOR HERE WOULD BE A RIGGED BENCHMARK. It is not looser: it is
+// prepareSpec, unchanged, and the rejection text is the product's, word for word.
 
 import { homedir } from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
-import { prepareSpec } from "../../src/daemon/spec-validation.ts";
-import { SlotKind, SlotOrigin, type JsonRenderSpec } from "../../src/shared/types.ts";
-import { hydrateSpec } from "../hydration/resolvers.ts";
+import { SlotKind } from "../../src/shared/types.ts";
 import {
   artifactFormatOf,
-  decodeAuthoredDocument,
+  buildRenderableSpec,
   vocabularyForArm,
+  type RenderableSpec,
 } from "../render/materialize.ts";
+import { pushSpecToDaemon } from "../render/canvas-push.ts";
 import { ArmId } from "../types.ts";
 import {
   CANVAS_MCP_SERVER_KEY,
@@ -51,9 +49,7 @@ import {
 
 const SERVER_NAME = "parchment";
 const SERVER_VERSION = "0.1.0";
-const TOKEN_HEADER = "x-canvas-token";
 const DEFAULT_SESSION_ID = "default";
-const PUSH_TIMEOUT_MS = 20_000;
 
 // ---- The tool's input schema -------------------------------------------------
 //
@@ -104,37 +100,24 @@ const CANVAS_RENDER_DESCRIPTION =
 
 // ---- The authoring pipeline ---------------------------------------------------
 
-export type RenderableSpec = { spec: JsonRenderSpec | null; issues: string[] };
-
 export type AuthoredDocument = {
   armId: ArmId;
   markup?: string | undefined;
   spec?: unknown;
 };
 
-// compile/unscramble/expand → hydrate → VALIDATE. Every step's complaints are the
-// arm's own toolchain speaking; none of them is invented here.
-export function buildRenderableSpec(document: AuthoredDocument): RenderableSpec {
+// decode (the eval's ONLY step) → compile → VALIDATE. Every complaint after the
+// first line is the product's own; none of them is invented here.
+export function renderableSpecOf(document: AuthoredDocument): RenderableSpec {
   const source = authoredSourceOf(document);
   if (source.issues.length > 0) return { spec: null, issues: source.issues };
   if (source.text === null) return { spec: null, issues: [MISSING_DOCUMENT_ISSUE] };
 
-  const format = artifactFormatOf(document.armId);
-  const vocabulary = vocabularyForArm(document.armId);
-
-  const decoded = decodeAuthoredDocument(format, source.text, vocabulary);
-  if (decoded.spec === null) return { spec: null, issues: decoded.issues };
-
-  const hydrated = hydrateSpec(decoded.spec);
-  const authoringIssues = [...decoded.issues, ...hydrated.issues];
-  if (authoringIssues.length > 0) return { spec: null, issues: authoringIssues };
-
-  // The product's own validator, unchanged. This is the line that keeps the eval
-  // honest: a spec production would reject is rejected here too.
-  const validated = prepareSpec(hydrated.spec);
-  if (validated.issues.length > 0) return { spec: null, issues: validated.issues };
-
-  return { spec: validated.spec, issues: [] };
+  return buildRenderableSpec(
+    artifactFormatOf(document.armId),
+    source.text,
+    vocabularyForArm(document.armId),
+  );
 }
 
 const MISSING_DOCUMENT_ISSUE =
@@ -165,46 +148,6 @@ export function formatSpecRejection(issues: readonly string[]): string {
     `spec rejected (${issues.length} issue${plural}):\n${bulleted}\n` +
     `Fix these exact issues and re-push with the same slotId.`
   );
-}
-
-// ---- The push -----------------------------------------------------------------
-
-export type PushSlotInput = {
-  baseUrl: string;
-  token: string;
-  sessionId: string;
-  cwd: string;
-  kind: SlotKind;
-  title: string;
-  spec: JsonRenderSpec;
-  slotId?: string | undefined;
-};
-
-export async function pushSlotToDaemon(input: PushSlotInput): Promise<string> {
-  const response = await fetch(
-    `${input.baseUrl}/api/sessions/${encodeURIComponent(input.sessionId)}/slots`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", [TOKEN_HEADER]: input.token },
-      body: JSON.stringify({
-        kind: input.kind,
-        title: input.title,
-        cwd: input.cwd,
-        spec: input.spec,
-        origin: SlotOrigin.McpTool,
-        ...(input.slotId === undefined ? {} : { slotId: input.slotId }),
-      }),
-      signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
-    },
-  );
-
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
-    throw new Error(`the canvas daemon refused the slot (${response.status}): ${detail}`);
-  }
-
-  const payload = (await response.json()) as { slot?: { id?: string } };
-  return payload.slot?.id ?? "unknown";
 }
 
 // ---- The server ----------------------------------------------------------------
@@ -249,6 +192,9 @@ function resolveArmId(): ArmId {
 export function startCanvasServer(): void {
   const armId = resolveArmId();
   const sessionId = process.env[EvalMcpEnv.SessionId] ?? DEFAULT_SESSION_ID;
+  // The run's working directory: where the fixtures were copied, and therefore
+  // the root the daemon resolves this spec's references against. Exactly what
+  // src/daemon/mcp-stdio.ts sends.
   const cwd = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
@@ -262,11 +208,11 @@ export function startCanvasServer(): void {
     },
     async ({ title, kind, spec, markup, slotId }) => {
       try {
-        const renderable = buildRenderableSpec({ armId, markup, spec });
+        const renderable = renderableSpecOf({ armId, markup, spec });
         if (renderable.spec === null) return rejectionReply(renderable.issues);
 
         const endpoint = readEvalDaemonEndpoint(homedir());
-        const pushedSlotId = await pushSlotToDaemon({
+        const pushed = await pushSpecToDaemon({
           baseUrl: endpoint.baseUrl,
           token: endpoint.token,
           sessionId,
@@ -277,7 +223,12 @@ export function startCanvasServer(): void {
           slotId,
         });
 
-        return okReply(pushedSlotId, sessionId, endpoint.baseUrl);
+        // A reference the daemon could not resolve is a rejection, not a crash —
+        // and it comes back in the product's own words, so the model repairs it
+        // exactly as a real user's model would.
+        if (!pushed.ok) return rejectionReply(pushed.issues);
+
+        return okReply(pushed.slotId, sessionId, endpoint.baseUrl);
       } catch (caught) {
         return errorReply(caught);
       }

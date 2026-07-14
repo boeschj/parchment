@@ -1,20 +1,37 @@
 // Turns what an arm AUTHORED into a page a browser can open.
 //
+// IT DRIVES THE SHIPPED PRODUCT, AND NOTHING ELSE. This file used to import a
+// vendored copy of the markup compiler and a stubbed reimplementation of the
+// hydrator, because both were unmerged branches when the eval was written. They
+// merged (b12803c, 43e3ed2), the copies stayed, and the copies drifted — so the
+// benchmark was measuring a mirror of the product rather than the product. Every
+// step below is now the real one:
+//
+//   compileMarkup   src/daemon/markup      — the dialect canvas_render compiles
+//   prepareSpec     src/daemon/spec-validation — the validator canvas_render runs
+//   POST /slots     the daemon             — which HYDRATES the references itself
+//
+// The hydration is the daemon's, deliberately: that is where it happens in
+// production (src/daemon/server.ts, at push time, against the session's cwd), and
+// a harness that resolved references itself would be re-testing its own opinion of
+// what a reference means. So the eval sends the spec exactly as the model authored
+// it — {$diff}, {$csv}, {$log} still unresolved — and lets the daemon do its job.
+//
 // This is a RENDER path, not a CHECK path. It is allowed to use parchment's own
-// compiler, hydrator and validator, because the question it answers is "what
-// would the user actually have seen?" — and the user sees the compiled,
-// hydrated, validated result. What it must never do is have an opinion about
-// whether that result is GOOD: that is decided downstream, by a real browser
-// looking at real pixels (evals/verify), and by nothing else.
+// compiler, validator and daemon, because the question it answers is "what would
+// the user actually have seen?" — and the user sees the compiled, validated,
+// hydrated result. What it must never do is have an opinion about whether that
+// result is GOOD: that is decided downstream, by a real browser looking at real
+// pixels (evals/verify), and by nothing else.
 //
 // Symmetry across arms is the whole job here. Each arm's document is put through
 // ITS OWN toolchain and no one else's:
-//   markup arms     compileMarkup → hydrate → push        → a canvas URL
-//   json arms       JSON.parse → hydrate → push           → a canvas URL
-//   terse-json      JSON.parse → expand → hydrate → push   → a canvas URL
-//   scrambled arms  unscramble → compileMarkup → hydrate → push
-//   raw-html        the file the model wrote               → a file:// URL
-//   raw-jsx         bundled with a LOCAL React → one html  → a file:// URL
+//   markup arms     compileMarkup → prepareSpec → push → the daemon hydrates
+//   json arms       JSON.parse → prepareSpec → push    → the daemon hydrates
+//   terse-json      JSON.parse → expand → prepareSpec → push
+//   scrambled arms  unscramble → compileMarkup → prepareSpec → push
+//   raw-html        the file the model wrote            → a file:// URL
+//   raw-jsx         bundled with a LOCAL React → one html → a file:// URL
 //
 // A failure anywhere in a toolchain comes back as an ISSUE LIST, never an
 // exception: those issues are the arm's own error signal, and feeding them back
@@ -24,23 +41,22 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseDocument } from "htmlparser2";
 import { ArtifactKind, type Artifact } from "../../bench/acceptance/types.ts";
-import { RenderOutcome, renderSpecToDaemon } from "../../bench/acceptance/render-spec.ts";
-import type { JsonRenderSpec, UIElement } from "../../src/shared/types.ts";
+import { compileMarkup } from "../../src/daemon/markup/index.ts";
+import { isElementNode, type AnyNode, type Element } from "../../src/daemon/markup/dom.ts";
+import { prepareSpec } from "../../src/daemon/spec-validation.ts";
+import {
+  parseReferenceValue,
+  referenceKeyOf,
+  ReferenceExpressionKey,
+} from "../../src/shared/expressions.ts";
+import { SlotKind, type JsonRenderSpec, type UIElement } from "../../src/shared/types.ts";
 import {
   REAL_VOCABULARY,
   SCRAMBLED_VOCABULARY,
   type VocabularyInverse,
 } from "../catalog/vocabulary.ts";
 import { EvalPaths } from "../config.ts";
-import { compileMarkup } from "../vendor/markup/index.ts";
-import { isElementNode, tagNameOf, type AnyNode, type Element } from "../vendor/markup/dom.ts";
-import {
-  hydrateSpec,
-  isReferenceElement,
-  isReferenceProps,
-  referenceComponentOf,
-  resolveElement,
-} from "../hydration/resolvers.ts";
+import { pushSpecToDaemon } from "./canvas-push.ts";
 import type { EvalDaemon } from "../daemon.ts";
 import { ArmId, type Arm, type AuthoredArtifact } from "../types.ts";
 
@@ -69,11 +85,10 @@ const FORMAT_BY_ARM = {
   [ArmId.ScrambledMarkupHigh]: ArtifactFormat.ScrambledMarkup,
   [ArmId.ScrambledMarkupLow]: ArtifactFormat.ScrambledMarkup,
   [ArmId.TerseJson]: ArtifactFormat.TerseJson,
-  // TODO(evals/catalog/vocabulary.ts): OpenUI is a JSON dialect and needs that
-  // module's OpenUI→spec adapter. Until it lands, its document is decoded as a
-  // json-render spec, which is right only if the arm's system prompt asks for
-  // one. Wire the adapter here — do NOT let this arm quietly report a loss it
-  // did not earn.
+  // TODO(evals/arms/openui-lang.ts): OpenUI is a JSON dialect and needs an
+  // OpenUI→spec adapter. Until it lands, its document is decoded as a json-render
+  // spec, which is right only if the arm's system prompt asks for one. Wire the
+  // adapter here — do NOT let this arm quietly report a loss it did not earn.
   [ArmId.OpenUiLang]: ArtifactFormat.OpenUiJson,
   [ArmId.RawHtml]: ArtifactFormat.RawHtml,
   [ArmId.RawJsx]: ArtifactFormat.RawJsx,
@@ -132,13 +147,15 @@ export type MaterializeResult =
 export type MaterializeOptions = {
   arm: Arm;
   artifact: AuthoredArtifact;
-  // The canvas session the hydrated spec is pushed to. Give each attempt its own,
-  // so the browser opens exactly the artifact under test and never a leftover
-  // slot from a previous attempt.
+  // The canvas session the spec is pushed to. Give each attempt its own, so the
+  // browser opens exactly the artifact under test and never a leftover slot from
+  // a previous attempt.
   canvasSessionId: string;
   title: string;
   daemon: EvalDaemon;
-  // Scratch space for the file-authoring arms' materialized pages.
+  // The run's working directory. It is where the fixtures were copied, so it is
+  // both where a file-authoring arm writes AND the root the daemon resolves this
+  // spec's references against.
   runDir: string;
   vocabulary: AuthoringVocabulary;
 };
@@ -154,25 +171,50 @@ export async function materializeArtifact(options: MaterializeOptions): Promise<
 
 // ---- The spec arms ---------------------------------------------------------------
 
+// canvas_render's pipeline, in the order canvas_render runs it
+// (src/daemon/mcp-stdio.ts): decode the document the arm authored, validate it,
+// push it. Hydration is downstream of all three, in the daemon.
 async function materializeSpec(
   format: ArtifactFormat,
   options: MaterializeOptions,
 ): Promise<MaterializeResult> {
-  const decoded = decodeAuthoredDocument(format, options.artifact.source, options.vocabulary);
-  if (decoded.spec === null) return toolchainFailed(decoded.issues);
+  const renderable = buildRenderableSpec(format, options.artifact.source, options.vocabulary);
+  if (renderable.spec === null) return toolchainFailed(renderable.issues);
 
-  const hydrated = hydrateSpec(decoded.spec);
-  const toolchainIssues = [...decoded.issues, ...hydrated.issues];
-  if (toolchainIssues.length > 0) return toolchainFailed(toolchainIssues);
+  return pushToCanvas(renderable.spec, options);
+}
 
-  return pushToCanvas(hydrated.spec, options);
+export type RenderableSpec = { spec: JsonRenderSpec | null; issues: readonly string[] };
+
+// THE ONE AUTHORING PIPELINE. The eval's canvas MCP server (evals/mcp) decodes a
+// live tool call with this same function, so what the model's render call does at
+// RUN time and what the report reconstructs at MEASURE time cannot drift apart —
+// and neither of them can drift from what canvas_render does in production,
+// because both steps below are canvas_render's own.
+export function buildRenderableSpec(
+  format: ArtifactFormat,
+  source: string,
+  vocabulary: AuthoringVocabulary,
+): RenderableSpec {
+  const decoded = decodeAuthoredDocument(format, source, vocabulary);
+  if (decoded.spec === null) return decoded;
+
+  // The product's own validator, unchanged. This is the line that keeps the eval
+  // honest: a spec production would reject is rejected here too, in the same
+  // words, with no friendlier hint.
+  const validated = prepareSpec(decoded.spec);
+  if (validated.issues.length > 0) return { spec: null, issues: validated.issues };
+
+  return { spec: validated.spec, issues: [] };
 }
 
 type DecodedSpec = { spec: JsonRenderSpec | null; issues: string[] };
 
-// THE ONE AUTHORING PIPELINE. The eval's canvas MCP server (evals/mcp) decodes a
-// live tool call with this same function, so what the model's render call does at
-// RUN time and what the report reconstructs at MEASURE time cannot drift apart.
+// The arm-specific step, and the ONLY one: turning the notation an arm was asked
+// to author in back into the dialect the product speaks. A scrambled arm's opaque
+// identifiers are renamed; a terse arm's structural keys are expanded. Neither is
+// a reimplementation of anything — after this line every arm is on the product's
+// own path.
 export function decodeAuthoredDocument(
   format: ArtifactFormat,
   source: string,
@@ -197,6 +239,18 @@ export function artifactFormatOf(armId: ArmId): ArtifactFormat {
   return FORMAT_BY_ARM[armId];
 }
 
+// The shipped compiler, called the way canvas_render calls it. Reference tags are
+// not special-cased here any more: <GitDiff>, <LogStream>, <DataTable src=…> and
+// <CodeBlock file=…> are part of the dialect the compiler implements, and it
+// lowers them into the {$diff}/{$log}/{$csv}/{$file} expressions the daemon
+// resolves. The eval used to lower them itself, with its own grammar and its own
+// resolver. That fork is what this rewrite deletes.
+function compileMarkupDocument(source: string): DecodedSpec {
+  const compiled = compileMarkup(source);
+  if (compiled.issues.length > 0) return { spec: null, issues: compiled.issues };
+  return { spec: compiled.spec, issues: [] };
+}
+
 // ---- Did the model actually CLIMB the ladder? ---------------------------------
 //
 // The compression only exists if the model REACHES for the reference of its own
@@ -204,13 +258,15 @@ export function artifactFormatOf(armId: ArmId): ArtifactFormat {
 // anyway has been offered the ladder and declined it — and that is a finding
 // about the product, not a bug in the arm.
 //
-// So this is measured, never assumed, and it is read STRUCTURALLY from what the
-// model actually authored (the parsed document), not by grepping the raw string
-// for a component name that might merely appear in prose.
+// So this is measured, never assumed, and it is read STRUCTURALLY from the spec
+// the model's document COMPILES to, not by grepping the raw string for a component
+// name that might merely appear in prose. A reference is a reference exactly when
+// the daemon's own hydrator would resolve it (src/shared/expressions.ts), which is
+// the only definition that means anything.
 //
 // If this comes out false, it comes out false. The honest fix would be a PRODUCT
-// fix — teach the reference in the tool description or the skill — never a
-// prompt tuned until the benchmark says what we want.
+// fix — teach the reference in the tool description or the skill — never a prompt
+// tuned until the benchmark says what we want.
 export type ReferenceUsage = {
   usedReference: boolean;
   referenceKindsUsed: readonly string[];
@@ -220,58 +276,39 @@ const NO_REFERENCE_USAGE: ReferenceUsage = { usedReference: false, referenceKind
 
 export function detectReferenceUsage(armId: ArmId, source: string): ReferenceUsage {
   const format = artifactFormatOf(armId);
-  const vocabulary = vocabularyForArm(armId);
 
-  if (format === ArtifactFormat.Markup) return referencesInMarkup(source);
-  if (format === ArtifactFormat.ScrambledMarkup) {
-    return referencesInMarkup(unscrambleMarkup(source, vocabulary.inverse));
-  }
   // raw-html and raw-jsx have no reference vocabulary to reach for — that is the
   // structural point of the ladder, and it must read as `false`, not as absent.
   if (format === ArtifactFormat.RawHtml || format === ArtifactFormat.RawJsx) {
     return NO_REFERENCE_USAGE;
   }
 
-  return referencesInSpecJson(format, source, vocabulary);
-}
-
-function referencesInMarkup(source: string): ReferenceUsage {
-  const document = parseDocument(source, {
-    recognizeSelfClosing: true,
-    lowerCaseAttributeNames: true,
-    withStartIndices: true,
-    withEndIndices: true,
-  });
-
-  const kinds = collectReferenceElements(document.children).map(
-    (element) => referenceComponentOf(tagNameOf(element)) ?? tagNameOf(element),
-  );
-
-  return usageOf(kinds);
-}
-
-function referencesInSpecJson(
-  format: ArtifactFormat,
-  source: string,
-  vocabulary: AuthoringVocabulary,
-): ReferenceUsage {
-  const decoded =
-    format === ArtifactFormat.TerseJson
-      ? applyVocabularyToSpec(parseSpecJson(source, expandTerseSpec), vocabulary.inverse)
-      : parseSpecJson(source, (parsed) => parsed);
-
+  const decoded = decodeAuthoredDocument(format, source, vocabularyForArm(armId));
   if (decoded.spec === null) return NO_REFERENCE_USAGE;
 
-  const kinds = Object.values(decoded.spec.elements)
-    .filter(isReferenceElement)
-    .map((element) => referenceComponentOf(element.type) ?? element.type);
+  const kinds = Object.values(decoded.spec.elements).flatMap(referenceKindsOf);
+  const distinctKinds = [...new Set(kinds)];
 
-  return usageOf(kinds);
+  return { usedReference: distinctKinds.length > 0, referenceKindsUsed: distinctKinds };
 }
 
-function usageOf(kinds: readonly string[]): ReferenceUsage {
-  const distinctKinds = [...new Set(kinds)];
-  return { usedReference: distinctKinds.length > 0, referenceKindsUsed: distinctKinds };
+// Every shape the hydrator resolves: the element-level {$diff} that expands a
+// DiffViewer's two sides, and any prop whose value is a reference expression.
+function referenceKindsOf(element: UIElement): string[] {
+  const props = element.props ?? {};
+  const kinds: string[] = [];
+
+  if (typeof props[ReferenceExpressionKey.Diff] === "string") {
+    kinds.push(ReferenceExpressionKey.Diff);
+  }
+  for (const value of Object.values(props)) {
+    const reference = parseReferenceValue(value);
+    if (reference === null) continue;
+    const kind = referenceKeyOf(reference);
+    if (kind !== null) kinds.push(kind);
+  }
+
+  return kinds;
 }
 
 // The scrambled arms author in aliases; every other arm authors in the real
@@ -318,151 +355,6 @@ function renameProps(
   return renamed;
 }
 
-// ---- Markup ------------------------------------------------------------------------
-
-// The reference tags (<GitDiff/>, <LogStream/>, <DataTable src/>) are AUTHORING
-// intents: no catalog component answers to them, so the markup compiler would
-// reject them as unknown tags and drop them on the floor. They are therefore
-// lowered BEFORE compilation — each reference element is swapped for a
-// placeholder the compiler does understand, and the hydrated component is spliced
-// back into the compiled spec in its place.
-//
-// Lowering by rewriting the SOURCE (pasting a whole file's text into an attribute
-// and hoping it survives quoting) was the obvious alternative and is a trap: a
-// diff containing a quote character would silently corrupt the document.
-const PLACEHOLDER_COMPONENT = "Text";
-const PLACEHOLDER_PROP = "text";
-const PLACEHOLDER_PREFIX = "__parchment_reference_";
-
-function compileMarkupDocument(source: string): DecodedSpec {
-  const lowered = lowerReferenceTags(source);
-  const compiled = compileMarkup(lowered.source);
-
-  if (compiled.issues.length > 0) return { spec: null, issues: compiled.issues };
-
-  const restored = restoreReferences(compiled.spec, lowered.references);
-  return { spec: restored.spec, issues: restored.issues };
-}
-
-type LoweredReference = { placeholder: string; element: UIElement };
-type LoweredMarkup = { source: string; references: LoweredReference[] };
-
-function lowerReferenceTags(source: string): LoweredMarkup {
-  const document = parseDocument(source, {
-    recognizeSelfClosing: true,
-    lowerCaseAttributeNames: true,
-    withStartIndices: true,
-    withEndIndices: true,
-  });
-
-  const referenceElements = collectReferenceElements(document.children);
-  if (referenceElements.length === 0) return { source, references: [] };
-
-  const references: LoweredReference[] = [];
-  let loweredSource = "";
-  let copiedUpTo = 0;
-
-  referenceElements.forEach((element, index) => {
-    const placeholder = `${PLACEHOLDER_PREFIX}${index}`;
-    const span = spanOf(element);
-
-    loweredSource += source.slice(copiedUpTo, span.startIndex);
-    loweredSource += `<${PLACEHOLDER_COMPONENT} ${PLACEHOLDER_PROP}="${placeholder}" />`;
-    copiedUpTo = span.endIndex + 1;
-
-    references.push({ placeholder, element: authoredElementOf(element) });
-  });
-
-  loweredSource += source.slice(copiedUpTo);
-  return { source: loweredSource, references };
-}
-
-function collectReferenceElements(nodes: readonly AnyNode[]): Element[] {
-  const found: Element[] = [];
-
-  for (const node of nodes) {
-    if (!isElementNode(node)) continue;
-
-    if (isReferenceTag(node)) {
-      found.push(node);
-      continue;
-    }
-    found.push(...collectReferenceElements(node.children));
-  }
-
-  return found;
-}
-
-function isReferenceTag(element: Element): boolean {
-  const component = referenceComponentOf(tagNameOf(element));
-  if (component === null) return false;
-  return isReferenceProps(component, Object.keys(element.attribs));
-}
-
-// The authoring element, exactly as written: the tag's catalog-cased name and its
-// attributes as props. This is what the hydrator resolves.
-function authoredElementOf(element: Element): UIElement {
-  const component = referenceComponentOf(tagNameOf(element));
-  return {
-    type: component ?? tagNameOf(element),
-    props: { ...element.attribs },
-    children: [],
-  };
-}
-
-type ElementSpan = { startIndex: number; endIndex: number };
-
-function spanOf(element: Element): ElementSpan {
-  const { startIndex, endIndex } = element;
-  if (startIndex === null || endIndex === null) {
-    throw new Error(
-      "the markup parser returned an element with no source span, so a reference tag cannot be " +
-        "located in the document (parseDocument needs withStartIndices/withEndIndices).",
-    );
-  }
-  return { startIndex, endIndex };
-}
-
-function restoreReferences(
-  spec: JsonRenderSpec,
-  references: readonly LoweredReference[],
-): DecodedSpec {
-  if (references.length === 0) return { spec, issues: [] };
-
-  const referenceByPlaceholder = new Map(
-    references.map((reference) => [reference.placeholder, reference.element]),
-  );
-
-  const elements: Record<string, UIElement> = {};
-  const issues: string[] = [];
-
-  for (const [key, element] of Object.entries(spec.elements)) {
-    const placeholder = placeholderOf(element);
-    const authored = placeholder === null ? undefined : referenceByPlaceholder.get(placeholder);
-
-    if (authored === undefined) {
-      elements[key] = element;
-      continue;
-    }
-
-    const resolved = resolveElement(authored, key);
-    elements[key] = resolved.element;
-    issues.push(...resolved.issues);
-  }
-
-  return { spec: { ...spec, elements }, issues };
-}
-
-function placeholderOf(element: UIElement): string | null {
-  if (element.type !== PLACEHOLDER_COMPONENT) return null;
-
-  const text = element.props[PLACEHOLDER_PROP];
-  if (typeof text !== "string") return null;
-  if (!text.startsWith(PLACEHOLDER_PREFIX)) return null;
-
-  return text;
-}
-
 // ---- Scrambled markup ---------------------------------------------------------------
 
 // Un-scrambling is STRUCTURAL, never a find-and-replace over the source text.
@@ -477,12 +369,12 @@ function placeholderOf(element: UIElement): string | null {
 //
 // So: parse, resolve each element's component, rename that element's attributes
 // inside that component's own namespace, and splice the rebuilt tags back over
-// their exact source spans.
+// their exact source spans. The result is a document in the REAL dialect, which
+// the real compiler then compiles — the scramble never reaches the runtime.
 //
-// Exported so the scramble→unscramble round trip can be asserted directly
-// (evals/catalog owns the vocabulary and its round-trip test): if this is not the
-// identity for every documented component and prop, the ablation is measuring the
-// harness.
+// Exported so the scramble→unscramble round trip can be asserted directly: if this
+// is not the identity for every documented component and prop, the ablation is
+// measuring the harness.
 export function unscrambleMarkup(source: string, inverse: VocabularyInverse): string {
   const document = parseDocument(source, {
     recognizeSelfClosing: true,
@@ -769,32 +661,34 @@ function omitKeys(
 
 // ---- The push ----------------------------------------------------------------------
 
+// The daemon hydrates at push time, against the run's own working directory —
+// which is where the fixtures live and where the model's relative paths resolve.
+// A reference the daemon cannot resolve comes back as the arm's repair signal,
+// exactly as it would come back to a real user's model through canvas_render.
 async function pushToCanvas(
   spec: JsonRenderSpec,
   options: MaterializeOptions,
 ): Promise<MaterializeResult> {
-  const rendered = await renderSpecToDaemon({
-    daemonBaseUrl: options.daemon.baseUrl,
-    daemonToken: options.daemon.token,
+  const pushed = await pushSpecToDaemon({
+    baseUrl: options.daemon.baseUrl,
+    token: options.daemon.token,
     sessionId: options.canvasSessionId,
+    cwd: options.runDir,
+    kind: SlotKind.Render,
     title: options.title,
     spec,
-    // Mirrors canvas_render exactly: a spec today's validation would have bounced
-    // back to the model never reaches a browser, and its issues become the arm's
-    // repair signal.
-    honourValidationIssues: true,
   });
 
-  if (rendered.outcome === RenderOutcome.Rendered && rendered.canvasUrl !== null) {
-    return {
-      outcome: MaterializeOutcome.Materialized,
-      artifact: { kind: ArtifactKind.ParchmentCanvas, canvasUrl: rendered.canvasUrl },
-      issues: [],
-    };
-  }
+  if (!pushed.ok) return toolchainFailed(pushed.issues);
 
-  const daemonIssues = rendered.error === null ? [] : [rendered.error];
-  return toolchainFailed([...rendered.validationIssues, ...daemonIssues]);
+  return {
+    outcome: MaterializeOutcome.Materialized,
+    artifact: {
+      kind: ArtifactKind.ParchmentCanvas,
+      canvasUrl: options.daemon.canvasUrlFor(options.canvasSessionId),
+    },
+    issues: [],
+  };
 }
 
 // ---- raw-html ------------------------------------------------------------------------
