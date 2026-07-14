@@ -9,6 +9,10 @@ export const LiveSourceKind = {
   CommandPoll: "command-poll",
   HttpPoll: "http-poll",
   ClaudeSessions: "claude-sessions",
+  // Daemon-minted only (never accepted from canvas_live's input schema): a
+  // watched $file/$diff reference re-resolves and replaces its slot-state path
+  // when the underlying file changes. See ./reference-refresh.ts.
+  ReferenceRefresh: "reference-refresh",
 } as const;
 
 export type LiveSourceKind = (typeof LiveSourceKind)[keyof typeof LiveSourceKind];
@@ -112,11 +116,44 @@ export type ClaudeSessionsSourceConfig = SourceIdentity & {
   limit: number;
 };
 
+// What a watched reference re-resolves through — enough to re-run the exact
+// resolver that first hydrated it, self-contained so it survives a daemon
+// restart (the persisted config is JSON only).
+export type ReferenceRefreshTarget =
+  | { kind: "file"; absPath: string; lines: string | null }
+  | {
+      kind: "diff-sides";
+      cwd: string;
+      absPath: string;
+      displayPath: string;
+      base: string | null;
+      staged: boolean;
+    }
+  | {
+      kind: "diff-patch";
+      cwd: string;
+      absPath: string;
+      displayPath: string;
+      base: string | null;
+      staged: boolean;
+    };
+
+export type ReferenceRefreshSourceConfig = SourceIdentity & {
+  kind: typeof LiveSourceKind.ReferenceRefresh;
+  watchPath: string;
+  // Written alongside statePath on every refresh so a live reference's hash and
+  // hydratedAt track the content actually on screen, rather than freezing at
+  // whatever the push-time snapshot recorded.
+  metaStatePath: string;
+  target: ReferenceRefreshTarget;
+};
+
 export type LiveSourceConfig =
   | FileTailSourceConfig
   | CommandPollSourceConfig
   | HttpPollSourceConfig
-  | ClaudeSessionsSourceConfig;
+  | ClaudeSessionsSourceConfig
+  | ReferenceRefreshSourceConfig;
 
 export type NormalizeSourceResult =
   | { ok: true; config: LiveSourceConfig }
