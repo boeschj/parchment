@@ -1,0 +1,10 @@
+[
+  {
+    "armId": "raw-html",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 8181,
+    "approximateTokens": 3948,
+    "approximateTokensByBytesRule": 2046
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "armId": "parchment-markup-high",
+    "scenarioId": "ladder-log-chart",
+    "origin": "accepted-run",
+    "bytes": 1200,
+    "approximateTokens": 538,
+    "approximateTokensByBytesRule": 300
+  }
+]

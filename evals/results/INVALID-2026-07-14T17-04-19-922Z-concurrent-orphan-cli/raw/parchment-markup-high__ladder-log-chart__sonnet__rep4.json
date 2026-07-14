@@ -1,0 +1,67 @@
+{
+  "runId": "parchment-markup-high__ladder-log-chart__sonnet__rep4",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 4,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 642,
+      "authoredOutputTokens": 267,
+      "authoredArtifactBytes": 272,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 8,
+      "cacheReadTokens": 75110,
+      "cacheCreationTokens": 12402,
+      "assistantTurnCount": 4,
+      "wallClockMs": 12470,
+      "reportedCostUsd": 0.107393,
+      "artifact": {
+        "source": "<section>\n  <h1>ERROR rate over time</h1>\n  <p>Application log bucketed into 10-minute windows, counting ERROR lines per bucket.</p>\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</section>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<section>\n  <h1>ERROR rate over time</h1>\n  <p>Application log bucketed into 10-minute windows, counting ERROR lines per bucket.</p>\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</section>"
+        }
+      },
+      "accepted": false,
+      "failureReasons": [
+        "content-non-empty: expected >=200 visible chars and >=120px of painted content, observed 159 chars and 876px — \"ERROR rate over time Application log bucketed into 10-minute windows, counting ERROR lines per bucket. ERROR lines per 10-minute bucket 09:00 09:10 09:20 09:30 ...\""
+      ]
+    },
+    {
+      "attemptIndex": 1,
+      "outputTokens": 1147,
+      "authoredOutputTokens": 435,
+      "authoredArtifactBytes": 719,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 10,
+      "cacheReadTokens": 116180,
+      "cacheCreationTokens": 1663,
+      "assistantTurnCount": 5,
+      "wallClockMs": 18224,
+      "reportedCostUsd": 0.062067,
+      "artifact": {
+        "source": "<section>\n  <h1>ERROR rate over time</h1>\n  <p>This chart reads the application log at logs/app.log, which spans one hour of traffic from 09:00 to 10:00. Each ERROR line is grouped into a ten-minute bucket based on its timestamp, and the chart below plots how many ERROR lines fall into each bucket, from 09:00 through 09:50.</p>\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n  <Callout tone=\"warning\" title=\"Errors cluster mid-window\">Of the 22 ERROR lines in the log, the busiest bucket is 09:30 with 11 errors, more than half the total. Volume ramps up starting at 09:10, peaks at 09:30, and tapers off by 09:50.</Callout>\n</section>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<section>\n  <h1>ERROR rate over time</h1>\n  <p>This chart reads the application log at logs/app.log, which spans one hour of traffic from 09:00 to 10:00. Each ERROR line is grouped into a ten-minute bucket based on its timestamp, and the chart below plots how many ERROR lines fall into each bucket, from 09:00 through 09:50.</p>\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n  <Callout tone=\"warning\" title=\"Errors cluster mid-window\">Of the 22 ERROR lines in the log, the busiest bucket is 09:30 with 11 errors, more than half the total. Volume ramps up starting at 09:10, peaks at 09:30, and tapers off by 09:50.</Callout>\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 2,
+  "systemPromptTokens": 4824,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-log-chart__sonnet__rep4"
+}

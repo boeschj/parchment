@@ -1,0 +1,67 @@
+{
+  "runId": "parchment-markup-high__ladder-log-chart__sonnet__rep1",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 1,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 450,
+      "authoredOutputTokens": 246,
+      "authoredArtifactBytes": 257,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 52694,
+      "cacheCreationTokens": 11368,
+      "assistantTurnCount": 3,
+      "wallClockMs": 8904,
+      "reportedCostUsd": 0.0915582,
+      "artifact": {
+        "source": "<Card title=\"ERROR rate over time\" description=\"app.log, bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</Card>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<Card title=\"ERROR rate over time\" description=\"app.log, bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</Card>"
+        }
+      },
+      "accepted": false,
+      "failureReasons": [
+        "content-non-empty: expected >=200 visible chars and >=120px of painted content, observed 124 chars and 876px — \"ERROR rate over time app.log, bucketed into 10-minute windows ERROR lines per 10-minute bucket 09:00 09:10 09:20 09:30 09:40 09:50 0 3 6 9 12 0 1 5 11 4 1\""
+      ]
+    },
+    {
+      "attemptIndex": 1,
+      "outputTokens": 1298,
+      "authoredOutputTokens": 999,
+      "authoredArtifactBytes": 1200,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 66671,
+      "cacheCreationTokens": 2667,
+      "assistantTurnCount": 3,
+      "wallClockMs": 26322,
+      "reportedCostUsd": 0.0554913,
+      "artifact": {
+        "source": "<Card title=\"ERROR rate over time\" description=\"app.log covers 09:00-10:00 on 2026-05-11, bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <Stack direction=\"vertical\" gap=\"lg\">\n    <Text variant=\"body\">Of the 100 lines in app.log, 22 are ERROR-level. They cluster sharply between 09:30 and 09:40, driven by a pricing upstream outage (econnrefused/etimedout) that tripped the circuit breaker and pushed 503s from the /catalog endpoint.</Text>\n    <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n    <DataTable caption=\"ERROR count by bucket\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\",\"type\":\"string\"},{\"key\":\"count\",\"header\":\"ERROR lines\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"count\":0},{\"bucket\":\"09:10\",\"count\":1},{\"bucket\":\"09:20\",\"count\":5},{\"bucket\":\"09:30\",\"count\":11},{\"bucket\":\"09:40\",\"count\":4},{\"bucket\":\"09:50\",\"count\":1}]' />\n    <Callout tone=\"warning\" title=\"Peak at 09:30\">The 09:30 bucket accounts for half of all ERROR lines in the window (11 of 22), coinciding with `breaker circuit_opened name=pricing failures=6 threshold=6`.</Callout>\n  </Stack>\n</Card>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<Card title=\"ERROR rate over time\" description=\"app.log covers 09:00-10:00 on 2026-05-11, bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <Stack direction=\"vertical\" gap=\"lg\">\n    <Text variant=\"body\">Of the 100 lines in app.log, 22 are ERROR-level. They cluster sharply between 09:30 and 09:40, driven by a pricing upstream outage (econnrefused/etimedout) that tripped the circuit breaker and pushed 503s from the /catalog endpoint.</Text>\n    <LogStream file=\"logs/app.log\" match=\"ERROR\" groupBy=\"10m\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n    <DataTable caption=\"ERROR count by bucket\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\",\"type\":\"string\"},{\"key\":\"count\",\"header\":\"ERROR lines\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"count\":0},{\"bucket\":\"09:10\",\"count\":1},{\"bucket\":\"09:20\",\"count\":5},{\"bucket\":\"09:30\",\"count\":11},{\"bucket\":\"09:40\",\"count\":4},{\"bucket\":\"09:50\",\"count\":1}]' />\n    <Callout tone=\"warning\" title=\"Peak at 09:30\">The 09:30 bucket accounts for half of all ERROR lines in the window (11 of 22), coinciding with `breaker circuit_opened name=pricing failures=6 threshold=6`.</Callout>\n  </Stack>\n</Card>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 2,
+  "systemPromptTokens": 4824,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-log-chart__sonnet__rep1"
+}

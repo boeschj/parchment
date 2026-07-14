@@ -1,0 +1,10 @@
+[
+  {
+    "armId": "raw-html",
+    "scenarioId": "ladder-git-diff",
+    "origin": "accepted-run",
+    "bytes": 29597,
+    "approximateTokens": 13530,
+    "approximateTokensByBytesRule": 7400
+  }
+]

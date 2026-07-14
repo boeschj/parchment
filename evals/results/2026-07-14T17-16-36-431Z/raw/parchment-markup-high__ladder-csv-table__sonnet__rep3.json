@@ -1,0 +1,39 @@
+{
+  "runId": "parchment-markup-high__ladder-csv-table__sonnet__rep3",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-csv-table",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 422,
+      "authoredOutputTokens": 156,
+      "authoredArtifactBytes": 64,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$csv"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 53019,
+      "cacheCreationTokens": 11570,
+      "assistantTurnCount": 3,
+      "wallClockMs": 12373,
+      "reportedCostUsd": 0.09240469999999999,
+      "artifact": {
+        "source": "<DataTable caption=\"Benchmark Results\" src=\"data/results.csv\" />",
+        "toolInput": {
+          "title": "Benchmark Results",
+          "markup": "<DataTable caption=\"Benchmark Results\" src=\"data/results.csv\" />"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4824,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-csv-table__sonnet__rep3"
+}

@@ -1,0 +1,37 @@
+{
+  "runId": "parchment-markup-low__ladder-log-chart__sonnet__rep4",
+  "armId": "parchment-markup-low",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 4,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1765,
+      "authoredOutputTokens": 1499,
+      "authoredArtifactBytes": 1532,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 56358,
+      "cacheCreationTokens": 17092,
+      "assistantTurnCount": 3,
+      "wallClockMs": 18045,
+      "reportedCostUsd": 0.1467214,
+      "artifact": {
+        "source": "<section>\n  <h1>ERROR rate over time — app.log</h1>\n  <p>22 ERROR lines across a one-hour window (09:00–10:00), bucketed into ten-minute intervals. Matches the log's own hourly_summary (errors=22, error_rate=0.021).</p>\n\n  <Grid columns=\"3\" gap=\"md\">\n    <Metric label=\"Total errors\" value=\"22\" detail=\"of 1042 requests\" />\n    <Metric label=\"Peak bucket\" value=\"11\" detail=\"09:30–09:40\" tone=\"danger\" />\n    <Metric label=\"Error rate\" value=\"2.1%\" detail=\"hourly_summary line\" />\n  </Grid>\n\n  <Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n\n  <Callout tone=\"danger\" title=\"09:30 spike — pricing circuit breaker trips\">\n    Errors cluster sharply from 09:30–09:37: repeated `econnrefused` failures against pricing.internal exhaust retries (line 53), the circuit breaker opens at 09:33:33 (line 57), and `/catalog` starts returning 503s until `circuit_closed` at 09:40:22 (line 69).\n  </Callout>\n\n  <DataTable caption=\"Bucket breakdown\" exportable=\"true\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\"},{\"key\":\"errors\",\"header\":\"ERROR count\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n</section>",
+        "toolInput": {
+          "title": "Error rate over time",
+          "markup": "<section>\n  <h1>ERROR rate over time — app.log</h1>\n  <p>22 ERROR lines across a one-hour window (09:00–10:00), bucketed into ten-minute intervals. Matches the log's own hourly_summary (errors=22, error_rate=0.021).</p>\n\n  <Grid columns=\"3\" gap=\"md\">\n    <Metric label=\"Total errors\" value=\"22\" detail=\"of 1042 requests\" />\n    <Metric label=\"Peak bucket\" value=\"11\" detail=\"09:30–09:40\" tone=\"danger\" />\n    <Metric label=\"Error rate\" value=\"2.1%\" detail=\"hourly_summary line\" />\n  </Grid>\n\n  <Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n\n  <Callout tone=\"danger\" title=\"09:30 spike — pricing circuit breaker trips\">\n    Errors cluster sharply from 09:30–09:37: repeated `econnrefused` failures against pricing.internal exhaust retries (line 53), the circuit breaker opens at 09:33:33 (line 57), and `/catalog` starts returning 503s until `circuit_closed` at 09:40:22 (line 69).\n  </Callout>\n\n  <DataTable caption=\"Bucket breakdown\" exportable=\"true\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\"},{\"key\":\"errors\",\"header\":\"ERROR count\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 3924,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-low__ladder-log-chart__sonnet__rep4"
+}

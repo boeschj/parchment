@@ -1,0 +1,68 @@
+{
+  "runId": "parchment-markup-high__ladder-log-chart__sonnet__rep5",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 5,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 464,
+      "authoredOutputTokens": 256,
+      "authoredArtifactBytes": 256,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 53034,
+      "cacheCreationTokens": 11671,
+      "assistantTurnCount": 3,
+      "wallClockMs": 9277,
+      "reportedCostUsd": 0.0936882,
+      "artifact": {
+        "source": "<Card title=\"ERROR rate over time\" description=\"app.log bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" groupBy=\"10m\" match=\"ERROR\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</Card>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<Card title=\"ERROR rate over time\" description=\"app.log bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" groupBy=\"10m\" match=\"ERROR\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n</Card>"
+        }
+      },
+      "accepted": false,
+      "failureReasons": [
+        "content-non-empty: expected >=200 visible chars and >=120px of painted content, observed 123 chars and 876px — \"ERROR rate over time app.log bucketed into 10-minute windows ERROR lines per 10-minute bucket 09:00 09:10 09:20 09:30 09:40 09:50 0 3 6 9 12 0 1 5 11 4 1\""
+      ]
+    },
+    {
+      "attemptIndex": 1,
+      "outputTokens": 1103,
+      "authoredOutputTokens": 522,
+      "authoredArtifactBytes": 639,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "$log"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 66782,
+      "cacheCreationTokens": 1395,
+      "assistantTurnCount": 3,
+      "wallClockMs": 16746,
+      "reportedCostUsd": 0.044967599999999996,
+      "artifact": {
+        "source": "<Card title=\"ERROR rate over time\" description=\"app.log bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" groupBy=\"10m\" match=\"ERROR\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n  <Text variant=\"body\">Across the one-hour window captured in app.log, 22 ERROR lines were logged out of 100 total lines. Errors were clustered mid-window: the 09:30 bucket had the highest count at 11 ERROR lines, following a ramp-up from 1 at 09:10 and 5 at 09:20, then tapering back down to 4 at 09:40 and 1 at 09:50. No errors were logged in the first ten minutes (09:00).</Text>\n</Card>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<Card title=\"ERROR rate over time\" description=\"app.log bucketed into 10-minute windows\" maxWidth=\"lg\" centered=\"true\">\n  <LogStream file=\"logs/app.log\" groupBy=\"10m\" match=\"ERROR\" kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" height=\"360\" />\n  <Text variant=\"body\">Across the one-hour window captured in app.log, 22 ERROR lines were logged out of 100 total lines. Errors were clustered mid-window: the 09:30 bucket had the highest count at 11 ERROR lines, following a ramp-up from 1 at 09:10 and 5 at 09:20, then tapering back down to 4 at 09:40 and 1 at 09:50. No errors were logged in the first ten minutes (09:00).</Text>\n</Card>",
+          "slotId": "slot_mrkwldtn_5hui2c"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 2,
+  "systemPromptTokens": 4824,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-log-chart__sonnet__rep5"
+}
