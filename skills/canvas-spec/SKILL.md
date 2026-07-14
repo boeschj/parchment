@@ -15,14 +15,25 @@ A spec is a flat element map. Children are referenced by key — no nesting:
     "page":  {"type": "Stack",  "props": {"gap": "lg"}, "children": ["kpis", "title-in"]},
     "kpis":  {"type": "Grid",   "props": {"columns": 3}, "children": ["m1"]},
     "m1":    {"type": "Metric", "props": {"label": "p99", "value": "412 ms", "delta": "-38%", "trend": "down", "tone": "success"}},
-    "title-in": {"type": "Input", "props": {"label": "Title", "value": {"$bindState": "/form/title"}}}
+    "title-in": {"type": "Input", "props": {"label": "Title", "name": "title", "value": {"$bindState": "/form/title"}}}
   }
 }
 ```
 
 Element fields: `type`, `props` (required), `children` (string keys), `visible`,
 `on` (event → action), `repeat`, `watch`. The last four are TOP-LEVEL fields,
-never inside `props`. Every child key must exist in `elements`.
+never inside `props`. Every child key must exist in `elements`. An element
+carries NO other fields — a `$bindState` or `state` object parked beside `props`
+is rejected.
+
+## The prop tables below are exact
+
+A prop the component does not declare is not ignored — it is REJECTED, with the
+component's real prop list in the message. The same goes for events (`on.click`
+on a Button: Button emits `press`), actions, and `checks` types. Required props
+must be present; a runtime expression (`{"$state": ...}`, `{"$template": ...}`)
+counts as present. A Chart with `chartType`/`series` and no `kind`/`data`/`y`
+used to render an empty box — now it comes straight back to you with the fix.
 
 ## Dynamic expressions (any prop value)
 
@@ -85,9 +96,27 @@ Names only; full prop tables are in **references/components.md**.
 - **Content**: `Heading`, `Text` (variant code = INLINE identifiers only), `Badge`,
   `Alert` (prefer Callout for tonal emphasis), `Image`, `Avatar`, `Table` (prefer
   DataTable), `Progress`, `Skeleton`, `Spinner`.
-- **Inputs & actions** (always bind with `$bindState`): `Button`, `Link`, `Input`,
-  `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Slider`, `Toggle`,
-  `ToggleGroup`, `ButtonGroup`, `DropdownMenu`.
+- **Inputs & actions** (every form field takes `label` + `name`, and binds its value
+  with `$bindState`): `Button`, `Link`, `Input`, `Textarea`, `Select`, `Checkbox`,
+  `Radio`, `Switch`, `Slider`, `Toggle`, `ToggleGroup`, `ButtonGroup`, `DropdownMenu`.
+
+## Events and actions (only these fire)
+
+`Button`/`Link` emit `press` · `Select`, `Checkbox`, `Radio`, `Switch`, `Slider`,
+`Toggle`, `ToggleGroup`, `ButtonGroup`, `Pagination`, `Tabs` emit `change` ·
+`Input` emits `submit`/`focus`/`blur` · `DropdownMenu` emits `select` ·
+`DataTable` emits `change`/`sort` · `MermaidEditor` emits `change`/`comment` ·
+`PlanFile` emits `change`/`submit` · `DiffViewer` emits `change`. Everything else
+emits nothing — an `on` binding on it never fires.
+
+Actions: `canvas.submit`, `canvas.intent`, `canvas.commentMermaid`,
+`canvas.flushPending`, `setState`, `pushState`, `removeState`, `validateForm`,
+`push`, `pop`. There is no other action; an unknown name has no handler.
+
+`$bindState` writes back only through a component's own value prop — `value`
+(Input, Textarea, Select, Radio, Slider, Tabs, ToggleGroup, DropdownMenu),
+`checked` (Checkbox, Switch), `pressed` (Toggle), `selected` (ButtonGroup),
+`page` (Pagination). Anywhere else, use `{"$state": "/path"}` to read.
 
 ## Accepted input forms (part of the schema, auto-normalized)
 
@@ -98,15 +127,21 @@ default→body, secondary→muted) · Chart `xScale` linear→category,
 date/timestamp→time · Chart xKey/yKey/yKeys→x/y · DataTable data→rows,
 columns[].label→header · Metric value/delta numbers → display strings.
 
+These are the ONLY accepted alternate names. Every other unknown prop is a
+rejection with a did-you-mean and the component's real prop list.
+
 ## Integrity checklist (walk it before every send)
 
 1. Every key in every `children` array exists in `elements`.
 2. Every `$state`/`$bindState`/`repeat`/`$template` path is seeded in `"state"`.
 3. `on`/`repeat`/`watch`/`visible` at element level, not in `props`.
 4. Leaf elements still carry `"children": []`.
-5. Chart data values are numbers; Metric values are formatted strings.
-6. Mermaid source is raw (no fences), `<br/>` for label line breaks.
-7. Scene3D: y is up, rotation in degrees, rest shapes on the floor at `y = height/2`.
+5. Every prop name is in the component's table above, and every required prop
+   has a value (or an expression). No invented props.
+6. Every `on` event is one the component emits; every action name is real.
+7. Chart data values are numbers; Metric values are formatted strings.
+8. Mermaid source is raw (no fences), `<br/>` for label line breaks.
+9. Scene3D: y is up, rotation in degrees, rest shapes on the floor at `y = height/2`.
 
 ## References (pull on demand)
 

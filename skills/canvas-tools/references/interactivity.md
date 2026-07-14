@@ -36,14 +36,22 @@ memory of a slot is stale the moment the user touches it.
 
 ## Form validation
 
-Form components accept `checks` and a `validateOn` mode (`change` | `blur` | `submit`):
+Form components accept `checks` and a `validateOn` mode (`change` | `blur` | `submit`).
+`checks` only run on a `$bindState`-bound value — an unbound field validates nothing
+and is rejected:
 
 ```json
-"checks": [{"type": "required", "message": "Required"},
-           {"type": "email", "message": "Enter a valid email"}]
+{"type": "Input",
+ "props": {"label": "Email", "name": "email", "type": "email",
+           "value": {"$bindState": "/form/email"},
+           "checks": [{"type": "required", "message": "Required"},
+                      {"type": "email", "message": "Enter a valid email"}],
+           "validateOn": "blur"},
+ "children": []}
 ```
 
-Check types: `required`, `email`, `url`, `numeric`, `minLength`, `maxLength`, `min`,
-`max`, `pattern`, `matches`, `lessThan`, `greaterThan`, `requiredIf`. Drive submit
-gating with the `validateForm` action (`{statePath?}` writes `{valid, errors}`) and
-bind the submit Button's `disabled`/`visible` to `/form/valid`.
+Check types (any other name is rejected): `required`, `email`, `url`, `numeric`,
+`minLength`, `maxLength`, `min`, `max`, `pattern`, `matches`, `equalTo`, `lessThan`,
+`greaterThan`, `requiredIf`. Drive submit gating with the `validateForm` action
+(`{statePath?}` writes `{valid, errors}`) and bind the submit Button's
+`disabled`/`visible` to `/form/valid`.

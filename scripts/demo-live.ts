@@ -22,7 +22,9 @@ const DEMO_SLOT_ID = "slot_live_demo";
 const APPEND_INTERVAL_MS = 250;
 const WINDOW_POINTS = 240;
 
-const demoSpec: JsonRenderSpec = {
+// Exported so src/daemon/spec-validation.test.ts holds it to the same validator
+// the MCP tools use — a shipped example that our own validator rejects is a bug.
+export const demoSpec: JsonRenderSpec = {
   root: "page",
   state: { series: [], latest: 0 },
   elements: {
@@ -111,4 +113,6 @@ async function main(): Promise<void> {
   }, APPEND_INTERVAL_MS);
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

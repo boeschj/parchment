@@ -33,7 +33,7 @@ Multiple: array of bindings, run in order. Params accept expressions.
 
 - `setState` `{statePath, value}` · `pushState` `{statePath, value, clearStatePath?}`
   (`"$id"` in value = auto id) · `removeState` `{statePath, index}` ·
-  `validateForm` `{statePath?}` writes `{valid, errors}`.
+  `validateForm` `{statePath?}` writes `{valid, errors}` · `push` `{screen}` / `pop`.
 - **`canvas.submit`** `{id, payload}` — THE backchannel. Delivers resolved payload
   (use `{"$state": "/form"}`) to Claude's next turn as
   `<canvas-edit kind="form-submit">`. Bind to Button `on.press`.
@@ -42,9 +42,26 @@ Multiple: array of bindings, run in order. Params accept expressions.
   the spec otherwise). Arrives as `<canvas-edit kind="intent">` with the exact
   recorded payload. Ids unique per slot.
 - `canvas.commentMermaid` — used internally by MermaidEditor node comments.
+- `canvas.flushPending` — force-flush debounced edits ("Send now" button).
 
-Events by component: Button/Toggle emit `press`; Input/Textarea/Select/Checkbox/
-Radio/Switch/Slider emit `change` (+ `submit` on Input).
+That is the entire action set. An action name outside it has no handler and is
+rejected.
+
+## Events by component (the ONLY events that fire)
+
+| Event | Components |
+|---|---|
+| `press` | `Button`, `Link` |
+| `change` | `Select`, `Checkbox`, `Radio`, `Switch`, `Slider`, `Toggle`, `ToggleGroup`, `ButtonGroup`, `Pagination`, `Tabs`, `DataTable`, `MermaidEditor`, `PlanFile`, `DiffViewer` |
+| `submit` | `Input` (Enter key), `PlanFile` |
+| `focus` / `blur` | `Input` |
+| `select` | `DropdownMenu` |
+| `sort` | `DataTable` |
+| `comment` | `MermaidEditor` |
+
+`Input` does NOT emit `change` and `Textarea` emits nothing — a field's value
+reaches you through its `$bindState` binding, not an event. Every other component
+(Card, Stack, Metric, Chart, …) emits nothing; an `on` binding on one is rejected.
 
 Form validation (`checks` types + `validateOn`) is documented in the canvas-tools
 skill: references/interactivity.md.
