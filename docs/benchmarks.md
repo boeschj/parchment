@@ -1,369 +1,275 @@
 # Benchmarks
 
-> **⚠️ These results are INVALIDATED pending re-measurement (2026-07-13).**
-> Internal review found the acceptance rubric only counted component types —
-> it never verified props, data bindings, rendered DOM, or interactions.
-> Specs with silently-stripped unknown props (e.g. a Chart with no `kind` or
-> `data`) were counted as passing. The first-pass-rate and win/loss tables
-> below therefore overstate parchment and must not be cited. A rebuilt
-> harness with browser-real, identical-rubric acceptance for every arm is in
-> progress; numbers will be republished — whatever they say. The daemon
-> startup timings and the tool-surface measurements are unaffected (they do
-> not depend on the invalid rubric).
+> **There are no performance numbers on this page right now.**
+> Every number we previously published here was produced by a rubric that did
+> not check whether anything rendered. We withdrew them, rebuilt the rubric so a
+> browser decides what counts as correct, and re-scored the old runs with it:
+> **1 of the 24 archived runs we called "passing" actually renders its data.**
+> New numbers will be published once the re-measurement completes — whatever
+> they say. This page documents the rubric first, on purpose: a benchmark whose
+> acceptance test you cannot audit is worth nothing, and ours wasn't.
 
+## What was wrong
 
-Measured comparisons between parchment's `canvas_*` MCP tools and the obvious
-baseline: the model writing a single self-contained HTML file. The one-shot
-scenario numbers below come from real headless `claude -p` runs on
-2026-07-12 (Claude Code 2.1.207; `sonnet` = claude-sonnet-4-5, `opus` =
-claude-opus-4-8, `haiku` = claude-haiku-4-5), archived with full session
-transcripts under `bench/results/`. Sonnet and opus are the primary
-results — they are what Claude Code users actually run; haiku is kept as a
-cheap-repetition variance check in the appendix.
+The old harness accepted a parchment run if the daemon's session state contained
+the right *count of component types*. That is the entire check it performed. It
+never looked at props, data, bindings, events, or a single painted pixel.
 
-**This page reflects two rounds of spec-repair fixes** landed after the
-original full suite: shrinking the canvas tool surface (14 → 8 tools),
-auto-repairing enum synonyms (gap numbers/words, heading levels, variants,
-xScale), and a second pass of dialect repair (prop aliases like Chart's
-xKey/yKeys → x/y and DataTable's data → rows, `"$state.path"` shorthand
-strings, number → string coercion for props like Metric's delta, Form →
-Card). **The HTML arm is unchanged throughout this page** — none of these
-fixes touch it — so every HTML number below is reused from the original
-full suite; only the parchment numbers are new. See "Finding and fixing our
-failure modes" below for the full before/after.
+So a `Chart` with props `{chartType, xKey, series}` — not one of which is a real
+Chart prop (they are `kind`, `data`, `x`, `y`) — counted as a passing "Chart".
+In the browser, that component throws `Cannot read properties of undefined` and
+paints nothing at all.
 
-The short version: **the fixes closed the first-paint gap.** Before them,
-the HTML file won tokens-to-first-paint at every model on every scenario,
-because roughly a third of parchment's first render attempts were rejected
-and cost a retry. After them, every one of 24 fresh runs (sonnet + opus)
-landed in one attempt, and parchment now wins tokens-to-first-paint on 5 of
-6 sonnet scenarios and 2 of 3 opus scenarios. The one holdout, at both
-models, is the validated signup form — printed plainly below, not hidden.
+Then we optimized the product against that rubric. Textbook Goodhart: the
+measure became a target, and stopped being a measure. The "24/24 first-pass"
+claim, the tokens-to-first-paint tables, the win/loss counts — all of it rested
+on a definition of "correct" that a blank page could satisfy.
 
-## Headline: what a live dashboard costs to keep updated (sonnet)
+The arms were also judged unequally (the HTML arm was regex-checked for tags;
+parchment was type-counted), n was 2–3, some HTML runs were reused across
+non-contemporaneous passes, and no human ever looked at the output.
 
-*Measured before the round-2 dialect-repair fixes below; not re-run for this
-page. The zero-token live-update claim is architectural (the daemon streams
-file-tail/poll updates into slot state with no LLM call in the loop) and is
-unaffected by the spec-repair fixes, but the initial-compose dollar figure
-below predates them and would likely drop under the same fixes as the
-one-shot scenarios.*
+## The integrity number: 1 / 24
 
-One dashboard, 10 data updates after the initial render (1 rep/arm):
+`bench/acceptance/replay.ts` takes every archived parchment run, pulls the spec
+out of that run's own session transcript, renders it exactly as the product did
+(`prepareSpec`, then `POST /slots` — the real pipeline, repairs included), and
+judges the painted page in a real browser. It calls no model; it costs nothing.
 
-| | Initial compose | 10 updates | Model calls for updates | Tokens for updates | Lifetime total |
-|---|---|---|---|---|---|
-| parchment (`canvas_render` + `canvas_live`) | $0.0862 | **$0** | **0** | **0** | **$0.0862** |
-| single HTML file (re-prompt per update) | $0.1023 | $0.3211 | 10 | 386,281 | $0.4233 |
+| | Old validator | Browser rubric |
+|---|---|---|
+| Archived runs passing | 24 / 24 | **1 / 24** |
 
-After one compose call, the HTML baseline costs **4.9x more** by the 10th
-update — and the gap keeps widening, because each HTML re-prompt carries the
-whole prior session: update 1 cost $0.0223 (29,675 tokens), update 10 cost
-$0.0417 (49,587 tokens), **+87% per update within 10 updates**.
+The failures are not close calls:
 
-The parchment zero is observed, not assumed: after the one compose call
-registered a file-tail source, the benchmark script appended 10 lines
-directly to the tailed file and polled the daemon's HTTP state endpoint. The
-slot's chart series grew 5 → 15 points, one per append, each visible within
-~1.2 s, with zero model calls in the loop
-(`bench/results/2026-07-12T15-17-20-070Z-live-update-sonnet/report.md` has
-the per-append observations). The HTML arm's 10 updates all landed correctly
-too (10/10 log lines in the final file) — what the baseline loses is not
-correctness on this task, it is the recurring, compounding bill.
+| Scenario | What the model wrote | What the user saw |
+|---|---|---|
+| architecture-diagram | `MermaidEditor{code: "graph LR…"}` — the prop is `source` | Mermaid got no source, threw, drew no diagram. Old rubric: `MermaidEditor: 1` → pass. |
+| incident-report | `Callout{variant,text}` (real: `tone`,`body`), `Steps{steps}` (real: `items`), `Markdown{text}` (real: `content`) | Every component rendered empty. Old rubric: `Callout: 1, Steps: 1` → pass. |
+| status-dashboard | `Chart{chartType,xKey,series}` | The chart crashes on undefined and paints no `<svg>` at all. Old rubric: `Chart: 2` → pass. |
+| live-log-dashboard | chart + table bindings wrong | Neither the chart nor the table is in the DOM. |
+| validated-form | `Input` with no label/name, or validation that never fires | The form accepts an empty required name and `"abc"` as a password. |
 
-## One-shot scenarios, sonnet: 6 tasks × parchment (new) vs html (unchanged) × 3 reps
+Three independent signals agree, which is why we believe the number:
 
-All 18 new parchment runs passed validation (100% in every cell); the reused
-HTML numbers are the same 18/18-passing runs as before. Means below;
-median/min/max are in the archived reports
-(`bench/results/2026-07-12T22-28-37-337Z/` for parchment,
-`bench/results/2026-07-12T15-07-38-053Z/` for the reused HTML arm).
+1. **The browser** says the data is not on screen.
+2. **The product's own (since hardened) spec validation** raises 2–13 issues on
+   every one of these specs today.
+3. **Reading the raw specs by hand** shows the props are simply not the declared
+   ones.
 
-| Scenario | Arm | Passes to correct render | Tokens to first paint | Cost/run | vs HTML |
-|---|---|---|---|---|---|
-| CI status dashboard | parchment | 1.00 | 11,583 | $0.0766 | **win** both metrics |
-| CI status dashboard | html | 1.00 | 14,109 | $0.1197 | |
-| CSV data table | parchment | 1.00 | 10,699 | $0.0508 | **win** both metrics (thin, ~2%) |
-| CSV data table | html | 1.00 | 10,905 | $0.0528 | |
-| Architecture diagram | parchment | 1.00 | 10,428 | $0.0454 | **win** both metrics |
-| Architecture diagram | html | 1.00 | 11,295 | $0.0614 | |
-| Incident report | parchment | 1.00 | 11,063 | $0.0568 | **win** both metrics |
-| Incident report | html | 1.00 | 11,972 | $0.0748 | |
-| Validated signup form | parchment | 1.00 | 11,481 | $0.0674 | **loss** both metrics |
-| Validated signup form | html | 1.00 | 10,749 | $0.0493 | |
-| Live log dashboard (setup) | parchment | 1.00 | 11,346 | $0.0641 | **win** both metrics |
-| Live log dashboard (setup) | html | 1.00 | 13,027 | $0.0978 | |
+And a **positive control** (`bench/acceptance/parchment-control.test.ts`) proves
+a *correct* parchment spec passes the rubric on all six scenarios. So this is
+the specs failing, not the rubric being unsatisfiable.
 
-## One-shot scenarios, opus: 3 most differentiating tasks × parchment (new) vs html (unchanged) × 2 reps
+Raw data, screenshots and per-run reasons:
+`bench/results/2026-07-14T04-52-44-442Z-rubric-replay/`.
 
-All 6 new parchment runs passed validation; the reused HTML numbers are the
-same 6/6-passing runs as before
-(`bench/results/2026-07-12T22-32-01-708Z/` for parchment,
-`bench/results/2026-07-12T15-07-39-419Z/` for the reused HTML arm).
+## The rubric
 
-| Scenario | Arm | Passes to correct render | Tokens to first paint | Cost/run | vs HTML |
-|---|---|---|---|---|---|
-| CI status dashboard | parchment | 1.00 | 5,828 | $0.0926 | **win** both metrics |
-| CI status dashboard | html | 1.00 | 7,456 | $0.1736 | |
-| Validated signup form | parchment | 1.00 | 5,564 | $0.0815 | **loss** both metrics |
-| Validated signup form | html | 1.00 | 4,484 | $0.0633 | |
-| Live log dashboard (setup) | parchment | 1.00 | 5,485 | $0.0767 | **win** both metrics |
-| Live log dashboard (setup) | html | 1.00 | 6,418 | $0.1324 | |
+Acceptance is **browser-real** and **independent of our own validator**. Nothing
+in the checking path may import parchment's schema, its validators, or
+`prepareSpec` — that circularity is what caused this. An assertion must be
+satisfiable, in principle, by any technology that can paint a page.
 
-Read the current state plainly, at the models people actually use:
+Every arm is reduced to the same `DomFacts` by the same in-page probe, and then
+the same per-scenario assertions run against it. There is no per-arm branch in
+the checking path.
 
-- **Passes to correct render is now 1.00 everywhere, at every model.** Zero
-  of the 24 fresh runs (18 sonnet + 6 opus) needed a retry — down from
-  12/18 sonnet and 6/6 opus runs rejected on the old tool surface. See
-  "Finding and fixing our failure modes" below for what closed this.
-- **Tokens to first paint: parchment now wins 5 of 6 sonnet scenarios and 2
-  of 3 opus scenarios.** Averaged across all 6 sonnet scenarios, parchment's
-  mean tokens-to-first-paint fell from 31,671 (2.6x worse than HTML's
-  12,010) to 11,100 (8% *better* than HTML's 12,010) — without HTML
-  changing at all. Opus shows the same shape: parchment's mean fell from
-  25,753 (4.2x worse than HTML's 6,119) to 5,626 (8% better).
-- **Cost/run: parchment now wins 5 of 6 sonnet scenarios and 2 of 3 opus
-  scenarios** — the same single holdout both times (validated signup form).
-  Averaged across scenarios, parchment's mean cost/run went from roughly
-  breakeven-to-worse (sonnet: $0.0815 vs HTML's $0.0760; opus: $0.1413 vs
-  HTML's $0.1231) to a clear win (sonnet: $0.0602 vs $0.0760, a 21%
-  saving; opus: $0.0836 vs $0.1231, a 32% saving).
-- **The one remaining loss, at both models: the validated signup form.**
-  Three native HTML5 attributes (`required`, `type="email"`,
-  `minlength="8"`) are simply cheaper than a JSON component tree describing
-  three controlled `Input`s, a `Button`, and a `canvas.submit` wire-up — this
-  is a structural cost of the JSON-spec approach for trivial forms, not a
-  bug. It is the only scenario where the fixes did not flip the outcome.
-- **The checks remain unequally strict**: the HTML validator asserts
-  required tags/text exist in the file; the parchment validator checks the
-  live daemon actually holds the required components. This asymmetry
-  predates and is unrelated to the round 1/round 2 fixes.
+The scenario specs are data, not code. Here is `status-dashboard` **verbatim**
+(`bench/acceptance/specs.ts`):
 
-## Finding and fixing our failure modes
+```ts
+export const statusDashboardAcceptance: AcceptanceSpec = {
+  scenarioId: "status-dashboard",
+  title: "CI status dashboard (KPI row + 2 charts)",
+  assertions: [
+    ...RENDERED_AT_ALL,
+    {
+      kind: AssertionKind.TextPresent,
+      description: "the 3 KPI tiles show their label and value",
+      // Each label is paired with its value in one string, so the assertion
+      // cannot be satisfied by a stray digit elsewhere on the page.
+      values: ["Build Pass Rate 94%", "Avg Build Time 4m12s", "Open Incidents 2"],
+    },
+    {
+      kind: AssertionKind.Charts,
+      description: "both charts plot their 7-day series and label the days",
+      minCharts: 2,
+      minDataPointsPerChart: MIN_DATA_POINTS_IN_A_7_POINT_SERIES,  // 5
+      requiredAxisLabels: WEEKDAYS,  // Mon…Sun
+    },
+  ],
+};
+```
 
-Three snapshots of the same 6 sonnet / 3 opus scenarios, same prompts, same
-validators — only the canvas tool surface and its spec-repair logic changed
-between them. Cells read **passes to correct render / tokens to first paint
-/ cost per run** (means).
+where `RENDERED_AT_ALL` is applied to every scenario:
 
-*Old surface*: the original 14-tool MCP surface (~5.5k tokens of schema),
-no repair logic — `bench/results/2026-07-12T15-07-38-053Z/` (sonnet),
-`bench/results/2026-07-12T15-07-39-419Z/` (opus).
-*+Surface slim & enum repair (round 1)*: tool surface shrunk 14→8
-(~2.4k tokens), plus auto-repair of enum synonyms (gap numbers/words,
-heading levels, variants, xScale) —
-`bench/results/2026-07-12T19-52-34-791Z/` (sonnet),
-`bench/results/2026-07-12T19-52-36-323Z/` (opus). **These runs predate the
-`--disallowedTools` harness fix**: under `bypassPermissions`,
-`--allowedTools` is a pre-approval, not a restriction, so the parchment arm
-could still call `canvas_snapshot` after rendering — which fails headlessly
-(no browser tab) and burns an extra turn. Some of round 1's improvement over
-old-surface is real (enum repair); some of its remaining cost is this
-harness artifact, not a spec problem. Round 1 is a partial pass (retries
-were still present on 4 of 6 sonnet scenarios and all 3 opus scenarios) —
-included here for the progression, not as a clean data point on its own.
-*+Dialect repair (round 2, current)*: adds prop-alias repair (Chart's
-xKey/yKeys → x/y, DataTable's data → rows, column `label` → `header`),
-`"$state.path"` shorthand → expression objects, number → string coercion,
-Form → Card, plus the `--disallowedTools` harness fix that stops the
-canvas_snapshot turn burn — the results tables above.
+```ts
+const RENDERED_AT_ALL = [
+  { kind: AssertionKind.ContentNonEmpty, minVisibleTextLength: 25, minContentHeightPx: 200 },
+  { kind: AssertionKind.NoConsoleErrors },
+  { kind: AssertionKind.NoErrorBoundary },
+] as const;
+```
 
-### Sonnet
+The other scenarios assert, in the same style: every CSV row's values co-occur
+inside **one** `<tr>` (a page that lists the names in one column and the numbers
+somewhere else has not rendered the CSV); one `<svg>` carries all three diagram
+node labels **and** the connectors between them; the incident report paints its
+verdict, root cause and every timeline timestamp; the log dashboard plots its 5
+seeded points and shows all 3 log lines as table rows.
 
-| Scenario | Old surface | +Surface slim & enum repair (round 1) | +Dialect repair (round 2, current) |
-|---|---|---|---|
-| CI status dashboard | 2 / 39,054 / $0.1059 | 2 / 24,958 / $0.1005 | 1 / 11,583 / $0.0766 |
-| CSV data table | 1 / 18,106 / $0.0517 | 2 / 27,789 / $0.0641 | 1 / 10,699 / $0.0508 |
-| Architecture diagram | 1 / 17,913 / $0.0478 | 1 / 13,426 / $0.0469 | 1 / 10,428 / $0.0454 |
-| Incident report | 2 / 38,354 / $0.0938 | 1 / 14,129 / $0.0595 | 1 / 11,063 / $0.0568 |
-| Validated signup form | 2 / 38,077 / $0.0930 | 1 / 14,587 / $0.0736 | 1 / 11,481 / $0.0674 |
-| Live log dashboard (setup) | 2 / 38,521 / $0.0965 | 2 / 28,662 / $0.0770 | 1 / 11,346 / $0.0641 |
+### How a chart is checked
 
-### Opus
+"Did the chart plot the data?" is the assertion the old rubric most needed and
+least had. It is answered without reference to any charting library:
 
-| Scenario | Old surface | +Surface slim & enum repair (round 1) | +Dialect repair (round 2, current) |
-|---|---|---|---|
-| CI status dashboard | 2 / 26,360 / $0.1821 | 2 / 18,784 / $0.1639 | 1 / 5,828 / $0.0926 |
-| Validated signup form | 2 / 25,754 / $0.1293 | 2 / 18,162 / $0.1274 | 1 / 5,564 / $0.0815 |
-| Live log dashboard (setup) | 2 / 25,145 / $0.1124 | 2 / 17,643 / $0.1105 | 1 / 5,485 / $0.0767 |
+- **Data points.** For each `<svg>`, `dataPointCount` = the max of (rects,
+  circles, paths, polylines, longest single path/polyline vertex run). A
+  renderer encodes N points *either* as N marks *or* as one mark with N
+  vertices; taking the max is neutral between those choices. Axis and grid
+  `<line>` elements are never counted — both arms draw axes with them, so
+  counting them would let an empty chart pass on its own gridlines.
+- **Axis labels.** The category labels from the source data (`Mon`…`Sun`) must
+  be painted as text inside the qualifying charts. This is what proves the axis
+  was bound to the data rather than drawn blank.
+- **A chart must also carry ≥ 2 text labels** to qualify at all, which is what
+  stops a decorative icon (an `<svg>` whose single path has a dozen vertices)
+  from being counted as a chart.
 
-Every cell in every phase passed validation (100%) — passes-to-correct-render
-was never about correctness, only how many attempts and tokens it took to
-land there. What moved is attempts-to-first-paint (2 → sometimes 1 → always
-1) and the token/cost tax each retry carried.
+Measured, with the *same* thresholds on both arms:
 
-### Why parchment used to retry — and what fixed it
+| artifact | data points / chart | axis labels | console errors | svgs |
+|---|---|---|---|---|
+| parchment, correct spec | 7, 7 | 38, 24 | 0 | 2 |
+| hand-written HTML, correct | 7, 7 | 7, 7 | 0 | 2 |
+| parchment, bogus chart props | — | — | **3** | **0** |
+| parchment, `data: []` | **1** | **0** | 0 | 1 |
+| HTML, chart chrome but no marks | **0** | **0** | 1 | 1 |
 
-We read every rejection in the original sonnet and opus transcripts. The
-first render was rejected in 12/18 sonnet and 6/6 opus parchment runs on the
-old surface — and virtually every rejection was the model guessing a
-plausible-but-wrong **prop enum value or dialect**, dominated by `gap`
-(models want `"16"` or `"medium"`; the schema wants
-`"none"|"sm"|"md"|"lg"|"xl"`) and heading `level` (15 occurrences each
-across the sonnet suite), plus scattered `variant`, `xScale`, `direction`,
-Chart's `xKey`/`yKeys` vs `x`/`y`, DataTable's `data` vs `rows`, and
-`"$state.path"`-shorthand strings where an expression object was expected.
-This did not shrink at stronger models — opus hit it in 6 of 6 runs, more
-consistently than haiku (6 of 18), because stronger models write more
-expressive specs that touch more typed props. The daemon's fix-hint loop
-repaired it in one retry every time, so no user-visible run ever shipped
-broken — but the retry still cost real tokens and dollars. The product fix
-was upstream, not downstream: teach the daemon to auto-repair the common
-synonyms and shorthands before rejecting, rather than relying on the model
-to read a fix hint and try again. Post-fix, 0 of 24 fresh runs (sonnet +
-opus) were rejected on the first attempt.
+### How the form is checked — behaviour, not markup
 
-## Wall-clock to first render (sonnet)
+The tempting rubric is "the password input has `minlength=8` and `required`".
+That is a **rubric artifact**, and asserting it would have repeated the original
+sin with the arms reversed: parchment's `Input` does not accept `required` or
+`minLength` at all (*"unknown prop — the renderer ignores it"*); it validates
+through a `checks` prop. Scoring native HTML5 attributes would hand the HTML arm
+a win on a rubric parchment cannot express.
 
-Mean seconds per run from the same suites as above (parchment post-fix run
-2026-07-12T22-28-37-337Z vs the unchanged html arm from
-2026-07-12T15-07-38-053Z). Turn latency is dominated by output-token
-generation, so authoring a compact spec instead of a styled document is
-faster in proportion to the output saved. Output tokens shown alongside.
+So the harness does what a user would: it types an empty name, `not-an-email`,
+and a 3-character password into the form, presses **Sign up**, and asserts the
+form **refuses** — in any legible way (a native validity failure, an
+`aria-invalid` field, or an error message naming the field).
 
-| Scenario | parchment s | html s | Speedup | parchment out-tokens | html out-tokens |
-|---|---:|---:|---:|---:|---:|
-| Architecture diagram | 3.8 | 9.8 | 2.6x | 246 | 997 |
-| CSV data table | 5.9 | 7.1 | 1.2x | 511 | 586 |
-| Incident report | 7.3 | 14.8 | 2.0x | 767 | 1,619 |
-| Live log dashboard | 11.9 | 21.9 | 1.8x | 1,153 | 2,732 |
-| CI status dashboard | 12.3 | 27.7 | 2.2x | 1,341 | 3,755 |
-| Validated signup form | 13.8 | 6.2 | **0.5x (loss)** | 1,325 | 412 |
-| **Mean** | **9.2** | **14.6** | **1.6x** | 891 | 1,684 |
+Rejection is checked **per field**, not page-wide: a form whose only constraint
+is `type="email"` refuses `not-an-email` all by itself, and would otherwise pass
+while silently accepting the empty name and the 3-character password.
 
-The signup form is slower for the same structural reason it costs more
-tokens: three native HTML5 attributes out-compress an equivalent JSON input
-tree. Every other scenario renders 1.2–2.6x faster.
+### Two thresholds we got wrong, and how we know
 
-## Daemon startup (zero LLM cost)
+Both were caught by calibrating against measured renders instead of guessing —
+and both would have *unfairly failed a correct artifact*:
 
-Time from spawning the daemon process to a healthy HTTP endpoint, 5
-iterations each:
+- Counting bar-chart marks as `<rect>` scored a **correct** recharts bar chart at
+  **4** data points, not 7: recharts v3 draws bars as `<path>`.
+- Reading svg labels from `<text>`/`<tspan>` scored a **correct** mermaid diagram
+  as *"no labels at all"*: mermaid v11 paints node labels into `<foreignObject>`
+  divs.
+
+If a rubric can fail a correct artifact, it can also flatter a broken one. These
+are recorded here because they are the kind of thing a reader should be checking
+us for.
+
+## Product bugs this found
+
+Reported, not patched (`src/` is owned elsewhere):
+
+1. **`validateOn: "submit"` never fires.** An `Input` with `checks` and
+   `validateOn: "submit"`, submitted via a `Button` wired to `canvas.submit`,
+   runs **no validation at all** — the form accepts anything. `validateOn:
+   "blur"` and `"change"` both work correctly and render the message. Spec
+   validation raises **zero** issues about it, so nothing warns the model. The
+   natural way to write a validated form silently produces an unvalidated one.
+2. **`Chart` with `data: []` passes validation and renders blank.** Zero issues
+   from `prepareSpec`; one painted mark; no axis labels.
+
+## What we do NOT claim
+
+- **No performance comparison is being made on this page.** Not tokens, not
+  cost, not wall-clock, not win/loss. The previous ones are withdrawn.
+- The rubric does not score **aesthetics**. It scores whether the data the
+  prompt supplied reached the screen without errors. A blinded human review is
+  the intended companion to it, not a replacement for it.
+- The rubric requires charts to be drawn as inline `<svg>`. A chart rasterized
+  into a bitmap `<canvas>` cannot have its data verified by any DOM rubric — nor
+  by find-in-page, nor by a screen reader — so both arms are told to use `<svg>`,
+  and a run that ignores that fails with that reason printed.
+- `1/24` is a statement about **24 archived runs of one product version under one
+  set of prompts**. It is a strong claim about the old rubric's worthlessness and
+  about those specs; it is not a general claim about how often parchment renders
+  correctly today (validation has since been hardened, and would now reject most
+  of those specs before they ever painted).
+
+## How to falsify this
+
+Everything below runs locally, calls no model, and costs nothing.
+
+```bash
+pnpm install
+npx playwright install chromium
+
+# The rubric, driven at fixtures built to fool a weaker check, plus the
+# positive control (a correct parchment spec must pass all six scenarios).
+bun test bench/acceptance/
+
+# Re-score every archived run in the browser. Prints the integrity number.
+bun run bench/acceptance/replay.ts
+```
+
+Where to look if you think we are wrong:
+
+- **`bench/acceptance/specs.ts`** — the entire definition of "correct", as data.
+  If an assertion here is unfair to an arm, the benchmark is unfair. Say so.
+- **`bench/acceptance/checks.ts`** — the evaluators. Pure functions over
+  `DomFacts`; no browser, no arm, no branch.
+- **`bench/acceptance/dom-probe.ts`** — the one reduction both arms pass through.
+  If it can see something on one arm that it cannot see on the other, that is a
+  bug and it invalidates the comparison.
+- **`bench/results/…-rubric-replay/`** — every replayed run's screenshot, the
+  reasons it failed, and its `DomFacts`. Open the screenshots. The charts really
+  are empty.
+- **`bench/acceptance/parchment-control.test.ts`** — if you believe the rubric is
+  rigged against parchment, this is the test to break: it hand-writes a correct
+  parchment spec per scenario and requires all six to pass.
+
+The fastest way to prove us dishonest would be to produce a parchment spec that
+renders a correct, complete dashboard and is nonetheless failed by this rubric.
+If you find one, that is a bug in the rubric and we want it.
+
+## Reproducing the daemon-startup measurement
+
+The only previously-published number that did **not** depend on the invalid
+rubric (it involves no model and no rendering) is daemon boot time:
 
 | | Mean | Median | Min | Max |
 |---|---|---|---|---|
-| Cold boot (fresh `~/.parchment`) | 205 ms | 204 ms | 203 ms | 209 ms |
-| Warm boot (state already initialized) | 204 ms | 204 ms | 203 ms | 204 ms |
-
-No cold-start penalty; first-run initialization is not a meaningful cost.
-
-## Skills delta (appendix, haiku)
-
-Every run above uses `--setting-sources ""`, which strips personal config
-*and* plugin skills — the suite measures bare MCP tool descriptions and
-doubles as the no-skills control. Re-running status-dashboard/parchment/haiku
-(2 reps) with the `canvas-tools` + `canvas-spec` SKILL.md cores (~14.5 KB)
-appended via `--append-system-prompt`:
-
-| | Pass rate | Passes to correct render | Tokens to first paint | Cost/run |
-|---|---|---|---|---|
-| No skills (control, N=3) | 100% | 1.33 | 22,156 | $0.0377 |
-| With skill cores (N=2) | 100% | 1.50 | 36,328 | $0.0733 |
-
-The skills did not improve any measured metric on this scenario — they added
-prompt overhead to a task that already passed without them. That is the
-honest read at this N. The skills' guidance targets composition judgment,
-which these structural validators do not score.
-
-## Appendix: haiku suite (cheap-repetition variance check)
-
-6 scenarios × both arms × 3 reps, all 36 passed. **Not re-run for this
-page** — these numbers predate both rounds of spec-repair fixes and
-reflect the old 14-tool surface, so they track the *old* sonnet shape (HTML
-wins first paint everywhere; parchment cheaper on 4 of 6) rather than the
-fixed one above. Haiku remains useful as a low-cost regression check for the
-harness itself; re-running it post-fix is the natural next cheap pass.
-
-| Scenario | Arm | Passes to correct render | Tokens to first paint | Cost/run |
-|---|---|---|---|---|
-| CI status dashboard | parchment / html | 1.33 / 1.00 | 22,156 / 11,624 | $0.0377 / $0.0452 |
-| CSV data table | parchment / html | 1.00 / 1.00 | 14,117 / 8,923 | $0.0167 / $0.0248 |
-| Architecture diagram | parchment / html | 1.00 / 1.00 | 13,856 / 8,972 | $0.0150 / $0.0253 |
-| Incident report | parchment / html | 1.00 / 1.00 | 14,935 / 9,667 | $0.0242 / $0.0304 |
-| Validated signup form | parchment / html | 2.00 / 1.00 | 32,556 / 8,620 | $0.0353 / $0.0226 |
-| Live log dashboard (setup) | parchment / html | 1.67 / 1.00 | 26,232 / 11,428 | $0.0334 / $0.0429 |
-
-A haiku live-update run (same protocol as the sonnet headline) showed the
-same zero: 10 updates for 0 tokens on the parchment arm vs 588,317 tokens
-across 10 HTML re-prompts.
-
-## Methodology
-
-- **Harness**: `bench/` in this repo. Each run is a headless
-  `claude -p <fixed prompt>` with `--output-format json` and a locked-down
-  tool surface: the parchment arm gets the canvas MCP server with the
-  scenario's one `canvas_*` tool pre-allowed and all built-ins disabled; the
-  HTML arm gets exactly `Write,Edit`.
-- **Controlled**: personal CLAUDE.md/memory/settings excluded from every run
-  (`--setting-sources ""`, which also means no plugin skills — see the
-  skills-delta appendix for that measurement); one fresh session per rep
-  with a harness-generated session id; the parchment arm talks to a
-  disposable daemon with its own HOME and port, never a developer's live
-  one; token counts come from the run's own session JSONL, counting cache
-  reads/writes as prompt tokens (Anthropic's `input_tokens` alone
-  under-reports by ~1000x on cached turns). As of the round-2 dialect-repair
-  pass, the parchment arm also passes `--disallowedTools` for every
-  off-scenario canvas tool: under `--permission-mode bypassPermissions`,
-  `--allowedTools` is only a pre-approval, not a restriction, so without
-  this the model could still call `canvas_snapshot` after rendering, which
-  fails headlessly (no browser tab) and burns an extra turn. The original
-  full suite and the round-1 partial pass (see "Finding and fixing our
-  failure modes") predate this fix and carry that extra turn's cost in
-  their parchment totals; every number in this page's headline tables was
-  measured after the fix landed.
-- **Not controlled**: model versions and prompt-cache pricing move; N is
-  small (2–3 reps per cell, 1 rep for live-update); scenario prompts were
-  written once, not tuned per arm; validation strictness differs per arm;
-  sonnet and opus suites have run both concurrently and sequentially across
-  different passes on one machine (this cannot affect token or cost metrics,
-  which is why wall-clock is not reported anywhere on this page).
-- **passes-to-correct-render** = authoring tool calls until the final
-  artifact validated (100% final pass in every cell of every table).
-  **tokens-to-first-paint** = cumulative prompt+completion tokens through
-  the first accepted authoring call. Full definitions: `bench/README.md`.
-
-## Reproduce
+| Cold boot (fresh state dir) | 205 ms | 204 ms | 203 ms | 209 ms |
+| Warm boot | 204 ms | 204 ms | 203 ms | 204 ms |
 
 ```bash
-bun run bench/cli.ts run --scenario all --arms parchment --models sonnet --reps 3   # parchment arm, sonnet (~$1.08 measured)
-bun run bench/cli.ts run --scenario status-dashboard,validated-form,live-log-dashboard --arms parchment --models opus --reps 2   # parchment arm, opus (~$0.50 measured)
-bun run bench/cli.ts run --models sonnet        # both arms, sonnet, if you need fresh HTML numbers too (~$2.85)
-bun run bench/live-update.ts --model sonnet     # tokens-per-live-update (~$0.51)
-bun run bench/time-to-first-canvas.ts           # daemon boot timing, $0
-bun run bench/skills-delta.ts                   # skills-delta appendix (~$0.15)
+bun run bench/time-to-first-canvas.ts   # $0
 ```
-
-Requires a Claude Code login; runs never touch your real `~/.parchment`.
 
 ## Raw data
 
-Every run's per-run JSON record and full session transcript (JSONL) is
-archived under `bench/results/<timestamp>/raw/`. The suites behind this page:
+Archived runs keep their full session transcripts. They are retained precisely
+because they are the evidence for the invalidation:
 
-- `bench/results/2026-07-12T22-28-37-337Z/` — **current**: 18-run sonnet
-  parchment-arm pass, post round-1 + round-2 spec-repair fixes (this page's
-  sonnet parchment numbers)
-- `bench/results/2026-07-12T22-32-01-708Z/` — **current**: 6-run opus
-  parchment-arm pass, post round-1 + round-2 fixes (this page's opus
-  parchment numbers)
-- `bench/results/2026-07-12T15-07-38-053Z/` — 36-run sonnet suite, old
-  14-tool surface, no repair (source of the reused HTML numbers + the "old
-  surface" column in the progression table)
-- `bench/results/2026-07-12T15-07-39-419Z/` — 12-run opus pass, old surface
-  (source of the reused HTML numbers + the "old surface" column)
-- `bench/results/2026-07-12T19-52-34-791Z/` — 18-run sonnet parchment-arm
-  pass, post round-1 (surface slim + enum repair) only, predates the
-  `--disallowedTools` harness fix (the progression table's round-1 column)
-- `bench/results/2026-07-12T19-52-36-323Z/` — 6-run opus parchment-arm pass,
-  post round-1 only, predates the `--disallowedTools` harness fix (the
-  progression table's round-1 column)
-- `bench/results/2026-07-12T15-17-20-070Z-live-update-sonnet/` — live-update at sonnet
-- `bench/results/2026-07-12T07-53-15-666Z/` — 36-run haiku suite (appendix)
-- `bench/results/2026-07-12T14-44-37-654Z-live-update/` — live-update at haiku
-  (an earlier pilot at `...T14-37-26-832Z-live-update/` was discarded for an
-  instrumentation bug in its per-step presence check; its cost/token columns
-  were sound and are consistent with the kept run)
-- `bench/results/2026-07-12T14-37-04-244Z-time-to-first-canvas/` — boot timing
-- `bench/results/2026-07-12T14-49-25-121Z-skills-delta/` — skills delta
-- `bench/results/2026-07-12T14-36-59-732Z/` — early 2-rep sonnet spot-check,
-  superseded by the full sonnet suite above
+- `bench/results/2026-07-14T04-52-44-442Z-rubric-replay/` — **the replay**:
+  per-run verdicts, reasons, screenshots.
+- `bench/results/2026-07-12T22-28-37-337Z/` — the 18-run sonnet parchment pass
+  the old harness scored 18/18. **1** of these renders correctly
+  (`csv-data-table`, rep 2).
+- `bench/results/2026-07-12T22-32-01-708Z/` — the 6-run opus parchment pass the
+  old harness scored 6/6. **0** of these render correctly.
