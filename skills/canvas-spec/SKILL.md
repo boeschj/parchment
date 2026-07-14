@@ -82,7 +82,7 @@ Condition operators, `$and`/`$or`, `watch`, and the full state-action set
 | `DiffViewer` | file, before, after, language?, editableSide?: after/both/none |
 | `Chart` | kind: line/bar/area/pie/scatter, data (rows, raw numbers), x, y (string or string[]), title?, height?, xScale? category/time (time = epoch-ms x, streaming-friendly) |
 | `Sparkline` | data (numbers, or objects read via y — default key 'value'), y?, width?, height?, series? 1-5 — tiny axis-less inline trend |
-| `DataTable` | columns: [{key, header, type?, align?, width?}], rows, caption?, editable?, exportable? |
+| `DataTable` | columns: [{key, header, type?, align?, width?}], rows, caption?, editable?, exportable? — with a `{$csv}` in rows, columns is OPTIONAL: the daemon derives it from the file's header (write it only to override) |
 | `Scene3D` | orbitable 3D scaffold — see references/scene3d.md |
 | `PlanFile` | markdown, editable?, title? — the user's editable plan; not a layout block |
 | `Upload` | label?, hint?, accept? (e.g. ".csv,image/*"), multiple? — dropzone; each file arrives as `<canvas-edit kind="file-upload">` with a daemon-generated savedPath (read the PATH; contents never injected) |
@@ -143,8 +143,17 @@ rejection with a did-you-mean and the component's real prop list.
 8. Mermaid source is raw (no fences), `<br/>` for label line breaks.
 9. Scene3D: y is up, rotation in degrees, rest shapes on the floor at `y = height/2`.
 
+## Authoring in markup instead of JSON
+
+`canvas_render` also takes a `markup` string (HTML + widgets as custom elements)
+that compiles to this same spec — usually far fewer tokens, and it can REFERENCE
+files (`<GitDiff file="src/a.ts"/>`) instead of pasting them. See
+**references/markup.md**.
+
 ## References (pull on demand)
 
+- **references/markup.md** — the markup dialect: tag table, the fidelity ladder
+  (reference files instead of pasting them), attribute sugar, worked examples.
 - **references/components.md** — full shadcn prop tables (layout, content, inputs).
 - **references/expressions-and-events.md** — conditions, `$and`/`$or`, `watch`, the
   full state-action set, per-component events.

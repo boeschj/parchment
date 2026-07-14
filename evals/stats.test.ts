@@ -10,8 +10,10 @@ import {
   mean,
   median,
   percentile,
+  standardNormalQuantile,
   stdDev,
   summarize,
+  wilsonInterval,
   type IntervalEstimate,
   type NonEmptySamples,
 } from "./stats.ts";
@@ -119,6 +121,62 @@ describe("bootstrapConfidenceInterval", () => {
       status: EstimateStatus.InsufficientData,
       reason: InsufficientDataReason.SingleSample,
     });
+  });
+});
+
+describe("standardNormalQuantile", () => {
+  test("recovers the textbook z values", () => {
+    expect(standardNormalQuantile(0.975)).toBeCloseTo(1.959964, 5);
+    expect(standardNormalQuantile(0.995)).toBeCloseTo(2.575829, 5);
+    expect(standardNormalQuantile(0.5)).toBeCloseTo(0, 6);
+    expect(standardNormalQuantile(0.025)).toBeCloseTo(-1.959964, 5);
+  });
+
+  test("refuses the endpoints, where the quantile does not exist", () => {
+    expect(() => standardNormalQuantile(0)).toThrow(RangeError);
+    expect(() => standardNormalQuantile(1)).toThrow(RangeError);
+  });
+});
+
+describe("wilsonInterval", () => {
+  test("matches the published Wilson bounds for 3 successes in 3 trials", () => {
+    // The case the ladder section lives in. The normal approximation would say
+    // [1.0, 1.0] — certainty from three observations. Wilson says otherwise.
+    const estimate = wilsonInterval(3, 3);
+    if (estimate.status !== EstimateStatus.Ok) throw new Error("expected an interval");
+
+    expect(estimate.point).toBe(1);
+    expect(estimate.lowerBound).toBeCloseTo(0.4385, 3);
+    expect(estimate.upperBound).toBe(1);
+  });
+
+  test("matches the published Wilson bounds for 0 successes in 3 trials", () => {
+    const estimate = wilsonInterval(0, 3);
+    if (estimate.status !== EstimateStatus.Ok) throw new Error("expected an interval");
+
+    expect(estimate.point).toBe(0);
+    expect(estimate.lowerBound).toBe(0);
+    expect(estimate.upperBound).toBeCloseTo(0.5615, 3);
+  });
+
+  test("matches the published Wilson bounds for a mid-range rate", () => {
+    // Textbook check: 6/10 at 95% -> roughly [0.3127, 0.8318].
+    const estimate = wilsonInterval(6, 10);
+    if (estimate.status !== EstimateStatus.Ok) throw new Error("expected an interval");
+
+    expect(estimate.lowerBound).toBeCloseTo(0.3127, 3);
+    expect(estimate.upperBound).toBeCloseTo(0.8318, 3);
+  });
+
+  test("refuses zero trials rather than dividing by zero", () => {
+    expect(wilsonInterval(0, 0)).toEqual({
+      status: EstimateStatus.InsufficientData,
+      reason: InsufficientDataReason.NoSamples,
+    });
+  });
+
+  test("refuses more successes than trials", () => {
+    expect(() => wilsonInterval(4, 3)).toThrow(RangeError);
   });
 });
 

@@ -1,0 +1,156 @@
+PROVENANCE — verification of OpenUI Lang's published token-efficiency benchmark
+================================================================================
+
+TARGET
+  Repository      https://github.com/thesysdev/openui
+  Commit tested   69c8aae73be0129eb776cfa9016d790e2ba77ded
+  Commit date     2026-07-13 18:15:17 +0530
+  Commit subject  docs: add Prox and Productboard to the customer logo strip (#757)
+  Licence         MIT ("The MIT License (MIT) — Copyright (c) 2011-2024 Thesys Inc.")
+  Harness         benchmarks/run-benchmark.ts   (offline reporter, no API calls)
+  Generator       benchmarks/generate-samples.ts (calls OpenAI; NOT used by us)
+  Published table benchmarks/README.md, lines 36-45
+  Published page  https://www.openui.com/docs/openui-lang/benchmarks
+
+  Note on the "competitor": the Thesys C1 arm is Thesys's own earlier product, not a
+  third party's format. The pretty-printing finding below is about how that arm is
+  serialized inside the benchmark, not about anyone misrepresenting a rival's work.
+
+WHAT WE RAN
+  Their harness, their tokenizer, their committed samples. Zero model API calls; the
+  reporter is fully offline and needs no OPENAI_API_KEY. Reproduce with ./reproduce.sh.
+
+  Tokenizer (identical for every arm, no thumb on the scale):
+    benchmarks/run-benchmark.ts:5   const enc = encoding_for_model("gpt-5");
+    benchmarks/run-benchmark.ts:18-20  countTokens() -> enc.encode(text).length
+    benchmarks/run-benchmark.ts:40-43  applied to all four arms identically
+
+
+THE FINDING — competitor serialization
+================================================================================
+  FILE: benchmarks/thesys-c1-converter.ts
+  LINES: 39-46
+
+      export function astToThesysC1Json(astRoot: unknown): string {
+        const component = convertValue(astRoot);
+        return JSON.stringify(
+          {
+            component,
+            error: null,
+          },
+          null,          <-- 2-space indent: the competitor arm is PRETTY-PRINTED
+          2,
+        );
+      }
+
+  The other JSON arm is NOT pretty-printed:
+      benchmarks/vercel-jsonl-converter.ts:6,10  JSON.stringify({...})   [no indent]
+
+  Two JSON arms in the same benchmark, serialized inconsistently. The pretty-printed
+  one is the arm the headline claim ("-51.7%", "67% more token-efficient than JSON")
+  leads with. 45.1% of that arm's tokens (4,487 of 9,948) are whitespace.
+
+
+THE DIFF APPLIED — exactly one change
+================================================================================
+diff --git a/benchmarks/thesys-c1-converter.ts b/benchmarks/thesys-c1-converter.ts
+--- a/benchmarks/thesys-c1-converter.ts
++++ b/benchmarks/thesys-c1-converter.ts
+@@ -36,12 +36,8 @@ function convertValue(value: unknown): unknown {
+
+ export function astToThesysC1Json(astRoot: unknown): string {
+   const component = convertValue(astRoot);
+-  return JSON.stringify(
+-    {
+-      component,
+-      error: null,
+-    },
+-    null,
+-    2,
+-  );
++  return JSON.stringify({
++    component,
++    error: null,
++  });
+ }
+
+  Nothing else was changed. Same samples, same tokenizer, same reporter, same seven
+  scenarios, same OpenUI Lang arm (4,800 tokens in both runs).
+
+RESULT
+  as published (C1 pretty-printed) : OpenUI Lang -51.7% vs Thesys C1  [reproduces README verbatim]
+  minified competitor             : OpenUI Lang -12.1% vs Thesys C1
+  dashboard scenario, minified    : OpenUI Lang +1.8% LARGER (1226 vs 1204) — OpenUI loses
+
+
+SUPPORTING CHANGES — needed to make their benchmark run at all
+================================================================================
+These are packaging/import fixes. They change no benchmark semantics and are applied
+identically to BOTH runs, so they cannot affect the comparison.
+
+(1) benchmarks/ is not installable as documented.
+    Their README says `pnpm install && pnpm bench` inside benchmarks/. That fails:
+    benchmarks/package.json declares `"@openuidev/react-lang": "workspace:*"` and
+    `"@openuidev/react-ui": "workspace:*"`, but pnpm-workspace.yaml's globs
+    (packages/*, examples/**/*, docs/) do not match benchmarks/. So pnpm either
+    ignores the package (leaving no node_modules -> "sh: tsx: command not found")
+    or, with --ignore-workspace, dies with:
+        ERR_PNPM_WORKSPACE_PKG_NOT_FOUND  "@openuidev/react-lang@workspace:*" is in
+        the dependencies but no package named "@openuidev/react-lang" is present in
+        the workspace
+
+    FIX (pnpm-workspace.yaml):
+        packages:
+      +   - "benchmarks"
+          - "packages/*"
+
+(2) Their sample generator's parser import is dead.
+    benchmarks/generate-samples.ts:4 imports:
+        ../packages/react-lang/src/parser/parser.js
+    That path does not exist at this commit. PR #347 ("Add @openuidev/svelte-lang and
+    extract @openuidev/lang-core") moved the parser to packages/lang-core/src/parser/,
+    and generate-samples.ts was never updated. `pnpm generate` therefore cannot run.
+
+    We do not call OpenAI, so we do not run generate-samples.ts. Our regen-samples.ts
+    performs only its post-model half — parse the committed *.oui, project to the other
+    three arms — importing the SAME parser from its current location:
+        ../packages/lang-core/src/parser/parser.js
+
+(3) Why we regenerate the derived arms instead of tokenizing the committed files.
+    The committed samples were reformatted by `prettier --write .`
+    (benchmarks/package.json "format:fix") after they were generated. Prettier collapses
+    short arrays onto one line; raw JSON.stringify(x, null, 2) does not. The committed
+    *.c1.json files are therefore ~3% SMALLER than what the converter actually emits,
+    and `pnpm bench` on a pristine checkout prints -50.3%, not the published -51.7%.
+
+    Regenerating the three derived arms from the committed *.oui with their own
+    converters reproduces the published table exactly, in every cell of every column.
+    The *.oui files — the only model-generated artifact — are never touched.
+
+    CROSS-CHECK: minifying the committed *.c1.json files by a pure JSON round-trip
+    (a whitespace-only transform, no regeneration, no parser) yields token-for-token
+    IDENTICAL minified totals (5,461). The two independent paths agree, which proves
+    the minify is a pure whitespace change and that the committed samples are
+    semantically identical to their current converter's output.
+
+
+VERIFICATION LEDGER
+================================================================================
+  Table A reproduces benchmarks/README.md lines 36-45 verbatim:
+    YAML    316  464  762  2128 2230 1077 2145  = 9122   (-47.4%)   MATCH
+    Vercel  340  520  893  2247 2487 1244 2449  = 10180  (-52.8%)   MATCH
+    C1      357  516  849  2261 2379 1205 2381  = 9948   (-51.7%)   MATCH
+    OpenUI  148  231  294  1226 1195  540 1166  = 4800              MATCH
+
+  Table B, after the one-line minify:
+    C1      181  271  431  1204 1362  656 1356  = 5461   (-12.1%)
+
+  Their arithmetic is honest. Their tokenizer is fair. Their published numbers
+  reproduce. The flaw is in the serialization of the competitor arm, not in the count.
+
+
+TOOLING
+  pnpm 10.23.0 (never `bun install`)
+  node v25.6.1
+  tiktoken (theirs, from benchmarks/package.json)
+  Verified on darwin 25.3.0, 2026-07-14

@@ -9,10 +9,11 @@
 
 import {
   isPlainObject,
-  isReferenceExpression,
-  parseReferenceShorthand,
+  parseReferenceValue,
+  propValueReferenceOf,
   referenceKeyOf,
   ReferenceExpressionKey,
+  type SuppliedPropsOf,
 } from "../../shared/expressions.ts";
 import {
   buildHydratedMeta,
@@ -22,6 +23,8 @@ import {
 } from "./meta.ts";
 import type { JsonRenderSpec, UIElement } from "../../shared/types.ts";
 import { LiveSourceKind, type LiveSourceConfig } from "../live/types.ts";
+import { dataTableColumnsFromCsv } from "./columns.ts";
+import type { CsvParseResult } from "./csv.ts";
 import {
   resolveCsvReference,
   resolveDiffPatchReference,
@@ -68,12 +71,7 @@ export function specHasReferences(spec: JsonRenderSpec): boolean {
 function elementHasReference(element: UIElement): boolean {
   const props = element.props ?? {};
   if (typeof props[ReferenceExpressionKey.Diff] === "string") return true;
-  return Object.values(props).some(isReferenceValue);
-}
-
-function isReferenceValue(value: unknown): boolean {
-  if (typeof value === "string") return parseReferenceShorthand(value) !== null;
-  return isReferenceExpression(value);
+  return Object.values(props).some((value) => parseReferenceValue(value) !== null);
 }
 
 export async function hydrateSpec(input: HydrateInput): Promise<HydrateResult> {
@@ -144,7 +142,7 @@ async function hydrateElement(
 ): Promise<UIElement> {
   const hydrated: UIElement = { ...element, props: { ...(element.props ?? {}) } };
   await expandElementLevelDiff(key, hydrated, context);
-  await hydratePropValues(key, hydrated.props, context);
+  await hydratePropValues(key, hydrated, context);
   return hydrated;
 }
 
@@ -227,27 +225,20 @@ function consumeDiffKeys(element: UIElement): void {
 
 async function hydratePropValues(
   key: string,
-  props: Record<string, unknown>,
+  element: UIElement,
   context: WalkContext,
 ): Promise<void> {
-  for (const [propName, value] of Object.entries(props)) {
-    const reference = referenceOf(value);
+  for (const [propName, value] of Object.entries(element.props)) {
+    const reference = parseReferenceValue(value);
     if (!reference) continue;
-    const rewritten = await hydratePropValue(key, propName, reference, context);
-    if (rewritten !== undefined) props[propName] = rewritten;
+    const rewritten = await hydratePropValue(key, element, propName, reference, context);
+    if (rewritten !== undefined) element.props[propName] = rewritten;
   }
-}
-
-// Both the object form ({$file:..., lines:...}) and the string shorthand
-// ("$file:...") normalize to one flat record the walker reads options off.
-function referenceOf(value: unknown): Record<string, unknown> | null {
-  if (typeof value === "string") return parseReferenceShorthand(value);
-  if (isReferenceExpression(value) && isPlainObject(value)) return value;
-  return null;
 }
 
 async function hydratePropValue(
   key: string,
+  element: UIElement,
   propName: string,
   reference: Record<string, unknown>,
   context: WalkContext,
@@ -271,14 +262,50 @@ async function hydratePropValue(
 
   const refId = `${sanitizeSegment(key)}__${sanitizeSegment(propName)}`;
   const mode = isWatchable(kind) && reference.watch === true ? HydrationMode.Live : HydrationMode.Snapshot;
-  const budgetError = recordHydrated(context, refId, resolved.value, mode);
+  const budgetError = recordHydrated(context, refId, resolved.value.value, mode);
   if (budgetError) {
     context.errors.push(`${location}: ${budgetError}`);
     return undefined;
   }
   if (resolved.note) context.notes.push(`${location}: ${resolved.note}`);
+  applySuppliedProps(key, element, propName, resolved.value.supplies, mode, context);
   registerValueWatch(kind, refId, path, resolvedPath.absPath, reference, context);
   return stateBinding(refId);
+}
+
+// ---- Props a reference supplies BESIDE the one it sits in -------------------
+
+// A $csv in DataTable.rows also fills `columns` (PropValueReferences declares
+// it; the resolution above offers the value). Each supplied prop lands in slot
+// state and binds like any other hydrated value, so the browser sees ordinary
+// state and an export carries the content.
+//
+// The author always wins: a hand-written `columns` is never overwritten — the
+// derived shape is a floor, not a ceiling.
+function applySuppliedProps(
+  key: string,
+  element: UIElement,
+  propName: string,
+  supplies: Record<string, unknown>,
+  mode: HydrationMode,
+  context: WalkContext,
+): void {
+  const contract = propValueReferenceOf(element.type, element.props);
+  if (contract === null) return;
+  if (contract.prop !== propName) return;
+
+  for (const suppliedProp of contract.supplies) {
+    if (element.props[suppliedProp] !== undefined) continue;
+    const value = supplies[suppliedProp];
+    if (value === undefined) continue;
+    const refId = `${sanitizeSegment(key)}__${sanitizeSegment(suppliedProp)}`;
+    const budgetError = recordHydrated(context, refId, value, mode);
+    if (budgetError) {
+      context.errors.push(`elements/${key}/props/${suppliedProp}: ${budgetError}`);
+      continue;
+    }
+    element.props[suppliedProp] = stateBinding(refId);
+  }
 }
 
 // Only file-backed text references re-resolve on change; a $csv row cap or a
@@ -287,26 +314,62 @@ function isWatchable(kind: ReferenceExpressionKey): boolean {
   return kind === ReferenceExpressionKey.File || kind === ReferenceExpressionKey.Diff;
 }
 
-function resolveByKind(
+// What a resolved reference yields: the value the referenced prop binds to, plus
+// the companion values this KIND of reference can also supply. Who TAKES those
+// is not the resolver's call — PropValueReferences decides, so the same $csv
+// hands DataTable its `columns` and hands a Chart nothing but rows to plot.
+type ResolvedReference = {
+  value: unknown;
+  supplies: Record<string, unknown>;
+};
+
+async function resolveByKind(
   kind: ReferenceExpressionKey,
   displayPath: string,
   absPath: string,
   reference: Record<string, unknown>,
   context: WalkContext,
-): Promise<Resolved<unknown>> | Resolved<unknown> {
+): Promise<Resolved<ResolvedReference>> {
   if (kind === ReferenceExpressionKey.File) {
-    return resolveFileReference(absPath, stringOption(reference.lines));
+    return asReference(resolveFileReference(absPath, stringOption(reference.lines)), suppliesNothing);
   }
   if (kind === ReferenceExpressionKey.Csv) {
-    return resolveCsvReference(absPath, numberOption(reference.limit));
+    return asReference(resolveCsvReference(absPath, numberOption(reference.limit)), csvReference);
   }
   if (kind === ReferenceExpressionKey.Img) {
-    return resolveImgReference(absPath, context.buildBlobUrl);
+    return asReference(resolveImgReference(absPath, context.buildBlobUrl), suppliesNothing);
   }
-  return resolveDiffPatchReference(context.cwd, absPath, displayPath, {
+  const patch = await resolveDiffPatchReference(context.cwd, absPath, displayPath, {
     base: stringOption(reference.base),
     staged: reference.staged === true,
   });
+  return asReference(patch, suppliesNothing);
+}
+
+// A $csv fills its prop with the ROWS and offers the table's shape: the header
+// row, typed and right-aligned where the cells are numbers, is exactly what
+// DataTable's `columns` is. The supplies record is typed from the shared
+// contract, so a prop declared there and not produced here is a compile error.
+function csvReference(csv: CsvParseResult): ResolvedReference {
+  const supplies: SuppliedPropsOf<typeof ReferenceExpressionKey.Csv> = {
+    columns: dataTableColumnsFromCsv(csv),
+  };
+  return { value: csv.rows, supplies };
+}
+
+// $file, $diff and $img fill exactly the one prop they sit in.
+function suppliesNothing(value: string): ResolvedReference {
+  return { value, supplies: {} };
+}
+
+function asReference<T>(
+  resolved: Resolved<T>,
+  project: (value: T) => ResolvedReference,
+): Resolved<ResolvedReference> {
+  if (!resolved.ok) return resolved;
+  const reference = project(resolved.value);
+  if (resolved.note === undefined) return { ok: true, value: reference };
+  return { ok: true, value: reference, note: resolved.note };
 }
 
 function registerValueWatch(

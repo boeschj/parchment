@@ -37,16 +37,31 @@ import {
   elementLevelReferenceOf,
   isExpressionValue,
   isPlainObject,
+  parseReferenceValue,
   parseStateShorthand,
+  propValueReferenceOf,
 } from "../shared/expressions.ts";
 import { extractIntentMenu } from "./intents.ts";
 import type { JsonRenderSpec, UIElement } from "../shared/types.ts";
 
-// The element the daemon will actually render: an element-level reference
-// ({"$diff": "src/a.ts"} on a DiffViewer) is expanded at push time into the
-// props it supplies. Validation runs first, so it checks this post-expansion
-// view — otherwise the authored form is rejected for props about to be filled.
-// A state binding stands in for each supplied value: same shape hydration writes.
+// The element the daemon will actually render. Hydration runs AFTER validation
+// and fills props the author never wrote, so validation checks the
+// post-hydration view — otherwise it rejects a spec for props the daemon is
+// about to supply. Both reference shapes are expanded here, each straight off
+// its declaration in shared/expressions.ts, so the two passes cannot drift.
+function withReferencesExpanded(element: UIElement): UIElement {
+  return withPropValueReferenceSupplies(withElementLevelReferenceExpanded(element));
+}
+
+// A state binding stands in for a value hydration will supply: the same shape it
+// writes (every hydrated value lands under the reserved "/hydrated" namespace —
+// src/daemon/hydrate), and an expression, so no static check reads it as a
+// literal.
+const HYDRATED_STAND_IN = { $state: "/hydrated" };
+
+// An element-level reference ({"$diff": "src/a.ts"} on a DiffViewer) is expanded
+// at push time into the props it supplies, and its own key + options are
+// consumed.
 function withElementLevelReferenceExpanded(element: UIElement): UIElement {
   const props = element.props ?? {};
   const contract = elementLevelReferenceOf(element.type, props);
@@ -58,9 +73,26 @@ function withElementLevelReferenceExpanded(element: UIElement): UIElement {
     expanded[name] = value;
   }
   for (const supplied of contract.supplies) {
-    if (expanded[supplied] === undefined) expanded[supplied] = { $state: "/hydrated" };
+    if (expanded[supplied] === undefined) expanded[supplied] = HYDRATED_STAND_IN;
   }
   return { ...element, props: expanded };
+}
+
+// A prop-value reference ({"rows": {"$csv": "results.csv"}} on a DataTable) keeps
+// the prop it sits in and fills the props its contract supplies — `columns`,
+// derived from the CSV's header. Without this, the flagship
+// `<DataTable src="results.csv"/>` is rejected for a `columns` array the model
+// cannot write: it has not read the file, and it is the daemon's job to.
+function withPropValueReferenceSupplies(element: UIElement): UIElement {
+  const props = element.props ?? {};
+  const contract = propValueReferenceOf(element.type, props);
+  if (!contract) return element;
+
+  const supplied: Record<string, unknown> = { ...props };
+  for (const name of contract.supplies) {
+    if (supplied[name] === undefined) supplied[name] = HYDRATED_STAND_IN;
+  }
+  return { ...element, props: supplied };
 }
 
 export type SpecPreparation = {
@@ -224,11 +256,10 @@ function collectPropIssues(spec: JsonRenderSpec): string[] {
       issues.push(`elements/${key}: unknown component type "${element.type}". Known types: ${known}`);
       continue;
     }
-    // An element-level reference ({"$diff": "src/a.ts"} on a DiffViewer) is
-    // expanded by the daemon at push time, AFTER this runs. Validate the
-    // post-expansion shape so the authored form isn't rejected for props the
-    // hydrator is about to supply.
-    const elementView = withElementLevelReferenceExpanded(element);
+    // References are expanded by the daemon at push time, AFTER this runs.
+    // Validate the post-expansion shape so the authored form isn't rejected for
+    // props the hydrator is about to supply.
+    const elementView = withReferencesExpanded(element);
     issues.push(...unknownPropIssues(key, elementView, contract));
     issues.push(...missingRequiredPropIssues(key, elementView, contract));
     issues.push(...staticPropTypeIssues(key, elementView));
@@ -297,6 +328,13 @@ function staticPropTypeIssues(key: string, element: UIElement): string[] {
     // {$state}/{$template}/{$item}/... resolve at render time; their shape is
     // checked by the state-seeding and chart-data passes, not by the schema.
     if (isExpressionValue(value)) continue;
+    // A reference resolves at PUSH time, into whatever the prop's schema wants:
+    // the object form is already an expression, but the declared bare-string
+    // shorthand ("$csv:data/x.csv") is a string, and the schema for the props
+    // that take one (DataTable.rows, Chart.data) wants an array. Checking the
+    // pointer against the shape of the content it names is a category error —
+    // it rejected the very form the grammar advertises.
+    if (parseReferenceValue(value) !== null) continue;
     const parsed = field.safeParse(value);
     if (parsed.success) continue;
     for (const issue of parsed.error.issues) {

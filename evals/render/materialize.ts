@@ -36,6 +36,7 @@ import { compileMarkup } from "../vendor/markup/index.ts";
 import { isElementNode, tagNameOf, type AnyNode, type Element } from "../vendor/markup/dom.ts";
 import {
   hydrateSpec,
+  isReferenceElement,
   isReferenceProps,
   referenceComponentOf,
   resolveElement,
@@ -55,7 +56,7 @@ const ArtifactFormat = {
   RawJsx: "raw-jsx",
 } as const;
 
-type ArtifactFormat = (typeof ArtifactFormat)[keyof typeof ArtifactFormat];
+export type ArtifactFormat = (typeof ArtifactFormat)[keyof typeof ArtifactFormat];
 
 // Keyed by ArmId so a new arm cannot be added without deciding, here, how its
 // output becomes a page. A silent fallthrough would render an arm's document
@@ -99,12 +100,6 @@ export type AuthoringVocabulary = {
   // (does the model do worse with unfamiliar names?), never a runtime one, so it
   // is inverted before anything is compiled.
   inverse: VocabularyInverse;
-  // TODO(evals/catalog/vocabulary.ts): the terse arm has NO vocabulary yet —
-  // VocabularyId is only { Real, Scrambled }. These are the spec's STRUCTURAL
-  // keys (a global, unambiguous namespace: "e" → "elements"), which is why a flat
-  // map is safe HERE and nowhere else. If terse ever abbreviates per-component
-  // PROP names, it must go through `inverse` above, not through this map.
-  terseSpecKeys: Readonly<Record<string, string>>;
 };
 
 // The real vocabulary IS an identity alias scheme, so its inverse renames nothing
@@ -113,12 +108,10 @@ export type AuthoringVocabulary = {
 // pass-through.
 export const REAL_VOCABULARY_INVERSE: AuthoringVocabulary = {
   inverse: REAL_VOCABULARY.inverse,
-  terseSpecKeys: {},
 };
 
 export const SCRAMBLED_VOCABULARY_INVERSE: AuthoringVocabulary = {
   inverse: SCRAMBLED_VOCABULARY.inverse,
-  terseSpecKeys: {},
 };
 
 // ---- Public surface ------------------------------------------------------------
@@ -165,7 +158,7 @@ async function materializeSpec(
   format: ArtifactFormat,
   options: MaterializeOptions,
 ): Promise<MaterializeResult> {
-  const decoded = decodeSpec(format, options.artifact.source, options.vocabulary);
+  const decoded = decodeAuthoredDocument(format, options.artifact.source, options.vocabulary);
   if (decoded.spec === null) return toolchainFailed(decoded.issues);
 
   const hydrated = hydrateSpec(decoded.spec);
@@ -202,6 +195,83 @@ export function decodeAuthoredDocument(
 
 export function artifactFormatOf(armId: ArmId): ArtifactFormat {
   return FORMAT_BY_ARM[armId];
+}
+
+// ---- Did the model actually CLIMB the ladder? ---------------------------------
+//
+// The compression only exists if the model REACHES for the reference of its own
+// accord. An arm whose prompt documents <GitDiff> but which pastes the whole file
+// anyway has been offered the ladder and declined it — and that is a finding
+// about the product, not a bug in the arm.
+//
+// So this is measured, never assumed, and it is read STRUCTURALLY from what the
+// model actually authored (the parsed document), not by grepping the raw string
+// for a component name that might merely appear in prose.
+//
+// If this comes out false, it comes out false. The honest fix would be a PRODUCT
+// fix — teach the reference in the tool description or the skill — never a
+// prompt tuned until the benchmark says what we want.
+export type ReferenceUsage = {
+  usedReference: boolean;
+  referenceKindsUsed: readonly string[];
+};
+
+const NO_REFERENCE_USAGE: ReferenceUsage = { usedReference: false, referenceKindsUsed: [] };
+
+export function detectReferenceUsage(armId: ArmId, source: string): ReferenceUsage {
+  const format = artifactFormatOf(armId);
+  const vocabulary = vocabularyForArm(armId);
+
+  if (format === ArtifactFormat.Markup) return referencesInMarkup(source);
+  if (format === ArtifactFormat.ScrambledMarkup) {
+    return referencesInMarkup(unscrambleMarkup(source, vocabulary.inverse));
+  }
+  // raw-html and raw-jsx have no reference vocabulary to reach for — that is the
+  // structural point of the ladder, and it must read as `false`, not as absent.
+  if (format === ArtifactFormat.RawHtml || format === ArtifactFormat.RawJsx) {
+    return NO_REFERENCE_USAGE;
+  }
+
+  return referencesInSpecJson(format, source, vocabulary);
+}
+
+function referencesInMarkup(source: string): ReferenceUsage {
+  const document = parseDocument(source, {
+    recognizeSelfClosing: true,
+    lowerCaseAttributeNames: true,
+    withStartIndices: true,
+    withEndIndices: true,
+  });
+
+  const kinds = collectReferenceElements(document.children).map(
+    (element) => referenceComponentOf(tagNameOf(element)) ?? tagNameOf(element),
+  );
+
+  return usageOf(kinds);
+}
+
+function referencesInSpecJson(
+  format: ArtifactFormat,
+  source: string,
+  vocabulary: AuthoringVocabulary,
+): ReferenceUsage {
+  const decoded =
+    format === ArtifactFormat.TerseJson
+      ? applyVocabularyToSpec(parseSpecJson(source, expandTerseSpec), vocabulary.inverse)
+      : parseSpecJson(source, (parsed) => parsed);
+
+  if (decoded.spec === null) return NO_REFERENCE_USAGE;
+
+  const kinds = Object.values(decoded.spec.elements)
+    .filter(isReferenceElement)
+    .map((element) => referenceComponentOf(element.type) ?? element.type);
+
+  return usageOf(kinds);
+}
+
+function usageOf(kinds: readonly string[]): ReferenceUsage {
+  const distinctKinds = [...new Set(kinds)];
+  return { usedReference: distinctKinds.length > 0, referenceKindsUsed: distinctKinds };
 }
 
 // The scrambled arms author in aliases; every other arm authors in the real

@@ -26,6 +26,7 @@ one only when the task calls for it.
 | A short plan the user will rewrite in their own words | `canvas_plan` |
 | Long-form prose that reads like an article (report, postmortem, essay) | `canvas_render` (document layout — see references/documents.md) |
 | An editable diagram / code diff / data table | `canvas_render` with a `MermaidEditor` / `DiffViewer` / `DataTable` component |
+| Showing a file, diff, CSV, or log that exists ON DISK | `canvas_render` with `markup` — reference it (`<GitDiff file="src/a.ts"/>`), never paste it (canvas-spec references/markup.md) |
 | Look at what actually rendered | `canvas_snapshot` |
 | Keep, reload, or list a view the user liked | `canvas_library` (action `save` / `load` / `list`) |
 

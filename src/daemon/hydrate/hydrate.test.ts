@@ -3,8 +3,14 @@ import { mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareSpec } from "../spec-validation.ts";
+import { compileMarkup } from "../markup/index.ts";
+import {
+  DataTableAlign,
+  DataTableColumnType,
+} from "../../shared/catalog/extensions/DataTable.ts";
 import type { JsonRenderSpec } from "../../shared/types.ts";
 import { parseLineRange, resolveReferencePath } from "./paths.ts";
+import { dataTableColumnsFromCsv } from "./columns.ts";
 import { parseCsv } from "./csv.ts";
 import { resolveCsvReference, resolveFileReference, resolveImgReference } from "./resolve.ts";
 import { resolveDiffSides } from "./git.ts";
@@ -156,20 +162,58 @@ describe("parseCsv + resolveCsvReference", () => {
     const result = resolveCsvReference(RESULTS_CSV, null);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toHaveLength(3);
-      expect(result.value[0]).toEqual({ name: "Alpha", score: 91, note: "fast, stable" });
+      expect(result.value.rows).toHaveLength(3);
+      expect(result.value.rows[0]).toEqual({ name: "Alpha", score: 91, note: "fast, stable" });
     }
   });
 
-  it("caps rows and notes the truncation", () => {
+  it("caps rows and notes the truncation, keeping the header of the rows it kept", () => {
     const body = Array.from({ length: 20 }, (_, i) => String(i)).join("\n");
     const csv = tmpFile("many.csv", `n\n${body}\n`);
     const result = resolveCsvReference(csv, 5);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toHaveLength(5);
+      expect(result.value.rows).toHaveLength(5);
+      expect(result.value.columns).toEqual(["n"]);
       expect(result.note).toContain("capped to 5 of 20");
     }
+  });
+});
+
+// The CSV header IS the table's shape. This is what lets a model write
+// `<DataTable src="results.csv"/>` for a file it has never opened: it names the
+// file, and the daemon — which reads it — supplies the columns.
+describe("dataTableColumnsFromCsv", () => {
+  it("derives a column per header cell, in file order, keyed as the rows are keyed", () => {
+    const columns = dataTableColumnsFromCsv(parseCsv("name,note\nAlpha,fast\n"));
+    expect(columns).toEqual([
+      { key: "name", header: "name" },
+      { key: "note", header: "note" },
+    ]);
+  });
+
+  // parseCsv already coerced numeric cells to numbers; a column whose cells all
+  // came back numbers sorts numerically and sits right-aligned — exactly what a
+  // hand-authored DataTable would say about it.
+  it("types and right-aligns the columns whose cells parsed as numbers", () => {
+    const columns = dataTableColumnsFromCsv(parseCsv("name,score\nAlpha,91\nBravo,84\n"));
+    expect(columns[1]).toEqual({
+      key: "score",
+      header: "score",
+      type: DataTableColumnType.Number,
+      align: DataTableAlign.Right,
+    });
+  });
+
+  // A version string ("1.10.2") and an id ("r001") are not numbers; neither is a
+  // column that is empty everywhere.
+  it("leaves a mixed, non-numeric, or empty column as a plain string column", () => {
+    const columns = dataTableColumnsFromCsv(parseCsv("id,version,blank\nr001,1.10.2,\n"));
+    expect(columns).toEqual([
+      { key: "id", header: "id" },
+      { key: "version", header: "version" },
+      { key: "blank", header: "blank" },
+    ]);
   });
 });
 
@@ -389,5 +433,80 @@ describe("hydrateSpec — golden: $file + $diff + $csv", () => {
     });
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.join("\n")).toContain("per-slot budget");
+  });
+});
+
+// The flagship reference form, end to end on the path canvas_render takes:
+// prepareSpec (which must NOT ask for a `columns` array the model cannot write)
+// then hydrateSpec (which must supply it from the file it read). The model wrote
+// one attribute; the table it gets back is fully shaped.
+describe("hydrateSpec — a $csv supplies DataTable's columns", () => {
+  it("compiles, validates and hydrates <DataTable src=…/> into a fully shaped table", async () => {
+    const workspace = await makeWorkspace();
+    const compiled = compileMarkup('<DataTable src="results.csv" caption="Scores"/>');
+    expect(compiled.issues).toEqual([]);
+
+    const prepared = prepareSpec(compiled.spec);
+    expect(prepared.issues).toEqual([]);
+
+    const result = await hydrateSpec({
+      spec: prepared.spec,
+      cwd: workspace.cwd,
+      buildBlobUrl: stubBlobUrl,
+    });
+    expect(result.errors).toEqual([]);
+
+    const table = result.spec.elements.root!;
+    expect(table.props.rows).toEqual({ $state: "/hydrated/root__rows" });
+    expect(table.props.columns).toEqual({ $state: "/hydrated/root__columns" });
+
+    const hydrated = result.spec.state?.hydrated as Record<string, unknown>;
+    expect(hydrated["root__columns"]).toEqual([
+      { key: "name", header: "name" },
+      { key: "score", header: "score", type: DataTableColumnType.Number, align: DataTableAlign.Right },
+      { key: "note", header: "note" },
+    ]);
+    expect(hydrated["root__rows"]).toHaveLength(3);
+
+    // The hydrated spec is what the browser renders, so it must itself be valid.
+    expect(prepareSpec(result.spec).issues).toEqual([]);
+  });
+
+  it("never overwrites a columns array the author wrote", async () => {
+    const workspace = await makeWorkspace();
+    const authored = [{ key: "name", header: "Contender" }];
+    const spec: JsonRenderSpec = {
+      root: "table",
+      elements: {
+        table: {
+          type: "DataTable",
+          props: { rows: { $csv: "results.csv" }, columns: authored },
+          children: [],
+        },
+      },
+    };
+
+    const result = await hydrateSpec({ spec, cwd: workspace.cwd, buildBlobUrl: stubBlobUrl });
+    expect(result.errors).toEqual([]);
+    expect(result.spec.elements.table!.props.columns).toEqual(authored);
+  });
+
+  // A Chart fed by the same file takes rows and nothing else: it has no columns
+  // to fill, and the contract table is what says so.
+  it("supplies nothing to a Chart reading the same csv", async () => {
+    const workspace = await makeWorkspace();
+    const compiled = compileMarkup('<Chart src="results.csv" kind="bar" x="name" y="score"/>');
+    expect(prepareSpec(compiled.spec).issues).toEqual([]);
+
+    const result = await hydrateSpec({
+      spec: prepareSpec(compiled.spec).spec,
+      cwd: workspace.cwd,
+      buildBlobUrl: stubBlobUrl,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.spec.elements.root!.props.data).toEqual({ $state: "/hydrated/root__data" });
+    expect(Object.keys(result.spec.state?.hydrated as Record<string, unknown>)).toEqual([
+      "root__data",
+    ]);
   });
 });

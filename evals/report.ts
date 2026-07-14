@@ -1,11 +1,18 @@
-// The published report. Takes archived RunRecords and emits markdown.
+// The published report. Takes archived runs and emits markdown.
 //
-// THE PRIMARY AXIS IS OUTPUT TOKENS. Output bills ~5x fresh input and ~50x cached
-// input, so a format that saves schema tokens while spending output tokens is
-// losing money. Every headline table leads with output.
+// THE HEADLINE IS AUTHORED OUTPUT TOKENS — the output tokens of the single
+// assistant message that carried the render call. That is the cost of EMITTING
+// the artifact, and it is the only output number that tests the thesis.
+//
+// A session's TOTAL output tokens are dominated by agentic exploration: reading
+// the file, running git, thinking, retrying. That is real cost and it is
+// published (see Session cost), but it measures how chatty the agent was, not how
+// expensive the format is. Leading with it would compare session behaviour and
+// call it a format comparison. Both numbers appear; neither wears the other's
+// label.
 //
 // EVERY NUMBER IS THE LEDGER'S. This file does no token arithmetic and no pricing
-// of its own: totals come from summariseRun, cost from costOfRun, and the harness
+// of its own: totals come from summariseRun, cost from costOfRun, the harness
 // subtraction from subtractHarnessConstant. A report that computed its own cost
 // model would eventually disagree with the ledger, and a hostile reader would be
 // right to stop reading there.
@@ -14,17 +21,18 @@
 //   1. Losses first. Every comparative section prints "Where parchment loses"
 //      BEFORE "Where parchment wins". report.test.ts fails the build if that
 //      order ever inverts.
-//   2. Input is printed raw AND harness-subtracted, never quietly adjusted.
-//   3. Cold-cache AND warm-cache cost are both published. A real user pays the
-//      cache write once and then reads cheaply. Both numbers are true.
-//   4. Format density gets its own table, where the terse formats will probably
-//      win, printed plainly.
-//   5. A null result is reported as a null result.
+//   2. A negative result is printed as plainly as a positive one. If the model
+//      does not climb the ladder, that is the finding, and it goes near the top.
+//   3. What the arm COULD have emitted, what it ACTUALLY emitted, and what an arm
+//      with no reference mechanism MUST emit are three different numbers and are
+//      never conflated.
+//   4. Input is printed raw AND harness-subtracted; cost cold AND warm.
+//   5. A field missing from an archive prints NOT MEASURED. Nothing is backfilled.
 
 import { armFor } from "./arms/index.ts";
 import { MAX_REPAIR_TURNS } from "./config.ts";
 import {
-  countBytes,
+  ArtifactOrigin,
   TOKEN_APPROXIMATION,
   type ApproximationAudit,
   type ArtifactMeasurement,
@@ -34,6 +42,8 @@ import {
   promptTokensOf,
   subtractHarnessConstant,
   summariseRun,
+  type EvalAttemptRecord,
+  type EvalRunRecord,
   type HarnessConstant,
   type RunTotals,
 } from "./ledger.ts";
@@ -44,18 +54,14 @@ import {
   EstimateStatus,
   mean,
   summarize,
+  WILSON_METHOD_DESCRIPTION,
+  wilsonInterval,
   type BootstrapOptions,
   type IntervalEstimate,
+  type ProportionEstimate,
   type SampleSummary,
 } from "./stats.ts";
-import {
-  ArmId,
-  AuthoringSurface,
-  EvalModel,
-  Fidelity,
-  type AttemptRecord,
-  type RunRecord,
-} from "./types.ts";
+import { ArmId, AuthoringSurface, EvalModel, Fidelity } from "./types.ts";
 
 // ---- What the report must be told (it does no I/O and guesses nothing) -------
 
@@ -63,27 +69,25 @@ export type ScenarioSummary = {
   id: string;
   title: string;
   exercisesLadder: boolean;
-  // Used to decide whether an artifact REFERENCED the data or PASTED it.
   sourceFileRelativePaths: readonly string[];
   sourceFileBytes: number;
 };
 
 export type ReportMeta = {
   generatedAt: string;
-  // The dated ids the aliases resolved to, if the archive recorded them.
   modelIds: Readonly<Partial<Record<EvalModel, string>>>;
   claudeCliVersion: string | null;
   scenarios: readonly ScenarioSummary[];
   // Measured by ledger.measureHarnessConstant, per model, per authoring surface.
   // Absent when the archive predates the measurement: the report then prints RAW
-  // input only and says the constant was NOT MEASURED, rather than inventing one.
+  // input only and says NOT MEASURED, rather than inventing a constant.
   harnessConstantsByModel: Readonly<Partial<Record<EvalModel, HarnessConstant>>>;
   archiveRelativePath: string;
   bootstrap: BootstrapOptions;
 };
 
 export type ReportInput = {
-  records: readonly RunRecord[];
+  records: readonly EvalRunRecord[];
   density: readonly ArtifactMeasurement[];
   densityAudit: ApproximationAudit | null;
   meta: ReportMeta;
@@ -127,7 +131,7 @@ const ARM_FIDELITY: Record<ArmId, Fidelity> = {
   [ArmId.RawJsx]: Fidelity.Low,
 };
 
-// The arm whose output tokens the ladder ratios are quoted against.
+// The arm whose authored output the ladder ratios are quoted against.
 const LADDER_REFERENCE_ARM = ArmId.ParchmentMarkupHigh;
 
 // Identical grammar, identical runtime, identical schema size — only the
@@ -137,25 +141,26 @@ const ABLATION_PAIRS = [
   { rung: Fidelity.Low, real: ArmId.ParchmentMarkupLow, scrambled: ArmId.ScrambledMarkupLow },
 ] as const;
 
-// ---- Per-run metrics ---------------------------------------------------------
-
-export const LadderBehavior = {
-  Referenced: "referenced",
-  Pasted: "pasted",
-  Inconclusive: "inconclusive",
-  NoArtifact: "no-artifact",
-  NotApplicable: "not-applicable",
-} as const;
-
-export type LadderBehavior = (typeof LadderBehavior)[keyof typeof LadderBehavior];
-
-// An artifact at least this fraction of the source data's size is carrying the
-// data itself: it PASTED rather than referenced. A reference is ~15 tokens.
-const PASTE_DETECTION_BYTE_FRACTION = 0.5;
-
 const PASS_AT_K_LEVELS = { First: 1, WithinThree: 3 } as const;
 const MAX_ATTEMPTS_PER_RUN = 1 + MAX_REPAIR_TURNS;
 const RATIO_OF_NO_DIFFERENCE = 1;
+const MAJORITY = 0.5;
+
+// ---- Per-run metrics ---------------------------------------------------------
+
+// Present only when the archive actually carries the authoring measurement.
+// Archives written before it landed have no such field, and a silent `undefined`
+// would sum to NaN and print as a number in the headline table.
+type AuthoringMetrics = {
+  // Every output token spent EMITTING an artifact, repairs included. A format
+  // that needed three attempts paid for three artifacts.
+  authoredOutputTokens: number;
+  // The artifact that actually passed the browser rubric.
+  passingAuthoredArtifactBytes: number | null;
+  // Did the model reach for the reference component on ANY attempt?
+  usedReference: boolean;
+  referenceKindsUsed: readonly string[];
+};
 
 type RunMetrics = {
   armId: ArmId;
@@ -163,40 +168,80 @@ type RunMetrics = {
   model: EvalModel;
   passed: boolean;
   attemptsToPass: number | null;
-  outputTokens: number;
+  authoring: AuthoringMetrics | null;
+  // SECONDARY: the whole session, agentic exploration included.
+  sessionOutputTokens: number;
   systemPromptTokens: number;
   repairTokens: number;
   inputTokensRaw: number;
-  // Null when the harness constant was never measured for this run's model and
-  // surface. A null prints as "not measured", never as a silently unadjusted
-  // number dressed up as an adjusted one.
   inputTokensHarnessSubtracted: number | null;
   harnessWorkings: string | null;
-  objectiveTokens: number;
-  allInTokensRaw: number;
+  // The all-in agentic cost of reaching a correct render. Reported, and clearly
+  // labelled — it is NOT the format comparison.
+  sessionTotalTokens: number;
   coldCacheCostUsd: number;
   warmCacheCostUsd: number;
   reportedCostUsd: number;
-  ladderBehavior: LadderBehavior;
   exercisesLadder: boolean;
 };
 
+// TypeScript says these fields are numbers. The JSON on disk may predate them,
+// and the report must say NOT MEASURED rather than print a NaN in the headline.
+function carriesAuthoringMeasurement(attempt: EvalAttemptRecord): boolean {
+  return (
+    typeof attempt.authoredOutputTokens === "number" &&
+    Number.isFinite(attempt.authoredOutputTokens) &&
+    typeof attempt.usedReference === "boolean" &&
+    Array.isArray(attempt.referenceKindsUsed)
+  );
+}
+
+// The ledger rightly assumes its own fields exist — summariseRun spreads
+// referenceKindsUsed, which THROWS on an archive written before the authoring
+// measurement landed. So the absent fields are neutralised before the ledger
+// does its arithmetic, and the run is flagged unmeasured so that not one of
+// these zeros can ever reach the page: every authored column prints NOT MEASURED
+// instead. Neutralising for arithmetic is not backfilling, because the values
+// are never read back out.
+const AUTHORING_MEASUREMENT_ABSENT = {
+  authoredOutputTokens: 0,
+  authoredArtifactBytes: 0,
+  renderCallCount: 0,
+  usedReference: false,
+  referenceKindsUsed: [],
+} as const;
+
+function withAuthoringMeasurementNeutralised(attempt: EvalAttemptRecord): EvalAttemptRecord {
+  return { ...attempt, ...AUTHORING_MEASUREMENT_ABSENT };
+}
+
+function authoringMetricsOf(totals: RunTotals): AuthoringMetrics {
+  return {
+    authoredOutputTokens: totals.totalAuthoredOutputTokens,
+    passingAuthoredArtifactBytes: totals.passingAuthoredArtifactBytes,
+    usedReference: totals.usedReference,
+    referenceKindsUsed: totals.referenceKindsUsed,
+  };
+}
+
 function toRunMetrics(
-  record: RunRecord,
+  record: EvalRunRecord,
   scenariosById: ReadonlyMap<string, ScenarioSummary>,
   harnessConstantsByModel: ReportMeta["harnessConstantsByModel"],
 ): RunMetrics {
-  const attempts = [...record.attempts].sort(byAttemptIndex);
-  const [authoringAttempt, ...repairAttempts] = attempts;
+  const archivedAttempts = [...record.attempts].sort(byAttemptIndex);
+  const authoringWasMeasured = archivedAttempts.every(carriesAuthoringMeasurement);
+  const attempts = authoringWasMeasured
+    ? archivedAttempts
+    : archivedAttempts.map(withAuthoringMeasurementNeutralised);
+
+  const [, ...repairAttempts] = attempts;
 
   const totals = summariseRun(attempts, record.systemPromptTokens);
   const cost = costOfRun(record.model, totals);
   const harness = harnessSubtractionFor(record, totals, harnessConstantsByModel);
   const scenario = scenariosById.get(record.scenarioId) ?? null;
 
-  // The objective function, exactly as declared: schema tokens once, every output
-  // token, and every token spent inside the repair loop. Repair OUTPUT is already
-  // inside totalOutputTokens, so only repair INPUT is added here.
   const repairPromptTokens = sumOf(repairAttempts, promptTokensOf);
   const repairOutputTokens = sumOf(repairAttempts, (attempt) => attempt.outputTokens);
 
@@ -206,19 +251,17 @@ function toRunMetrics(
     model: record.model,
     passed: totals.passed,
     attemptsToPass: totals.attemptsToPass,
-    outputTokens: totals.totalOutputTokens,
+    authoring: authoringWasMeasured ? authoringMetricsOf(totals) : null,
+    sessionOutputTokens: totals.totalOutputTokens,
     systemPromptTokens: totals.systemPromptTokens,
     repairTokens: repairPromptTokens + repairOutputTokens,
     inputTokensRaw: totals.totalPromptTokens,
     inputTokensHarnessSubtracted: harness?.adjustedPromptTokens ?? null,
     harnessWorkings: harness?.workings ?? null,
-    objectiveTokens: totals.systemPromptTokens + totals.totalOutputTokens + repairPromptTokens,
-    allInTokensRaw:
-      totals.systemPromptTokens + totals.totalOutputTokens + totals.totalPromptTokens,
+    sessionTotalTokens: totals.systemPromptTokens + totals.totalOutputTokens + repairPromptTokens,
     coldCacheCostUsd: cost.coldCacheUsd,
     warmCacheCostUsd: cost.warmCacheUsd,
     reportedCostUsd: totals.totalReportedCostUsd,
-    ladderBehavior: classifyLadderBehavior(record, scenario, authoringAttempt),
     exercisesLadder: scenario?.exercisesLadder ?? false,
   };
 }
@@ -226,46 +269,18 @@ function toRunMetrics(
 // The constant is measured PER SURFACE, because the tool schemas differ: the
 // canvas arms are sent canvas_render's schema, the file arms are sent Write's.
 function harnessSubtractionFor(
-  record: RunRecord,
+  record: EvalRunRecord,
   totals: RunTotals,
   harnessConstantsByModel: ReportMeta["harnessConstantsByModel"],
 ): ReturnType<typeof subtractHarnessConstant> | null {
   const constant = harnessConstantsByModel[record.model];
   if (!constant) return null;
 
-  const surface = surfaceOf(record.armId);
   return subtractHarnessConstant({
     rawPromptTokens: totals.totalPromptTokens,
     assistantTurnCount: totals.totalAssistantTurns,
-    harnessConstantTokens: constant.promptTokensBySurface[surface],
+    harnessConstantTokens: constant.promptTokensBySurface[armFor(record.armId).surface],
   });
-}
-
-function surfaceOf(armId: ArmId): AuthoringSurface {
-  return armFor(armId).surface;
-}
-
-function classifyLadderBehavior(
-  record: RunRecord,
-  scenario: ScenarioSummary | null,
-  authoringAttempt: AttemptRecord | undefined,
-): LadderBehavior {
-  if (!scenario?.exercisesLadder) return LadderBehavior.NotApplicable;
-
-  const acceptedAttempt = record.attempts.find((attempt) => attempt.accepted && attempt.artifact);
-  const judgedAttempt = acceptedAttempt ?? authoringAttempt;
-  const source = judgedAttempt?.artifact?.source ?? null;
-  if (!source) return LadderBehavior.NoArtifact;
-
-  const artifactBytes = countBytes(source);
-  const pasteThresholdBytes = scenario.sourceFileBytes * PASTE_DETECTION_BYTE_FRACTION;
-  const carriesTheDataItself = scenario.sourceFileBytes > 0 && artifactBytes >= pasteThresholdBytes;
-  if (carriesTheDataItself) return LadderBehavior.Pasted;
-
-  const namesASourceFile = scenario.sourceFileRelativePaths.some((path) => source.includes(path));
-  if (namesASourceFile) return LadderBehavior.Referenced;
-
-  return LadderBehavior.Inconclusive;
 }
 
 // ---- Spend (used by the CLI) -------------------------------------------------
@@ -277,9 +292,13 @@ export type SpendSummary = {
   warmCacheUsd: number;
 };
 
-export function summarizeSpend(records: readonly RunRecord[]): SpendSummary {
+// Cost never touches the authoring fields, but summariseRun still reads them, so
+// a legacy archive is neutralised here too rather than throwing at a caller who
+// only wanted a dollar figure.
+export function summarizeSpend(records: readonly EvalRunRecord[]): SpendSummary {
   const costs = records.map((record) => {
-    const totals = summariseRun(record.attempts, record.systemPromptTokens);
+    const attempts = record.attempts.map(withAuthoringMeasurementNeutralised);
+    const totals = summariseRun(attempts, record.systemPromptTokens);
     return { totals, cost: costOfRun(record.model, totals) };
   });
 
@@ -295,8 +314,8 @@ export function summarizeSpend(records: readonly RunRecord[]): SpendSummary {
 
 // Token and cost figures are computed over PASSING runs only: "tokens to a
 // correct render" is undefined for a run that never rendered correctly. Pass
-// rates are computed over ALL runs, and printed beside the token figures, so a
-// cheap arm that fails constantly cannot hide behind a small mean.
+// rates and ladder-climbing rates are computed over ALL runs, and printed beside
+// them, so a cheap arm that fails constantly cannot hide behind a small mean.
 type Cell = {
   armId: ArmId;
   model: EvalModel;
@@ -339,6 +358,19 @@ function valuesOf(runs: readonly RunMetrics[], selector: (run: RunMetrics) => nu
   return runs.map(selector);
 }
 
+// The headline sample: authored output tokens, over runs whose authoring was
+// actually measured. An unmeasured run contributes nothing rather than a zero.
+function authoredOutputsOf(runs: readonly RunMetrics[]): number[] {
+  return runs.flatMap((run) => (run.authoring ? [run.authoring.authoredOutputTokens] : []));
+}
+
+function authoredBytesOf(runs: readonly RunMetrics[]): number[] {
+  return runs.flatMap((run) => {
+    const bytes = run.authoring?.passingAuthoredArtifactBytes;
+    return typeof bytes === "number" ? [bytes] : [];
+  });
+}
+
 // ---- Losses first ------------------------------------------------------------
 
 export const LOSSES_HEADING = "**Where parchment loses**";
@@ -362,7 +394,7 @@ type CellComparison = {
 // a weak rival flatter us.
 function compareParchmentToBestRival(
   metrics: readonly RunMetrics[],
-  selector: (run: RunMetrics) => number,
+  selector: (run: RunMetrics) => number | null,
 ): CellComparison[] {
   const comparisons: CellComparison[] = [];
 
@@ -373,7 +405,7 @@ function compareParchmentToBestRival(
 
     for (const parchmentArmId of distinctArms(passing, ArmFamily.Parchment)) {
       const parchmentRuns = passing.filter((run) => run.armId === parchmentArmId);
-      const parchmentValue = meanOrNull(valuesOf(parchmentRuns, selector));
+      const parchmentValue = meanOrNull(selectValues(parchmentRuns, selector));
       const [first] = parchmentRuns;
       if (parchmentValue === null || !first) continue;
 
@@ -394,11 +426,11 @@ function compareParchmentToBestRival(
 
 function findBestRival(
   runs: readonly RunMetrics[],
-  selector: (run: RunMetrics) => number,
+  selector: (run: RunMetrics) => number | null,
 ): { armId: ArmId; value: number } | null {
   const rivalMeans = distinctArms(runs, ArmFamily.Rival).flatMap((armId) => {
     const armRuns = runs.filter((run) => run.armId === armId);
-    const armMean = meanOrNull(valuesOf(armRuns, selector));
+    const armMean = meanOrNull(selectValues(armRuns, selector));
     if (armMean === null) return [];
     return [{ armId, value: armMean }];
   });
@@ -419,8 +451,8 @@ function buildLossesAndWins(
     .filter((comparison) => comparison.parchmentTimesTheRival < RATIO_OF_NO_DIFFERENCE)
     .sort((left, right) => left.parchmentTimesTheRival - right.parchmentTimesTheRival);
 
-  const lossLines = losses.map((comparison) => formatComparisonLine(comparison, unitLabel, formatValue));
-  const winLines = wins.map((comparison) => formatComparisonLine(comparison, unitLabel, formatValue));
+  const lossLines = losses.map((entry) => formatComparisonLine(entry, unitLabel, formatValue));
+  const winLines = wins.map((entry) => formatComparisonLine(entry, unitLabel, formatValue));
 
   return [
     LOSSES_HEADING,
@@ -462,9 +494,10 @@ export function buildReportMarkdown(input: ReportInput): string {
 
   const sections = [
     buildHeaderSection(input.records, input.meta),
-    buildObjectiveSection(),
+    buildWhatWeMeasureSection(),
     buildHeadlineSection(metrics, cells, input.meta),
-    buildLadderSection(metrics, input.meta),
+    buildLadderClimbingSection(metrics),
+    buildLadderSection(metrics, input.density, input.meta),
     buildDecompositionSection(cells),
     buildAblationSection(metrics, input.meta),
     buildDensitySection(input.density, input.densityAudit),
@@ -475,43 +508,52 @@ export function buildReportMarkdown(input: ReportInput): string {
   return `${sections.join("\n\n")}\n`;
 }
 
-function buildHeaderSection(records: readonly RunRecord[], meta: ReportMeta): string {
+function buildHeaderSection(records: readonly EvalRunRecord[], meta: ReportMeta): string {
   const arms = new Set(records.map((record) => record.armId));
   const scenarios = new Set(records.map((record) => record.scenarioId));
   const models = new Set(records.map((record) => record.model));
 
   return [
-    "# Tokens to a browser-verified render",
+    "# Authored output tokens to a browser-verified render",
     "",
     `- Generated: ${meta.generatedAt}`,
     `- Runs: ${records.length} across ${arms.size} arms x ${scenarios.size} scenarios x ${models.size} models`,
     `- Archive (every number below is reproducible offline from it): \`${meta.archiveRelativePath}\``,
     `- Confidence intervals: percentile bootstrap, ${formatCount(meta.bootstrap.resamples)} resamples, ` +
-      `${formatPercent(meta.bootstrap.confidence)}, seed \`${meta.bootstrap.seed}\` — deterministic.`,
+      `${formatPercent(meta.bootstrap.confidence)}, seed \`${meta.bootstrap.seed}\` — deterministic. ` +
+      "Proportions use a Wilson score interval.",
     "",
     "Acceptance is decided by a real headless browser against a DOM rubric that never imports",
     "parchment code. An arm passes when the page it produced actually paints the required content.",
   ].join("\n");
 }
 
-function buildObjectiveSection(): string {
+function buildWhatWeMeasureSection(): string {
   return [
-    "## The objective function",
+    "## What we measure, and what we refuse to measure",
+    "",
+    "**THE HEADLINE — authored output tokens.** The output tokens of the single assistant message",
+    "that carried the render call (`canvas_render` for the catalog arms, `Write` for raw-html and",
+    "raw-jsx). This is the cost of EMITTING the artifact, measured by the same rule for every arm and",
+    "read exactly from the transcript. Repairs count: a format that needed three attempts paid for",
+    "three artifacts.",
+    "",
+    "**THE SECONDARY NUMBER — session output tokens.** Everything the model emitted: reading files,",
+    "running git, thinking, retrying. This is real money and it is published in full (see Session",
+    "cost). But it is dominated by AGENTIC EXPLORATION, which is a property of the task and the",
+    "harness, not of the format. In the first pilot, one high-fidelity run burned over 11,000 session",
+    "output tokens across 11 assistant turns while the artifact it authored cost a small fraction of",
+    "that. Leading with that number would have measured how chatty the agent was and called it a",
+    "format comparison. Both numbers appear here; neither wears the other's label.",
     "",
     "```",
-    "total_tokens_to_correct_render(run) =",
-    "      system/schema tokens   (the arm's protocol cost, once, as sent)",
-    "    + output tokens          (every attempt, repairs included)",
-    "    + repair-turn input      (every token re-sent inside the repair loop)",
+    "authored_output_tokens(run) = output tokens of the render-call message, summed over attempts",
+    "session_total_tokens(run)   = system/schema + session output + repair-turn input",
     "```",
     "",
-    "Output is the primary axis because output bills ~5x fresh input and ~50x cached input.",
-    "",
-    "The initial authoring turn's INPUT is deliberately not in that total: it is dominated by a",
-    "harness constant that every arm on the same surface pays identically. It is not swept away",
-    "either — it is printed raw and harness-subtracted in the decomposition table, and an all-in",
-    "column (objective + initial input, raw) appears in the headline table so nothing is hidden by",
-    "the choice.",
+    "The initial authoring turn's INPUT is in neither total: it is dominated by a harness constant",
+    "that every arm on the same surface pays identically. It is not swept away either — it is printed",
+    "raw and harness-subtracted in the decomposition table.",
   ].join("\n");
 }
 
@@ -520,27 +562,31 @@ function buildHeadlineSection(
   cells: readonly Cell[],
   meta: ReportMeta,
 ): string {
-  const comparisons = compareParchmentToBestRival(metrics, (run) => run.objectiveTokens);
-  const lossesAndWins = buildLossesAndWins(comparisons, "total tokens", formatCount);
+  const comparisons = compareParchmentToBestRival(
+    metrics,
+    (run) => run.authoring?.authoredOutputTokens ?? null,
+  );
+  const lossesAndWins = buildLossesAndWins(comparisons, "authored output tokens", formatCount);
 
-  const rows = sortCellsBy(cells, (run) => run.objectiveTokens).map((cell) => {
-    const objectives = valuesOf(cell.passingRuns, (run) => run.objectiveTokens);
-    const objectiveSummary = summarize(objectives);
+  const rows = sortCellsBy(cells, (run) => run.authoring?.authoredOutputTokens ?? null).map(
+    (cell) => {
+      const authored = authoredOutputsOf(cell.passingRuns);
+      const authoredSummary = summarize(authored);
 
-    return [
-      `\`${cell.armId}\``,
-      ARM_FIDELITY[cell.armId],
-      cell.model,
-      `${cell.passingRuns.length}/${cell.allRuns.length}`,
-      formatPercentOrNa(passAtK(cell.allRuns, PASS_AT_K_LEVELS.First)),
-      formatMean(summarize(valuesOf(cell.passingRuns, (run) => run.outputTokens)), formatCount),
-      formatMean(objectiveSummary, formatCount),
-      formatInterval(bootstrapConfidenceInterval(objectives, mean, meta.bootstrap), formatCount),
-      formatMedian(objectiveSummary, formatCount),
-      formatSpread(objectiveSummary, formatCount),
-      formatMean(summarize(valuesOf(cell.passingRuns, (run) => run.allInTokensRaw)), formatCount),
-    ];
-  });
+      return [
+        `\`${cell.armId}\``,
+        ARM_FIDELITY[cell.armId],
+        cell.model,
+        `${cell.passingRuns.length}/${cell.allRuns.length}`,
+        formatPercentOrNa(passAtK(cell.allRuns, PASS_AT_K_LEVELS.First)),
+        formatMeanOrNotMeasured(authoredSummary, formatCount),
+        formatInterval(bootstrapConfidenceInterval(authored, mean, meta.bootstrap), formatCount),
+        formatMedianOrNotMeasured(authoredSummary, formatCount),
+        formatSpreadOrNotMeasured(authoredSummary, formatCount),
+        formatMeanOrNotMeasured(summarize(authoredBytesOf(cell.passingRuns)), formatCount),
+      ];
+    },
+  );
 
   const table = renderMarkdownTable(
     [
@@ -549,21 +595,22 @@ function buildHeadlineSection(
       "Model",
       "Passed/N",
       "pass@1",
-      "Output tokens (mean)",
-      "TOTAL to correct render (mean)",
+      "AUTHORED output tokens (mean)",
       "95% CI",
       "median",
       "min–max",
-      "All-in raw (mean)",
+      "Artifact bytes (EXACT, mean)",
     ],
     rows,
   );
 
   return [
-    "## Headline: total tokens to a correct render",
+    "## HEADLINE: authored output tokens to a correct render",
     "",
-    "Token columns cover PASSING runs only — a run that never rendered correctly has no",
-    "tokens-to-correct-render. Pass rate sits beside them so a cheap arm that fails cannot hide.",
+    "The cost of EMITTING the artifact — not the cost of the agent's exploration, which is reported",
+    "separately under Session cost. Token columns cover PASSING runs only: a run that never rendered",
+    "correctly has no cost-to-a-correct-render. Pass rate sits beside them so a cheap arm that fails",
+    "cannot hide. Bytes are exact; tokens are measured from the transcript, not approximated.",
     "",
     ...coverageWarningLines(cells),
     lossesAndWins,
@@ -574,8 +621,7 @@ function buildHeadlineSection(
 
 // A row in this table is an arm's mean ACROSS the scenarios it ran. If two arms
 // ran different scenario sets, their means are not comparable to each other, and
-// saying so is cheaper than letting a reader assume otherwise. The per-scenario
-// bullets above the table are unaffected: they compare within one scenario.
+// saying so is cheaper than letting a reader assume otherwise.
 function coverageWarningLines(cells: readonly Cell[]): string[] {
   const scenariosByArm = new Map<ArmId, Set<string>>();
   for (const cell of cells) {
@@ -587,45 +633,209 @@ function coverageWarningLines(cells: readonly Cell[]): string[] {
   const coverageSignatures = new Set(
     [...scenariosByArm.values()].map((scenarios) => [...scenarios].sort().join(",")),
   );
-  const everyArmRanTheSameScenarios = coverageSignatures.size <= 1;
-  if (everyArmRanTheSameScenarios) return [];
+  if (coverageSignatures.size <= 1) return [];
 
   return [
     "> **Not every arm ran every scenario in this archive**, so the means in this table pool",
     "> different scenario mixes and are NOT directly comparable across rows. The per-scenario",
-    "> comparisons below, and the ladder table, are like-for-like. Fix this by running the full",
-    "> matrix.",
+    "> comparisons below, and the ladder table, are like-for-like.",
     "",
   ];
 }
 
-// The most prominent comparison in the eval: a high-fidelity arm names a file
-// (~15 tokens); every low-fidelity arm and every rival format must paste the
-// bytes. This is where the compression stops being a syntax war.
-function buildLadderSection(metrics: readonly RunMetrics[], meta: ReportMeta): string {
+// ---- Did the model climb the ladder? -----------------------------------------
+
+// THE RESULT THAT MAY SINK THE THESIS, AND IT GOES NEAR THE TOP.
+//
+// The fidelity ladder only pays off if the model actually REACHES for the
+// reference component. A high-fidelity arm whose prompt documents `GitDiff
+// file="..."` and which pastes the whole file anyway has proven that the
+// compression is AVAILABLE and UNTAKEN — a negative result for the product
+// thesis, not a rounding error. It is written to read as plainly as a positive
+// one would.
+function buildLadderClimbingSection(metrics: readonly RunMetrics[]): string {
   const ladderRuns = metrics.filter((run) => run.exercisesLadder);
   if (ladderRuns.length === 0) {
-    return ["## THE FIDELITY LADDER (the headline experiment)", "", "No ladder scenarios were run."].join(
-      "\n",
-    );
+    return ["## Did the model climb the ladder?", "", "No ladder scenarios were run."].join("\n");
   }
 
-  const comparisons = compareParchmentToBestRival(ladderRuns, (run) => run.outputTokens);
-  const lossesAndWins = buildLossesAndWins(comparisons, "output tokens", formatCount);
-  const referenceOutputs = outputsOfArm(ladderRuns, LADDER_REFERENCE_ARM);
+  // The verdict is about the PRODUCT's high-fidelity arms. The scrambled arm is a
+  // deliberately sabotaged control: pooling it in would dilute a real failure and
+  // understate a real climb. Its behaviour is reported in the table below, and
+  // compared like-for-like in the ablation.
+  const productClimbRuns = ladderRuns.filter(
+    (run) => ARM_FIDELITY[run.armId] === Fidelity.High && ARM_FAMILY[run.armId] === ArmFamily.Parchment,
+  );
+  const table = renderMarkdownTable(
+    ["Scenario", "Arm", "Rung", "Model", "Climbed", "Rate", "95% CI (Wilson)", "Reference used"],
+    buildClimbRows(ladderRuns),
+  );
 
-  const rows = sortCellsBy(toCells(ladderRuns), (run) => run.outputTokens).map((cell) => {
-    const outputs = valuesOf(cell.passingRuns, (run) => run.outputTokens);
+  return [
+    "## Did the model climb the ladder?",
+    "",
+    "A high-fidelity arm is TOLD, in its system prompt, that it can name a file and have the daemon",
+    "fetch the bytes. This section asks whether it actually did. The rate is over ALL runs, not just",
+    "passing ones: a run that failed still shows whether the model reached for the reference.",
+    "",
+    "**This is the result most likely to sink the thesis, so it is printed before the win.** If the",
+    'compression is available and the model does not take it, the honest headline is not "parchment',
+    'is 30x cheaper" — it is "parchment COULD be 30x cheaper, and the model does not do it".',
+    "",
+    ...buildClimbVerdicts(productClimbRuns),
+    "",
+    table,
+    "",
+    "Intervals are Wilson score intervals. A rate of 0/3 or 3/3 is exactly where the normal",
+    "approximation collapses to zero width and claims certainty from three observations; Wilson keeps",
+    "an honest width there.",
+  ].join("\n");
+}
+
+function buildClimbVerdicts(productClimbRuns: readonly RunMetrics[]): string[] {
+  if (productClimbRuns.length === 0) {
+    return ["_No high-fidelity parchment arm ran a ladder scenario._"];
+  }
+
+  const measured = productClimbRuns.filter((run) => run.authoring !== null);
+  if (measured.length === 0) {
+    return [
+      "- **NOT MEASURED.** This archive predates the `usedReference` measurement. Re-run the matrix; " +
+        "nothing here is backfilled.",
+    ];
+  }
+
+  const climbed = measured.filter((run) => run.authoring?.usedReference === true).length;
+  const estimate = wilsonInterval(climbed, measured.length);
+  if (estimate.status !== EstimateStatus.Ok) {
+    return [`- **Insufficient data** (${estimate.reason}).`];
+  }
+
+  const rate =
+    `${climbed}/${measured.length} (${formatPercent(estimate.point)}, 95% CI ` +
+    `${formatPercent(estimate.lowerBound)}–${formatPercent(estimate.upperBound)})`;
+
+  if (climbed === 0) {
+    return [
+      "- **NEGATIVE RESULT — the model NEVER climbed the ladder.** High-fidelity arms reached for a " +
+        `reference component in ${rate} of their ladder runs. The prompt documented it; the model ` +
+        "pasted the file anyway.",
+      "- **What that means:** the ladder's compression is real and AVAILABLE, and the model does not " +
+        "take it. Any authored-token win below was earned by the notation, not by the ladder. The " +
+        "ladder is, as of this run, a product opportunity — NOT a measured result — and it must not " +
+        "be quoted as one.",
+    ];
+  }
+
+  if (estimate.upperBound < MAJORITY) {
+    return [
+      `- **NEGATIVE RESULT — the model rarely climbed the ladder.** ${rate}. Even the optimistic end ` +
+        "of the interval sits below half, so this is not noise.",
+      "- The compression is available and mostly untaken. Treat the ladder as an opportunity, not a " +
+        "result.",
+    ];
+  }
+
+  if (estimate.lowerBound > MAJORITY) {
+    return [
+      "- **The model climbed the ladder.** High-fidelity arms reached for a reference component in " +
+        `${rate} of their ladder runs, and the interval clears half. The authored-token win below is ` +
+        "the ladder's, not just the notation's.",
+    ];
+  }
+
+  return [
+    `- **INCONCLUSIVE.** ${rate}. The interval straddles half: at this N we cannot say whether the ` +
+      "model reliably climbs. Raise `--replicates` before quoting the ladder as a result.",
+  ];
+}
+
+function buildClimbRows(ladderRuns: readonly RunMetrics[]): string[][] {
+  const groups = new Map<string, RunMetrics[]>();
+  for (const run of ladderRuns) {
+    const key = `${run.scenarioId}::${run.armId}::${run.model}`;
+    const existing = groups.get(key) ?? [];
+    existing.push(run);
+    groups.set(key, existing);
+  }
+
+  return [...groups.values()].flatMap((runs) => {
+    const [first] = runs;
+    if (!first) return [];
+
+    const identity = [
+      first.scenarioId,
+      `\`${first.armId}\``,
+      ARM_FIDELITY[first.armId],
+      first.model,
+    ];
+
+    const measured = runs.filter((run) => run.authoring !== null);
+    if (measured.length === 0) {
+      return [[...identity, NOT_MEASURED, NOT_MEASURED, NOT_MEASURED, NOT_MEASURED]];
+    }
+
+    const climbed = measured.filter((run) => run.authoring?.usedReference === true);
+    const kinds = [
+      ...new Set(measured.flatMap((run) => [...(run.authoring?.referenceKindsUsed ?? [])])),
+    ];
+
+    return [
+      [
+        ...identity,
+        `${climbed.length}/${measured.length}`,
+        formatPercent(climbed.length / measured.length),
+        formatProportionInterval(wilsonInterval(climbed.length, measured.length)),
+        kinds.length > 0 ? kinds.map((kind) => `\`${kind}\``).join(", ") : "none",
+      ],
+    ];
+  });
+}
+
+// ---- The fidelity ladder -----------------------------------------------------
+
+// THREE NUMBERS, NEVER CONFLATED:
+//   (a) what the arm COULD have emitted — the reference artifact. A static floor.
+//   (b) what the model ACTUALLY emitted — measured authored tokens.
+//   (c) what an arm with NO reference mechanism MUST emit — measured.
+// (a)->(b) is the product's opportunity. (b)->(c) is the format's realised win.
+// Publishing (a) as if it were (b) is the exact sin this eval exists to expose in
+// other people's benchmarks. We do not get to commit it.
+function buildLadderSection(
+  metrics: readonly RunMetrics[],
+  density: readonly ArtifactMeasurement[],
+  meta: ReportMeta,
+): string {
+  const ladderRuns = metrics.filter((run) => run.exercisesLadder);
+  if (ladderRuns.length === 0) {
+    return ["## The fidelity ladder", "", "No ladder scenarios were run."].join("\n");
+  }
+
+  const comparisons = compareParchmentToBestRival(
+    ladderRuns,
+    (run) => run.authoring?.authoredOutputTokens ?? null,
+  );
+  const lossesAndWins = buildLossesAndWins(comparisons, "authored output tokens", formatCount);
+  const referenceArmOutputs = authoredOutputsOf(
+    ladderRuns.filter((run) => run.armId === LADDER_REFERENCE_ARM && run.passed),
+  );
+
+  const rows = sortCellsBy(
+    toCells(ladderRuns),
+    (run) => run.authoring?.authoredOutputTokens ?? null,
+  ).map((cell) => {
+    const authored = authoredOutputsOf(cell.passingRuns);
+    const canClimb = ARM_FIDELITY[cell.armId] === Fidelity.High;
 
     return [
       `\`${cell.armId}\``,
       ARM_FIDELITY[cell.armId],
       cell.model,
       `${cell.passingRuns.length}/${cell.allRuns.length}`,
-      formatMean(summarize(outputs), formatCount),
-      formatInterval(bootstrapConfidenceInterval(outputs, mean, meta.bootstrap), formatCount),
-      formatInterval(bootstrapRatio(outputs, referenceOutputs, meta.bootstrap), formatTimes),
-      formatLadderBehaviorCounts(cell.passingRuns),
+      canClimb ? referenceFloorFor(cell.armId, density) : "none — no reference mechanism",
+      formatMeanOrNotMeasured(summarize(authored), formatCount),
+      formatInterval(bootstrapConfidenceInterval(authored, mean, meta.bootstrap), formatCount),
+      formatInterval(bootstrapRatio(authored, referenceArmOutputs, meta.bootstrap), formatTimes),
     ];
   });
 
@@ -635,24 +845,32 @@ function buildLadderSection(metrics: readonly RunMetrics[], meta: ReportMeta): s
       "Rung",
       "Model",
       "Passed/N",
-      "Output tokens (mean)",
+      "(a) COULD have emitted",
+      "(b) ACTUALLY emitted",
       "95% CI",
       `x vs \`${LADDER_REFERENCE_ARM}\` (95% CI)`,
-      "Climbed the ladder?",
     ],
     rows,
   );
 
   return [
-    "## THE FIDELITY LADDER (the headline experiment)",
+    "## The fidelity ladder",
     "",
-    "Ladder scenarios keep the source data on disk. A high-fidelity arm may REFERENCE it by path;",
-    "a low-fidelity arm and every rival format must READ it and PASTE it into the artifact. The",
-    `ratio column is quoted against \`${LADDER_REFERENCE_ARM}\` with a bootstrap interval, so the`,
-    "gap is published as a range rather than as a flattering point estimate.",
+    "Ladder scenarios keep the source data on disk. A high-fidelity arm MAY reference it by path; a",
+    "low-fidelity arm and every rival format MUST read it and paste it into the artifact.",
     "",
-    '"Climbed the ladder?" classifies each artifact as referenced / pasted — see Methodology for',
-    "the exact rule.",
+    "Three different numbers live in this table, and they are never added together or swapped:",
+    "",
+    "- **(a) COULD have emitted** — the reference artifact: a static, hand-written floor. Bytes exact,",
+    "  tokens APPROXIMATE. This is what the arm was *able* to write. It is NOT a measurement of what",
+    "  any model did, and it is never quoted as one.",
+    "- **(b) ACTUALLY emitted** — measured authored output tokens, read from the transcript.",
+    "- **(c) MUST emit** — the same measured column, read on `raw-html` / `raw-jsx`, which have no",
+    "  reference mechanism at all.",
+    "",
+    "**The gap between (a) and (b) is the product's opportunity. The gap between (b) and (c) is the",
+    "format's realised win.** Read the ladder-climbing section above before this table: if the model",
+    "did not climb, then (a) is a hypothetical and only (b) vs (c) is a result.",
     "",
     lossesAndWins,
     "",
@@ -660,10 +878,27 @@ function buildLadderSection(metrics: readonly RunMetrics[], meta: ReportMeta): s
   ].join("\n");
 }
 
+// The static floor, taken ONLY from a hand-written reference artifact on disk. An
+// artifact pulled from a RUN is what the model DID emit, not what it COULD have —
+// using one here would collapse (a) into (b) and publish a hypothetical as a
+// measurement.
+function referenceFloorFor(armId: ArmId, density: readonly ArtifactMeasurement[]): string {
+  const floors = density.filter(
+    (measurement) =>
+      measurement.armId === armId && measurement.origin === ArtifactOrigin.ReferenceFile,
+  );
+
+  const bytes = summarize(floors.map((floor) => floor.bytes));
+  const tokens = summarize(floors.map((floor) => floor.approximateTokens));
+  if (!bytes || !tokens) return NOT_MEASURED;
+
+  return `${formatCount(bytes.mean)} B / ~${formatCount(tokens.mean)} tok (approx.)`;
+}
+
 function buildDecompositionSection(cells: readonly Cell[]): string {
-  const rows = sortCellsBy(cells, (run) => run.objectiveTokens).map((cell) => {
+  const rows = sortCellsBy(cells, (run) => run.sessionTotalTokens).map((cell) => {
     const passing = cell.passingRuns;
-    const subtractedInputs = passing
+    const subtracted = passing
       .map((run) => run.inputTokensHarnessSubtracted)
       .filter((value): value is number => value !== null);
 
@@ -671,11 +906,12 @@ function buildDecompositionSection(cells: readonly Cell[]): string {
       `\`${cell.armId}\``,
       cell.model,
       `${passing.length}/${cell.allRuns.length}`,
-      formatMean(summarize(valuesOf(passing, (run) => run.outputTokens)), formatCount),
+      formatMeanOrNotMeasured(summarize(authoredOutputsOf(passing)), formatCount),
+      formatMean(summarize(valuesOf(passing, (run) => run.sessionOutputTokens)), formatCount),
       formatMean(summarize(valuesOf(passing, (run) => run.systemPromptTokens)), formatCount),
       formatMean(summarize(valuesOf(passing, (run) => run.repairTokens)), formatCount),
       formatMean(summarize(valuesOf(passing, (run) => run.inputTokensRaw)), formatCount),
-      formatMeanOrNotMeasured(summarize(subtractedInputs), formatCount),
+      formatMeanOrNotMeasured(summarize(subtracted), formatCount),
       formatPercentOrNa(passAtK(cell.allRuns, PASS_AT_K_LEVELS.First)),
       formatPercentOrNa(passAtK(cell.allRuns, PASS_AT_K_LEVELS.WithinThree)),
     ];
@@ -686,7 +922,8 @@ function buildDecompositionSection(cells: readonly Cell[]): string {
       "Arm",
       "Model",
       "Passed/N",
-      "Output",
+      "AUTHORED output",
+      "SESSION output (exploration incl.)",
       "System/schema",
       "Repair turns (in+out)",
       "Input RAW",
@@ -700,8 +937,10 @@ function buildDecompositionSection(cells: readonly Cell[]): string {
   return [
     "## Decomposition",
     "",
-    "Repair-turn output is also inside the Output column — the repair column is printed so the cost",
-    "of the repair loop is visible, not so it can be added again.",
+    "The two output columns are the whole argument of this page. **AUTHORED** is the format's cost.",
+    "**SESSION** is the agent's cost: it includes reading the file, running git, and thinking, and it",
+    "is a property of the task and the harness far more than of the format. Both are real; only the",
+    "first one compares formats.",
     "",
     table,
   ].join("\n");
@@ -721,11 +960,13 @@ function buildAblationSection(metrics: readonly RunMetrics[], meta: ReportMeta):
     [
       "Rung",
       "Model",
-      "Real vocab output (mean)",
-      "Scrambled output (mean)",
+      "Real vocab AUTHORED (mean)",
+      "Scrambled AUTHORED (mean)",
       "Scrambled / real (95% CI)",
       "Real pass@1",
       "Scrambled pass@1",
+      "Real climbed",
+      "Scrambled climbed",
     ],
     rows,
   );
@@ -740,11 +981,12 @@ function buildAblationSection(metrics: readonly RunMetrics[], meta: ReportMeta):
     "**A null result is a result.** An interval that brackets 1.00x means familiarity bought nothing",
     "measurable at this N, and it is reported as exactly that.",
     "",
+    "The last two columns carry the BEHAVIOURAL half of the ablation: on ladder scenarios, did the",
+    "scrambled arm still reach for the high-fidelity component, or did it fall back to pasting?",
+    "",
     ...(verdicts.length > 0 ? verdicts : ["_No arm pair had runs on both sides._"]),
     "",
     table,
-    "",
-    buildLadderClimbingSubsection(metrics),
   ].join("\n");
 }
 
@@ -760,18 +1002,28 @@ function buildAblationRow(
   const scrambledRuns = runsOf(metrics, pair.scrambled, model);
   if (realRuns.length === 0 && scrambledRuns.length === 0) return [];
 
-  const realOutputs = outputsOfPassingRuns(realRuns);
-  const scrambledOutputs = outputsOfPassingRuns(scrambledRuns);
+  const realAuthored = authoredOutputsOf(realRuns.filter((run) => run.passed));
+  const scrambledAuthored = authoredOutputsOf(scrambledRuns.filter((run) => run.passed));
 
   return [
     pair.rung,
     model,
-    formatMean(summarize(realOutputs), formatCount),
-    formatMean(summarize(scrambledOutputs), formatCount),
-    formatInterval(bootstrapRatio(scrambledOutputs, realOutputs, meta.bootstrap), formatTimes),
+    formatMeanOrNotMeasured(summarize(realAuthored), formatCount),
+    formatMeanOrNotMeasured(summarize(scrambledAuthored), formatCount),
+    formatInterval(bootstrapRatio(scrambledAuthored, realAuthored, meta.bootstrap), formatTimes),
     formatPercentOrNa(passAtK(realRuns, PASS_AT_K_LEVELS.First)),
     formatPercentOrNa(passAtK(scrambledRuns, PASS_AT_K_LEVELS.First)),
+    formatClimbRate(realRuns),
+    formatClimbRate(scrambledRuns),
   ];
+}
+
+function formatClimbRate(runs: readonly RunMetrics[]): string {
+  const ladderRuns = runs.filter((run) => run.exercisesLadder && run.authoring !== null);
+  if (ladderRuns.length === 0) return NOT_APPLICABLE;
+
+  const climbed = ladderRuns.filter((run) => run.authoring?.usedReference === true).length;
+  return `${climbed}/${ladderRuns.length}`;
 }
 
 function buildAblationVerdict(
@@ -780,10 +1032,10 @@ function buildAblationVerdict(
   metrics: readonly RunMetrics[],
   meta: ReportMeta,
 ): string {
-  const realOutputs = outputsOfPassingRuns(runsOf(metrics, pair.real, model));
-  const scrambledOutputs = outputsOfPassingRuns(runsOf(metrics, pair.scrambled, model));
-  const ratio = bootstrapRatio(scrambledOutputs, realOutputs, meta.bootstrap);
-  const label = `\`${pair.scrambled}\` vs \`${pair.real}\` (${model}, output tokens)`;
+  const realAuthored = authoredOutputsOf(passingRunsOf(metrics, pair.real, model));
+  const scrambledAuthored = authoredOutputsOf(passingRunsOf(metrics, pair.scrambled, model));
+  const ratio = bootstrapRatio(scrambledAuthored, realAuthored, meta.bootstrap);
+  const label = `\`${pair.scrambled}\` vs \`${pair.real}\` (${model}, authored output)`;
 
   if (ratio.status !== EstimateStatus.Ok) {
     return `- ${label}: **insufficient data** (${ratio.reason}).`;
@@ -801,11 +1053,10 @@ function buildAblationVerdict(
     );
   }
 
-  const scrambledCostsMore = ratio.lowerBound > RATIO_OF_NO_DIFFERENCE;
-  if (scrambledCostsMore) {
+  if (ratio.lowerBound > RATIO_OF_NO_DIFFERENCE) {
     return (
-      `- ${label}: scrambling COST ${formatTimes(ratio.point)} more output (95% CI ${interval}). ` +
-      "Familiarity with the real names is worth something."
+      `- ${label}: scrambling COST ${formatTimes(ratio.point)} more authored output ` +
+      `(95% CI ${interval}). Familiarity with the real names is worth something.`
     );
   }
 
@@ -813,47 +1064,6 @@ function buildAblationVerdict(
     `- ${label}: scrambling was CHEAPER — ${formatTimes(ratio.point)} (95% CI ${interval}). ` +
     "This is evidence AGAINST the familiarity hypothesis and is printed first for that reason."
   );
-}
-
-// The behavioural half of the ablation: on ladder scenarios, did the scrambled
-// arm still reach for the high-fidelity component, or did it retreat to
-// low-fidelity primitives and paste the bytes?
-function buildLadderClimbingSubsection(metrics: readonly RunMetrics[]): string {
-  const ladderRuns = metrics.filter((run) => run.exercisesLadder);
-  const ablationArms = ABLATION_PAIRS.flatMap((pair) => [pair.real, pair.scrambled]);
-
-  const rows = ablationArms.flatMap((armId) => {
-    const armRuns = ladderRuns.filter((run) => run.armId === armId);
-    if (armRuns.length === 0) return [];
-
-    return [
-      [
-        `\`${armId}\``,
-        ARM_FIDELITY[armId],
-        String(armRuns.length),
-        String(countBehavior(armRuns, LadderBehavior.Referenced)),
-        String(countBehavior(armRuns, LadderBehavior.Pasted)),
-        String(countBehavior(armRuns, LadderBehavior.Inconclusive)),
-        String(countBehavior(armRuns, LadderBehavior.NoArtifact)),
-      ],
-    ];
-  });
-
-  if (rows.length === 0) {
-    return ["### Did the scrambled arm still climb the ladder?", "", "_No ladder runs._"].join("\n");
-  }
-
-  return [
-    "### Did the scrambled arm still climb the ladder?",
-    "",
-    "On ladder scenarios only: whether the artifact REFERENCED the source file by path (climbed) or",
-    "PASTED its contents (fell back to low-fidelity primitives).",
-    "",
-    renderMarkdownTable(
-      ["Arm", "Rung", "Ladder runs", "Referenced", "Pasted", "Inconclusive", "No artifact"],
-      rows,
-    ),
-  ].join("\n");
 }
 
 function buildDensitySection(
@@ -869,8 +1079,6 @@ function buildDensitySection(
     ].join("\n");
   }
 
-  // Ascending bytes: the densest notation is printed FIRST, which is where the
-  // terse formats are expected to beat parchment.
   const sorted = [...measurements].sort((left, right) => left.bytes - right.bytes);
   const rows = sorted.map((measurement) => [
     measurement.scenarioId,
@@ -896,15 +1104,16 @@ function buildDensitySection(
   return [
     "## Format density (notation cost per artifact)",
     "",
-    "This is the table where the terse formats are expected to WIN, and it is sorted densest-first",
-    "so they appear at the top. It is printed plainly because it does not decide the argument:",
-    "density is a per-character property, while the fidelity ladder is a per-ELEMENT property. A",
-    "notation that spells a diff in 20% fewer characters still has to spell the whole diff.",
+    "This is the table where the terse formats are expected to WIN, and it is sorted densest-first so",
+    "they appear at the top. It is printed plainly because it does not decide the argument: density is",
+    "a per-character property, while the fidelity ladder is a per-ELEMENT property. A notation that",
+    "spells a diff in 20% fewer characters still has to spell the whole diff.",
     "",
-    "**Bytes are exact. TOKEN COLUMNS ARE APPROXIMATIONS, not model tokenization.** No model",
-    "tokenizer is reachable offline on this machine (subscription-only Claude Code, no Console API",
-    "key), so these columns are computed, not measured. Nothing else in this report depends on them:",
-    "every other token number comes from the transcripts and is exact.",
+    "**Bytes are exact. TOKEN COLUMNS ARE APPROXIMATIONS, not model tokenization.** No tokenizer is",
+    "reachable offline here (subscription-only Claude Code, no Console API key), so these columns are",
+    "computed, not measured. The HEADLINE authored-token numbers do NOT come from here — they are read",
+    "from the transcripts and are exact. These approximations are load-bearing for exactly one thing:",
+    "the static reference floor, column (a) of the ladder table, which is labelled approximate there.",
     "",
     `- Method: ${TOKEN_APPROXIMATION.method}`,
     `- Known error: ${TOKEN_APPROXIMATION.knownError}`,
@@ -917,9 +1126,9 @@ function buildDensitySection(
 function formatDensityAudit(audit: ApproximationAudit): string {
   return (
     `across ${audit.runsCompared} single-attempt passing runs, the approximated artifact accounts ` +
-    `for ${formatPercent(audit.meanRatioToMeasuredOutput)} of the MEASURED output tokens on average ` +
-    `(range ${formatPercent(audit.minRatio)}–${formatPercent(audit.maxRatio)}). Values under 100% are ` +
-    "expected: the model also emits prose and tool scaffolding that is not part of the artifact."
+    `for ${formatPercent(audit.meanRatioToMeasuredOutput)} of the MEASURED session output tokens on ` +
+    `average (range ${formatPercent(audit.minRatio)}–${formatPercent(audit.maxRatio)}). Values well ` +
+    "under 100% are expected: the session also paid for exploration the artifact never contained."
   );
 }
 
@@ -927,12 +1136,13 @@ function buildCostSection(metrics: readonly RunMetrics[], cells: readonly Cell[]
   const comparisons = compareParchmentToBestRival(metrics, (run) => run.warmCacheCostUsd);
   const lossesAndWins = buildLossesAndWins(comparisons, "per correct render (warm)", formatUsd);
 
-  const rows = sortCellsBy(cells, (run) => run.objectiveTokens).map((cell) => {
+  const rows = sortCellsBy(cells, (run) => run.sessionTotalTokens).map((cell) => {
     const passing = cell.passingRuns;
     return [
       `\`${cell.armId}\``,
       cell.model,
       `${passing.length}/${cell.allRuns.length}`,
+      formatMean(summarize(valuesOf(passing, (run) => run.sessionTotalTokens)), formatCount),
       formatMean(summarize(valuesOf(passing, (run) => run.coldCacheCostUsd)), formatUsd),
       formatMean(summarize(valuesOf(passing, (run) => run.warmCacheCostUsd)), formatUsd),
       formatMean(summarize(valuesOf(passing, (run) => run.reportedCostUsd)), formatUsd),
@@ -945,26 +1155,31 @@ function buildCostSection(metrics: readonly RunMetrics[], cells: readonly Cell[]
       "Arm",
       "Model",
       "Passed/N",
-      "Cold-cache $ / correct render",
-      "Warm-cache $ / correct render",
-      "CLI-reported $ (mean)",
+      "SESSION tokens to correct render",
+      "Cold-cache $",
+      "Warm-cache $",
+      "CLI-reported $",
       "Cold spend incl. failures (total)",
     ],
     rows,
   );
 
   return [
-    "## Cost",
+    "## Session cost (the agent's bill, not the format's)",
     "",
-    "Both numbers are true. **Cold-cache** prices every cache-read token as if it were fresh input:",
-    "somebody paid to write that cache, and on the first call of the day nobody's cache is warm.",
-    "**Warm-cache** prices cache reads at the cache-read rate — the steady state a returning user",
-    "actually pays. The arms' ordering is least sensitive to the warm number, which is why both are",
-    "published rather than one blended figure.",
+    "**This is the money, and it is NOT the format comparison.** These numbers include every token the",
+    "agent spent exploring — reading the file, running git, thinking, retrying. They are the honest",
+    'answer to "what did this cost me", and a misleading answer to "which format is cheaper", because',
+    "a chatty agent and an expensive format are indistinguishable in this column. The format",
+    "comparison is the HEADLINE table.",
+    "",
+    "Both cache numbers are true. **Cold-cache** prices every cache-read token as if it were fresh",
+    "input: on the first call of the day nobody's cache is warm. **Warm-cache** prices cache reads at",
+    "the cache-read rate — the steady state a returning user pays.",
     "",
     "The CLI-reported column is Claude Code's own figure, printed so our arithmetic can be checked",
-    "against it. It is known to under-report on cached turns; where it disagrees with the columns to",
-    "its left, the token math is the number to trust.",
+    "against it. It is known to under-report on cached turns; where it disagrees, the token math is",
+    "the number to trust.",
     "",
     lossesAndWins,
     "",
@@ -972,19 +1187,23 @@ function buildCostSection(metrics: readonly RunMetrics[], cells: readonly Cell[]
   ].join("\n");
 }
 
+// ---- Methodology --------------------------------------------------------------
+
 function buildMethodologySection(meta: ReportMeta, metrics: readonly RunMetrics[]): string {
   return [
     "## Methodology (for a hostile reader)",
+    "",
+    buildNotShippedSubsection(),
     "",
     buildModelSubsection(meta, metrics),
     "",
     buildPromptsSubsection(meta),
     "",
+    buildAuthoredMetricSubsection(),
+    "",
     buildRepairSubsection(),
     "",
     buildHarnessSubsection(meta, metrics),
-    "",
-    buildClassifierSubsection(),
     "",
     buildIntervalSubsection(meta),
     "",
@@ -993,6 +1212,31 @@ function buildMethodologySection(meta: ReportMeta, metrics: readonly RunMetrics[
     buildNotTestedSubsection(),
     "",
     buildFalsificationSubsection(),
+  ].join("\n");
+}
+
+// The single most misreadable thing on this page, so it is the FIRST thing in the
+// methodology rather than a footnote.
+function buildNotShippedSubsection(): string {
+  return [
+    "### WHAT IS NOT SHIPPED",
+    "",
+    "**The high-fidelity reference components are not in parchment's shipped catalog.** `GitDiff` and",
+    "`LogStream` do not exist in the product at all. `DataTable src=` and `CodeBlock file=` are",
+    "reference-prop forms the shipped catalog does not accept. They are AUTHORING-side intents, and",
+    "this eval's own resolver (`evals/hydration/resolvers.ts`) lowers them into real catalog",
+    "components (DiffViewer, Chart, DataTable, CodeBlock) whose props the model never had to emit. The",
+    "real hydration engine lives on an unmerged branch.",
+    "",
+    "So, precisely:",
+    "",
+    "- **REAL, and what this eval measures:** what the model had to EMIT to reach a correct render.",
+    "  Those tokens were really spent by a real model, and the page really painted in a real browser.",
+    "- **NOT YET REAL:** the daemon fulfilling those references in production. A user cannot do this",
+    "  today.",
+    "",
+    'Any claim of the form "parchment renders a diff in 50 tokens" is a claim about a product that',
+    "does not exist yet. Read every ladder number with that sentence in front of you.",
   ].join("\n");
 }
 
@@ -1017,9 +1261,27 @@ function buildPromptsSubsection(meta: ReportMeta): string {
     "",
     "Every arm's system prompt, every task prompt, the session JSONL, and the artifact the model",
     `produced were archived verbatim with the run that used them, under \`${meta.archiveRelativePath}\`.`,
-    "Nothing in this report was typed by hand: regenerate it with",
-    "`bun run evals/cli.ts report --from <archive>` and every number reappears, including the",
-    "confidence intervals, which are seeded.",
+    "Nothing here was typed by hand: regenerate it with `bun run evals/cli.ts report --from <archive>`",
+    "and every number reappears, including the confidence intervals, which are seeded.",
+  ].join("\n");
+}
+
+function buildAuthoredMetricSubsection(): string {
+  return [
+    "### How the headline number is measured",
+    "",
+    "`authoredOutputTokens` is the output-token count of the single assistant message that carried the",
+    "render call — `canvas_render` for the catalog arms, `Write` for raw-html and raw-jsx. It is read",
+    "from the transcript, not estimated from a character count, and it is derived by the SAME rule for",
+    "every arm. It is summed across attempts, so a format that needed three tries pays for three",
+    "artifacts. An attempt that never authored anything contributes 0: it did not pay the format's",
+    "cost, because it never produced the format.",
+    "",
+    "`usedReference` is set when the artifact the model emitted into the tool call actually used a",
+    "reference component. It is read from what was emitted — not inferred from the artifact's size.",
+    "",
+    "An archive that predates these fields prints **NOT MEASURED**. Nothing is backfilled or",
+    "reconstructed after the fact.",
   ].join("\n");
 }
 
@@ -1030,27 +1292,21 @@ function buildRepairSubsection(): string {
     "A failed artifact is handed back to the model with its OWN toolchain's error signal (its",
     "compiler's issues, its validator's issues, the browser's console errors) plus the rubric's",
     `"missing from the page" list, phrased identically for every arm. Up to ${MAX_REPAIR_TURNS} repair`,
-    `turns are allowed, so a run is at most ${MAX_ATTEMPTS_PER_RUN} attempts, and the repair turn`,
-    "resumes the same session so the model can see what it wrote. Every token spent inside that loop",
-    "counts toward the objective function. `pass@1` is the fraction of runs whose FIRST attempt was",
-    "accepted; `pass@3` is the fraction accepted within three attempts.",
+    `turns are allowed, so a run is at most ${MAX_ATTEMPTS_PER_RUN} attempts, and a repair resumes the`,
+    "same session so the model can see what it wrote. `pass@1` is the fraction of runs whose FIRST",
+    "attempt was accepted; `pass@3` is the fraction accepted within three attempts.",
   ].join("\n");
 }
 
 function buildHarnessSubsection(meta: ReportMeta, metrics: readonly RunMetrics[]): string {
   const constantLines = modelsPresentIn(metrics).flatMap((model) => {
     const constant = meta.harnessConstantsByModel[model];
-    if (!constant) {
-      return [
-        `- \`${model}\`: **NOT MEASURED for this archive.** The harness-subtracted column reads` +
-          " \"not measured\" rather than showing a number nobody verified.",
-      ];
-    }
+    if (!constant) return [`- \`${model}\`: **NOT MEASURED for this archive.**`];
 
-    return Object.values(AuthoringSurface).map((surface) => {
-      const tokens = constant.promptTokensBySurface[surface];
-      return `- \`${model}\` / \`${surface}\`: ${formatCount(tokens)} tokens`;
-    });
+    return Object.values(AuthoringSurface).map(
+      (surface) =>
+        `- \`${model}\` / \`${surface}\`: ${formatCount(constant.promptTokensBySurface[surface])} tokens`,
+    );
   });
 
   const workingsExample = metrics.find((run) => run.harnessWorkings !== null)?.harnessWorkings;
@@ -1058,39 +1314,20 @@ function buildHarnessSubsection(meta: ReportMeta, metrics: readonly RunMetrics[]
   return [
     "### The harness constant, and how it was measured",
     "",
-    "Claude Code injects its own system prompt and tool schemas into every arm before the arm has",
-    "said anything. It is MEASURED, not estimated: one control turn per authoring surface, through",
-    "the same harness, with a trivial task and no arm system prompt. The constant is the prompt",
-    "tokens of the FIRST assistant message — everything the model read before it had written",
-    "anything.",
+    "Claude Code injects its own system prompt and tool schemas into every arm before the arm has said",
+    "anything. It is MEASURED, not estimated: one control turn per authoring surface, through the same",
+    "harness, with a trivial task and no arm system prompt. The constant is the prompt tokens of the",
+    "FIRST assistant message — everything the model read before it had written anything.",
     "",
     ...constantLines,
     "",
-    "Measured per SURFACE because the tool schemas differ (canvas_render's schema vs Write's). Two",
-    "arms on the same surface pay the same constant, so it cannot bias a comparison between them;",
-    "a comparison ACROSS surfaces carries whatever difference the two numbers above show, and that",
-    "difference lands in the INPUT columns only — never in output, which is the primary axis.",
-    "",
-    "It is subtracted once per assistant turn (it is paid on every turn: written to cache on the",
-    "first, read from cache after) and floored at zero, because a negative adjusted input would mean",
-    "the constant was mismeasured and publishing it silently would hide that.",
+    "Measured per SURFACE because the tool schemas differ (canvas_render's schema vs Write's). It is",
+    "subtracted once per assistant turn and floored at zero. It lands in the INPUT columns only, never",
+    "in output — so it cannot bias the headline.",
     ...(workingsExample ? ["", `Worked example from this archive: \`${workingsExample}\`.`] : []),
     "",
     "Input RAW and input harness-subtracted are printed side by side. Subtract it or restore it",
-    "yourself; the report never does it quietly. Input tokens are fresh input + cache reads + cache",
-    "writes, which the usage schema reports as a disjoint partition of what the model read.",
-  ].join("\n");
-}
-
-function buildClassifierSubsection(): string {
-  return [
-    "### The ladder-climbing classifier",
-    "",
-    `An artifact is classified PASTED when it is at least ${formatPercent(PASTE_DETECTION_BYTE_FRACTION)} of the size`,
-    "of the scenario's source data — at that size it is carrying the data itself. Otherwise, if it",
-    "names one of the scenario's source paths, it is REFERENCED. Anything else is INCONCLUSIVE. This",
-    "is a heuristic over the archived artifact text, not a claim from the model; the artifacts are in",
-    "the archive, so the classification can be re-derived or disputed.",
+    "yourself; the report never does it quietly.",
   ].join("\n");
 }
 
@@ -1101,6 +1338,8 @@ function buildIntervalSubsection(meta: ReportMeta): string {
     `${BOOTSTRAP_METHOD_DESCRIPTION} Seed: \`${meta.bootstrap.seed}\`. Resamples: ` +
       `${formatCount(meta.bootstrap.resamples)}. Confidence: ${formatPercent(meta.bootstrap.confidence)}.`,
     "",
+    WILSON_METHOD_DESCRIPTION,
+    "",
     "A cell with fewer than two passing runs prints `insufficient data` rather than a point estimate",
     "dressed up as a measurement.",
   ].join("\n");
@@ -1110,34 +1349,42 @@ function buildUncontrolledSubsection(): string {
   return [
     "### What we did NOT control for",
     "",
-    "- **Model nondeterminism.** Temperature is not pinnable through the Claude Code path.",
-    "  Replicates are the only defence, and N per cell is small.",
+    "- **Model nondeterminism.** Temperature is not pinnable through the Claude Code path. Replicates",
+    "  are the only defence, and N per cell is small.",
+    "- **Agentic exploration.** How much the model reads, greps, and thinks before it authors is a",
+    "  property of the task and the harness, and it varies enormously run to run. This is precisely",
+    "  why the headline is the authored artifact and not the session.",
     "- **Prompt-writing skill.** Each arm's system prompt was written by us. A better prompt for a",
-    "  rival format exists, and we did not find it. The rival prompts are in the archive; rewrite",
-    "  them and re-run.",
+    "  rival format exists, and we did not find it. This cuts both ways: a better prompt for OUR arm",
+    "  might also make the model climb the ladder — which the section above says we failed to get.",
     "- **Model familiarity with HTML.** HTML and JSX are overwhelmingly represented in pretraining;",
     "  parchment's vocabulary is not. This cuts AGAINST parchment, and we did not correct for it.",
     "- **Scenario selection.** We chose the scenarios, and we chose them to exercise the ladder —",
     "  which is the hypothesis under test. That is the point, and it is also the bias.",
-    "- **Wall-clock time.** Runs are paced, not parallelised, and the bench daemon is already warm.",
-    "  Latency numbers here are not a product benchmark.",
-    "- **Cache state across runs.** Cache hits depend on run order; that is exactly why both the cold",
-    "  and the warm cost columns are published instead of one blended number.",
+    "- **Cache state across runs.** Cache hits depend on run order; that is why both the cold and the",
+    "  warm cost columns are published instead of one blended number.",
   ].join("\n");
 }
 
 function buildNotTestedSubsection(): string {
   return [
-    "### NOT TESTED",
+    "### NOT TESTED — and this is THE open question",
     "",
-    "- **Strict tool use / grammar-constrained decoding is UNREACHABLE through Claude Code's MCP path",
-    "  and was NOT tested.** A constrained decoder would likely eliminate the rival formats' syntax",
-    "  errors and change the repair-turn numbers. We did not simulate it, and we claim nothing about",
-    "  it. This is the single biggest gap in the eval.",
-    "- Streaming and partial-render latency: not measured.",
-    "- Human preference and aesthetic quality: not measured.",
-    "- Multi-turn conversational editing of an existing canvas: not measured.",
-    "- Any model outside the ones listed above.",
+    "**Strict tool use / grammar-constrained decoding is UNREACHABLE through Claude Code's MCP path,",
+    "and was NOT tested.** Reaching it needs a Console API key, which this eval does not have: it runs",
+    "on a subscription. This gap matters more than any other on this page, for two reasons:",
+    "",
+    "1. A constrained decoder would likely eliminate the rival formats' syntax errors and cut their",
+    "   repair turns — so the arm most likely to benefit is the one we beat.",
+    "2. It is also the most plausible mechanism for making a model actually USE a reference component",
+    "   instead of pasting a file. The ladder-climbing failure reported above might simply not survive",
+    "   it.",
+    "",
+    "We did not simulate it, and we claim nothing about it. Anyone with a Console API key can settle",
+    "it, and until someone does, this page has an open question at its centre.",
+    "",
+    "Also not measured: streaming and partial-render latency; human preference and aesthetic quality;",
+    "multi-turn conversational editing of an existing canvas; any model not listed above.",
   ].join("\n");
 }
 
@@ -1145,27 +1392,31 @@ function buildFalsificationSubsection(): string {
   return [
     "### How to falsify this",
     "",
-    "1. **Kill the ladder.** Give a rival format a reference mechanism (a file-path directive its",
-    "   runtime hydrates). If the gap survives, the claim is about the ladder. If it collapses, the",
-    "   claim was only ever about a missing feature in the rivals, and this report is wrong.",
-    "2. **Rewrite our rival prompts.** They are archived. If a better raw-HTML system prompt closes",
-    "   the output-token gap on the ladder scenarios, say so with the run records.",
-    "3. **Raise N.** Every interval here is a bootstrap over a small sample. Raise `--replicates`",
-    "   until the intervals separate or overlap decisively.",
-    "4. **Change the rubric.** It is pure data and imports no parchment code. If it flatters us, edit",
+    "1. **Make the model climb.** If a better system prompt (or a constrained decoder) makes the",
+    "   high-fidelity arm reach for the reference component reliably, the ladder becomes a measured",
+    "   result instead of an opportunity. If nothing makes it climb, the ladder is worth nothing in",
+    "   practice, no matter how good column (a) looks.",
+    "2. **Kill the ladder.** Give a rival format a reference mechanism its runtime hydrates. If the",
+    "   authored-token gap survives that, the claim is about the ladder. If it collapses, the claim",
+    "   was only ever about a missing feature in the rivals.",
+    "3. **Rewrite our rival prompts.** They are archived. If a better raw-HTML system prompt closes the",
+    "   authored-token gap, say so with the run records.",
+    "4. **Raise N.** Every interval here is over a small sample. Raise `--replicates` until the",
+    "   intervals separate or overlap decisively.",
+    "5. **Change the rubric.** It is pure data and imports no parchment code. If it flatters us, edit",
     "   the assertions and re-run.",
-    "5. **Check the arithmetic offline.** `report --from <archive>` recomputes every table from the",
-    "   raw records without calling a model. The intervals are seeded, so they must come back",
-    "   identical. If they do not, something is wrong and you should not trust this page.",
+    "6. **Check the arithmetic offline.** `report --from <archive>` recomputes every table from the raw",
+    "   records without calling a model. The intervals are seeded, so they must come back identical. If",
+    "   they do not, something is wrong and you should not trust this page.",
   ].join("\n");
 }
 
 // ---- Sorting -----------------------------------------------------------------
 
-function sortCellsBy(cells: readonly Cell[], selector: (run: RunMetrics) => number): Cell[] {
+function sortCellsBy(cells: readonly Cell[], selector: (run: RunMetrics) => number | null): Cell[] {
   return [...cells].sort((left, right) => {
-    const leftMean = meanOrNull(valuesOf(left.passingRuns, selector));
-    const rightMean = meanOrNull(valuesOf(right.passingRuns, selector));
+    const leftMean = meanOrNull(selectValues(left.passingRuns, selector));
+    const rightMean = meanOrNull(selectValues(right.passingRuns, selector));
     return compareNullableAscending(leftMean, rightMean);
   });
 }
@@ -1181,6 +1432,16 @@ function compareNullableAscending(left: number | null, right: number | null): nu
 
 // ---- Small helpers -----------------------------------------------------------
 
+function selectValues(
+  runs: readonly RunMetrics[],
+  selector: (run: RunMetrics) => number | null,
+): number[] {
+  return runs.flatMap((run) => {
+    const value = selector(run);
+    return value === null ? [] : [value];
+  });
+}
+
 function groupByScenarioAndModel(metrics: readonly RunMetrics[]): Map<string, RunMetrics[]> {
   const groups = new Map<string, RunMetrics[]>();
   for (const metric of metrics) {
@@ -1193,36 +1454,25 @@ function groupByScenarioAndModel(metrics: readonly RunMetrics[]): Map<string, Ru
 }
 
 function distinctArms(runs: readonly RunMetrics[], family: ArmFamily): ArmId[] {
-  const arms = new Set(
-    runs.filter((run) => ARM_FAMILY[run.armId] === family).map((run) => run.armId),
-  );
-  return [...arms];
+  return [
+    ...new Set(runs.filter((run) => ARM_FAMILY[run.armId] === family).map((run) => run.armId)),
+  ];
 }
 
 function runsOf(metrics: readonly RunMetrics[], armId: ArmId, model: EvalModel): RunMetrics[] {
   return metrics.filter((run) => run.armId === armId && run.model === model);
 }
 
-function outputsOfPassingRuns(runs: readonly RunMetrics[]): number[] {
-  return runs.filter((run) => run.passed).map((run) => run.outputTokens);
-}
-
-function outputsOfArm(metrics: readonly RunMetrics[], armId: ArmId): number[] {
-  return outputsOfPassingRuns(metrics.filter((run) => run.armId === armId));
+function passingRunsOf(
+  metrics: readonly RunMetrics[],
+  armId: ArmId,
+  model: EvalModel,
+): RunMetrics[] {
+  return runsOf(metrics, armId, model).filter((run) => run.passed);
 }
 
 function modelsPresentIn(metrics: readonly RunMetrics[]): EvalModel[] {
   return [...new Set(metrics.map((run) => run.model))];
-}
-
-function countBehavior(runs: readonly RunMetrics[], behavior: LadderBehavior): number {
-  return runs.filter((run) => run.ladderBehavior === behavior).length;
-}
-
-function formatLadderBehaviorCounts(runs: readonly RunMetrics[]): string {
-  const referenced = countBehavior(runs, LadderBehavior.Referenced);
-  const pasted = countBehavior(runs, LadderBehavior.Pasted);
-  return `${referenced} referenced / ${pasted} pasted`;
 }
 
 function sumOf<Item>(items: readonly Item[], selector: (item: Item) => number): number {
@@ -1233,15 +1483,16 @@ function meanOrNull(values: readonly number[]): number | null {
   return summarize(values)?.mean ?? null;
 }
 
-function byAttemptIndex(left: AttemptRecord, right: AttemptRecord): number {
+function byAttemptIndex(left: EvalAttemptRecord, right: EvalAttemptRecord): number {
   return left.attemptIndex - right.attemptIndex;
 }
 
 // ---- Formatting --------------------------------------------------------------
 
 const NOT_AVAILABLE = "n/a";
+const NOT_APPLICABLE = "n/a";
 const NEVER_PASSED = "never passed";
-const NOT_MEASURED = "not measured";
+const NOT_MEASURED = "NOT MEASURED";
 const USD_DECIMALS = 4;
 const TIMES_DECIMALS_BELOW_TEN = 2;
 const TIMES_DECIMALS_AT_OR_ABOVE_TEN = 1;
@@ -1270,19 +1521,19 @@ function formatMeanOrNotMeasured(
   return formatValue(summary.mean);
 }
 
-function formatMedian(
+function formatMedianOrNotMeasured(
   summary: SampleSummary | null,
   formatValue: (value: number) => string,
 ): string {
-  if (!summary) return NEVER_PASSED;
+  if (!summary) return NOT_MEASURED;
   return formatValue(summary.median);
 }
 
-function formatSpread(
+function formatSpreadOrNotMeasured(
   summary: SampleSummary | null,
   formatValue: (value: number) => string,
 ): string {
-  if (!summary) return NEVER_PASSED;
+  if (!summary) return NOT_MEASURED;
   return `${formatValue(summary.min)}–${formatValue(summary.max)}`;
 }
 
@@ -1292,6 +1543,11 @@ function formatInterval(
 ): string {
   if (estimate.status !== EstimateStatus.Ok) return `insufficient data (${estimate.reason})`;
   return `${formatValue(estimate.lowerBound)}–${formatValue(estimate.upperBound)}`;
+}
+
+function formatProportionInterval(estimate: ProportionEstimate): string {
+  if (estimate.status !== EstimateStatus.Ok) return `insufficient data (${estimate.reason})`;
+  return `${formatPercent(estimate.lowerBound)}–${formatPercent(estimate.upperBound)}`;
 }
 
 function formatCount(value: number): string {

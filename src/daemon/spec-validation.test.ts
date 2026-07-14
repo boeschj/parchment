@@ -864,6 +864,60 @@ describe("prepareSpec — required props are presence-checked, expressions satis
   });
 });
 
+// Validation runs BEFORE hydration, so it must know what hydration is about to
+// supply — the contract in shared/expressions.ts (PropValueReferences) is the one
+// table both passes read. Get this wrong and the flagship reference form is
+// rejected for a `columns` array the model cannot write: it has never opened the
+// file, which is the entire point of naming it instead of pasting it.
+describe("prepareSpec — a reference supplies the props derivable from the file", () => {
+  function dataTable(props: Record<string, unknown>): JsonRenderSpec {
+    return { root: "t", elements: { t: { type: "DataTable", props, children: [] } } };
+  }
+
+  it("a $csv in rows satisfies columns — the daemon derives it from the header", () => {
+    const { issues } = prepareSpec(dataTable({ rows: { $csv: "bench/results.csv" } }));
+    expect(issues).toEqual([]);
+  });
+
+  it("the bare-string shorthand is the same reference and satisfies it too", () => {
+    const { issues } = prepareSpec(dataTable({ rows: "$csv:bench/results.csv" }));
+    expect(issues).toEqual([]);
+  });
+
+  it("an authored columns array is left exactly as written", () => {
+    const columns = [{ key: "run", header: "Run" }];
+    const { spec: prepared, issues } = prepareSpec(
+      dataTable({ rows: { $csv: "bench/results.csv" }, columns }),
+    );
+    expect(issues).toEqual([]);
+    expect(prepared.elements.t!.props.columns).toEqual(columns);
+  });
+
+  // The supply is not a blanket exemption: without a reference to derive from,
+  // columns is still required, and rows still is too.
+  it("still requires columns when rows is a literal array", () => {
+    const { issues } = prepareSpec(dataTable({ rows: [{ run: "r1" }] }));
+    expect(issues).toEqual([
+      'elements/t/props/columns: DataTable requires "columns", which is missing — give it a value or bind it ' +
+        '({"$state": "/path"}). DataTable requires: columns, rows.',
+    ]);
+  });
+
+  // A Chart reading the same CSV gets its rows and nothing else. Which series to
+  // plot is the model's editorial call, not a fact about the file — so x, y and
+  // kind stay required, and saying so is correct, not a gap.
+  it("supplies nothing to a Chart: kind, x and y remain the model's to choose", () => {
+    const { issues } = prepareSpec({
+      root: "c",
+      elements: { c: { type: "Chart", props: { data: { $csv: "bench/results.csv" } }, children: [] } },
+    });
+    expect(issues).toHaveLength(3);
+    expect(issues.join("\n")).toContain('Chart requires "kind"');
+    expect(issues.join("\n")).toContain('Chart requires "x"');
+    expect(issues.join("\n")).toContain('Chart requires "y"');
+  });
+});
+
 describe("prepareSpec — events, actions and bindings must exist", () => {
   it("Button on.click: the submit button that did nothing", () => {
     // validated-form-parchment-sonnet-rep1/2/3 and both opus reps — every

@@ -98,6 +98,65 @@ export function elementLevelReferenceOf(
   return contract;
 }
 
+// A PROP-VALUE reference can supply more than the prop it sits in. `{"rows":
+// {"$csv": "results.csv"}}` on a DataTable resolves against a file whose FIRST
+// ROW is the table's shape, so the daemon fills `columns` from it too — the
+// model names a file it has never opened and never has to guess its header. That
+// is the whole point of the reference: the daemon reads the file, not the model.
+//
+// Same one-table-two-readers contract as ElementLevelReferences above, for the
+// other reference shape. Validation runs BEFORE hydration, so it reads this to
+// stop reporting the supplied props missing; hydration reads it to know which
+// props to fill from the resolution it just performed. An explicitly authored
+// prop always wins: hydration never overwrites `columns` the author wrote.
+export const PropValueReferences = {
+  DataTable: {
+    prop: "rows",
+    key: ReferenceExpressionKey.Csv,
+    supplies: ["columns"],
+  },
+} as const satisfies Record<string, PropValueReferenceContract>;
+
+export type PropValueReferenceContract = {
+  prop: string;
+  key: ReferenceExpressionKey;
+  supplies: readonly string[];
+};
+
+type PropValueReferenceTable = typeof PropValueReferences;
+type PropValueReferenceEntry = PropValueReferenceTable[keyof PropValueReferenceTable];
+
+// The props a reference of one KIND supplies, across every component whose
+// contract declares it. The hydrator types its resolution against this, so a
+// prop added to a `supplies` list above does not compile until hydration
+// actually produces it — the validator can never promise a prop the hydrator
+// does not fill.
+export type SuppliedPropsOf<Key extends ReferenceExpressionKey> = Record<
+  Extract<PropValueReferenceEntry, { key: Key }>["supplies"][number],
+  unknown
+>;
+
+// The contract for an element whose prop carries a supplying reference, or null
+// when it carries none. Both the reference's kind and the prop it sits in must
+// match: a $file in DataTable.rows supplies nothing, and neither does a $csv in
+// Chart.data (a Chart plots the rows; it has no columns to fill).
+export function propValueReferenceOf(
+  componentType: string,
+  props: Record<string, unknown>,
+): PropValueReferenceContract | null {
+  const contract = propValueReferenceContractFor(componentType);
+  if (!contract) return null;
+  const reference = parseReferenceValue(props[contract.prop]);
+  if (reference === null) return null;
+  if (referenceKeyOf(reference) !== contract.key) return null;
+  return contract;
+}
+
+function propValueReferenceContractFor(componentType: string): PropValueReferenceContract | null {
+  const table: Readonly<Record<string, PropValueReferenceContract>> = PropValueReferences;
+  return table[componentType] ?? null;
+}
+
 // The $-key present on a reference object, or null when the value is not a
 // reference. A reference is recognized only when its $-key holds a string, so
 // {$state:...} objects and stray $-keys never read as references.
@@ -111,6 +170,17 @@ export function referenceKeyOf(value: unknown): ReferenceExpressionKey | null {
 
 export function isReferenceExpression(value: unknown): boolean {
   return referenceKeyOf(value) !== null;
+}
+
+// A prop value carrying a reference, normalized from EITHER authored form — the
+// object ({"$csv": "x.csv", "limit": 500}) or the string shorthand ("$csv:x.csv")
+// — into the one flat record the hydrator reads options off. Null when the value
+// is not a reference at all. One definition, so every reader agrees on what
+// counts as a reference.
+export function parseReferenceValue(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") return parseReferenceShorthand(value);
+  if (isPlainObject(value) && isReferenceExpression(value)) return value;
+  return null;
 }
 
 // Bare-string shorthand for a whole-resource reference: "$file:src/a.ts",

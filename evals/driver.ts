@@ -23,8 +23,12 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { BlockKind, TraceEntryKind, type ContentBlock, type TraceEntry } from "@boeschj/claude-jsonl";
-import { CANVAS_MCP_SERVER_KEY, CanvasTool } from "../bench/config.ts";
-import { writeCanvasMcpConfig } from "../bench/mcp-config.ts";
+import { CanvasTool } from "../bench/config.ts";
+import {
+  CANVAS_MCP_SERVER_KEY,
+  CANVAS_RENDER_TOOL,
+  writeEvalCanvasMcpConfig,
+} from "./mcp/config.ts";
 import { locateSessionJsonl } from "../bench/session-locator.ts";
 import { readTranscriptEntries } from "../bench/metrics/read-transcript.ts";
 import { EvalPaths, RUN_TIMEOUT_MS } from "./config.ts";
@@ -32,6 +36,7 @@ import type { EvalDaemon } from "./daemon.ts";
 import {
   AuthoringSurface,
   type Arm,
+  type ArmId,
   type AuthoredArtifact,
   type EvalModel,
   type EvalScenario,
@@ -81,7 +86,10 @@ const READ_ONLY_TOOLS = [
   BuiltInTool.BashOutput,
 ] as const;
 
-const CANVAS_TOOL_GRANTS = [CanvasTool.Render, ...READ_ONLY_TOOLS] as const;
+// The eval's OWN canvas server (evals/mcp) is what the arm is wired to — it is
+// the daemon parchment will have once the markup and hydration branches land.
+// The tool name it exposes is the real one, so the model's surface is unchanged.
+const CANVAS_TOOL_GRANTS = [CANVAS_RENDER_TOOL, ...READ_ONLY_TOOLS] as const;
 const WRITTEN_FILE_GRANTS = [BuiltInTool.Write, ...READ_ONLY_TOOLS] as const;
 
 const KNOWN_TOOLS: readonly string[] = [...Object.values(BuiltInTool), ...Object.values(CanvasTool)];
@@ -184,6 +192,14 @@ export type ArmAttemptResult = {
   // or it died before writing stdout).
   cliResult: ClaudeCliResult | null;
   artifact: AuthoredArtifact | null;
+  // The assistant message that carried the render tool call. THE HEADLINE METRIC
+  // is that message's output tokens (ledger.ts): the cost of EMITTING the
+  // artifact, isolated from the cost of exploring the repo to build it.
+  authoringMessageId: string | null;
+  // A model that rendered twice in one attempt is attributed to its LAST render —
+  // the artifact the user would be looking at. The count is kept so a chatty
+  // render loop cannot hide inside a single "authoring" number.
+  renderCallCount: number;
   wallClockMs: number;
   timedOut: boolean;
   failureKind: FailureKind;
@@ -200,6 +216,7 @@ export async function runArmAttempt(options: ArmAttemptOptions): Promise<ArmAtte
 
   const argv = buildClaudeArgv({
     surface: options.arm.surface,
+    armId: options.arm.id,
     systemPrompt: options.arm.systemPrompt,
     prompt: options.prompt,
     model: options.model,
@@ -213,7 +230,7 @@ export async function runArmAttempt(options: ArmAttemptOptions): Promise<ArmAtte
   const cliResult = parseCliResult(invocation.stdout);
   const transcriptSessionId = cliResult?.sessionId ?? sessionId;
   const transcript = readTranscriptSafely(transcriptSessionId);
-  const artifact = extractAuthoredArtifact({
+  const authoring = extractAuthoredArtifact({
     entries: transcript.entries,
     surface: options.arm.surface,
     cwd: options.cwd,
@@ -225,7 +242,9 @@ export async function runArmAttempt(options: ArmAttemptOptions): Promise<ArmAtte
     transcriptPath: transcript.path,
     entries: transcript.entries,
     cliResult,
-    artifact,
+    artifact: authoring.artifact,
+    authoringMessageId: authoring.authoringMessageId,
+    renderCallCount: authoring.renderCallCount,
     wallClockMs: invocation.wallClockMs,
     timedOut: invocation.timedOut,
     failureKind: invocation.failureKind,
@@ -246,6 +265,10 @@ export async function runArmAttempt(options: ArmAttemptOptions): Promise<ArmAtte
 // with a probe that has no arm attached at all.
 export type ClaudeArgvInput = {
   surface: AuthoringSurface;
+  // The eval's canvas server must know which authoring vocabulary the document
+  // will arrive in (scrambled aliases? terse structural keys?), so the arm id
+  // travels with the --mcp-config rather than being guessed from the bytes.
+  armId: ArmId;
   // Appended verbatim via --append-system-prompt. Empty for the harness probe.
   systemPrompt: string;
   prompt: string;
@@ -319,10 +342,11 @@ function buildMcpArgs(input: ClaudeArgvInput): string[] {
   }
   // CANVAS_SESSION_ID pins the MCP server to THIS attempt's session, and HOME
   // points it at the eval daemon's scratch state dir — never the operator's.
-  const mcpConfigPath = writeCanvasMcpConfig({
+  const mcpConfigPath = writeEvalCanvasMcpConfig({
     runDir: input.mcpConfigDir,
     sessionId: input.sessionId,
-    benchDaemonHomeDir: input.daemon.homeDir,
+    armId: input.armId,
+    daemonHomeDir: input.daemon.homeDir,
   });
   return ["--mcp-config", mcpConfigPath];
 }
@@ -348,6 +372,9 @@ export const CANVAS_SERVER_KEY = CANVAS_MCP_SERVER_KEY;
 // would measure a harness nobody runs.
 export type ClaudeProbeOptions = {
   surface: AuthoringSurface;
+  // Only reaches the --mcp-config's env: the canvas tool SCHEMA (which is what a
+  // probe measures) is identical for every arm.
+  armId: ArmId;
   model: EvalModel;
   systemPrompt: string;
   prompt: string;
@@ -369,6 +396,7 @@ export async function runClaudeProbe(options: ClaudeProbeOptions): Promise<Claud
 
   const argv = buildClaudeArgv({
     surface: options.surface,
+    armId: options.armId,
     systemPrompt: options.systemPrompt,
     prompt: options.prompt,
     model: options.model,
@@ -567,29 +595,42 @@ type ArtifactExtraction = {
   previousMessageIds: ReadonlySet<string>;
 };
 
-// The authoring tool call for each surface. The model's LAST one wins: if it
-// rendered twice inside a single attempt, the second render is what the user
-// would be looking at.
-export function extractAuthoredArtifact(extraction: ArtifactExtraction): AuthoredArtifact | null {
-  const toolUses = collectNewToolUses(extraction.entries, extraction.previousMessageIds);
+// What the arm authored, and WHICH assistant message authored it.
+//
+// The authoring call is the canvas_render tool_use for a CanvasTool arm and the
+// Write tool_use for a WrittenFile arm — the SAME rule for every arm, so no arm
+// gets a different accounting. The model's LAST render wins: if it rendered twice
+// inside one attempt, the second is what the user would be looking at.
+export type AuthoringExtraction = {
+  artifact: AuthoredArtifact | null;
+  authoringMessageId: string | null;
+  renderCallCount: number;
+};
 
-  if (extraction.surface === AuthoringSurface.CanvasTool) {
-    const renders = toolUses.filter((toolUse) => toolUse.toolName === CanvasTool.Render);
-    const lastRender = renders.at(-1);
-    if (lastRender === undefined) return null;
-    return { source: authoredSourceOf(lastRender.input), toolInput: lastRender.input };
+export function extractAuthoredArtifact(extraction: ArtifactExtraction): AuthoringExtraction {
+  const toolUses = collectNewToolUses(extraction.entries, extraction.previousMessageIds);
+  const renderCalls = toolUses.filter((toolUse) => isAuthoringCall(toolUse, extraction));
+
+  const lastRender = renderCalls.at(-1);
+  if (lastRender === undefined) {
+    return { artifact: null, authoringMessageId: null, renderCallCount: 0 };
   }
 
-  const writes = toolUses.filter((toolUse) => isWriteIntoRunDir(toolUse, extraction.cwd));
-  const lastWrite = writes.at(-1);
-  if (lastWrite === undefined) return null;
-
-  const content = lastWrite.input.content;
-  const source = typeof content === "string" ? content : "";
-  return { source, toolInput: lastWrite.input };
+  return {
+    artifact: { source: authoredSourceOf(lastRender.input, extraction.surface), toolInput: lastRender.input },
+    authoringMessageId: lastRender.messageId,
+    renderCallCount: renderCalls.length,
+  };
 }
 
-type ToolUse = { toolName: string; toolUseId: string; input: Record<string, unknown> };
+function isAuthoringCall(toolUse: ToolUse, extraction: ArtifactExtraction): boolean {
+  if (extraction.surface === AuthoringSurface.CanvasTool) {
+    return toolUse.toolName === CANVAS_RENDER_TOOL;
+  }
+  return isWriteIntoRunDir(toolUse, extraction.cwd);
+}
+
+type ToolUse = { toolName: string; toolUseId: string; messageId: string | null; input: Record<string, unknown> };
 
 function collectNewToolUses(
   entries: readonly TraceEntry[],
@@ -603,7 +644,12 @@ function collectNewToolUses(
 
     for (const block of entry.blocks) {
       if (!isToolUseBlock(block)) continue;
-      toolUses.push({ toolName: block.toolName, toolUseId: block.toolUseId, input: block.input });
+      toolUses.push({
+        toolName: block.toolName,
+        toolUseId: block.toolUseId,
+        messageId: entry.messageId,
+        input: block.input,
+      });
     }
   }
 
@@ -621,7 +667,12 @@ function isToolUseBlock(block: ContentBlock): block is Extract<ContentBlock, { k
 // one, and the whole tool input is archived alongside it either way.
 const AUTHORED_SOURCE_FIELDS = ["markup", "source", "document", "spec"] as const;
 
-function authoredSourceOf(toolInput: Record<string, unknown>): string {
+function authoredSourceOf(toolInput: Record<string, unknown>, surface: AuthoringSurface): string {
+  if (surface === AuthoringSurface.WrittenFile) {
+    const content = toolInput.content;
+    return typeof content === "string" ? content : "";
+  }
+
   for (const field of AUTHORED_SOURCE_FIELDS) {
     const value = toolInput[field];
     if (typeof value === "string") return value;

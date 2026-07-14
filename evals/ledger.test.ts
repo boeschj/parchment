@@ -21,7 +21,8 @@ import {
   summariseRun,
   summariseTranscript,
 } from "./ledger.ts";
-import { EvalModel, type AttemptRecord } from "./types.ts";
+import { EvalModel } from "./types.ts";
+import type { AuthoringMeasurement, EvalAttemptRecord } from "./ledger.ts";
 
 const BENCH_FIXTURE = join(
   import.meta.dir,
@@ -71,10 +72,15 @@ function thinkingBlock(thinking: string): Record<string, unknown> {
   return { type: "thinking", thinking };
 }
 
-function attemptRecord(overrides: Partial<AttemptRecord>): AttemptRecord {
+function attemptRecord(overrides: Partial<EvalAttemptRecord>): EvalAttemptRecord {
   return {
     attemptIndex: 0,
     outputTokens: 0,
+    authoredOutputTokens: 0,
+    authoredArtifactBytes: 0,
+    renderCallCount: 0,
+    usedReference: false,
+    referenceKindsUsed: [],
     inputTokens: 0,
     cacheReadTokens: 0,
     cacheCreationTokens: 0,
@@ -84,6 +90,17 @@ function attemptRecord(overrides: Partial<AttemptRecord>): AttemptRecord {
     artifact: null,
     accepted: false,
     failureReasons: [],
+    ...overrides,
+  };
+}
+
+function authoring(overrides: Partial<AuthoringMeasurement> = {}): AuthoringMeasurement {
+  return {
+    authoringMessageId: null,
+    renderCallCount: 0,
+    authoredArtifactBytes: 0,
+    usedReference: false,
+    referenceKindsUsed: [],
     ...overrides,
   };
 }
@@ -213,6 +230,7 @@ describe("a repair turn on a resumed session", () => {
       wallClockMs: 5_000,
       reportedCostUsd: 0.02,
       artifact: null,
+      authoring: authoring({ authoringMessageId: "msg_author", renderCallCount: 1 }),
       accepted: false,
       failureReasons: ["table-rows: missing rows"],
     });
@@ -224,6 +242,7 @@ describe("a repair turn on a resumed session", () => {
       wallClockMs: 3_000,
       reportedCostUsd: 0.01,
       artifact: null,
+      authoring: authoring({ authoringMessageId: "msg_repair", renderCallCount: 1 }),
       accepted: true,
       failureReasons: [],
     });
@@ -269,6 +288,122 @@ describe("a repair turn on a resumed session", () => {
     const totals = summariseRun([attemptRecord({ attemptIndex: 0, accepted: true })], 0);
 
     expect(totals.attemptsToPass).toBe(1);
+  });
+});
+
+// THE HEADLINE METRIC: THE COST OF EMITTING THE ARTIFACT ------------------------------
+
+describe("authored output tokens", () => {
+  // A session's total output is dominated by agentic exploration — reading files,
+  // running git, thinking. That is real cost, but it is not the FORMAT's cost.
+  // The format's cost is the output tokens of the message that carried the render
+  // call, and nothing else.
+  const exploration = assistantLine({
+    uuid: "a1",
+    messageId: "msg_explore",
+    usage: { input_tokens: 100, output_tokens: 9_000 },
+    content: [textBlock("let me read the file and run git diff")],
+  });
+  const authoringTurn = assistantLine({
+    uuid: "a2",
+    messageId: "msg_author",
+    usage: { input_tokens: 200, output_tokens: 350 },
+    content: [textBlock("rendering now")],
+  });
+
+  test("counts ONLY the message that carried the render call", () => {
+    const entry = buildAttemptRecord({
+      attemptIndex: 0,
+      entries: [exploration, authoringTurn],
+      excludedMessageIds: new Set(),
+      wallClockMs: 30_000,
+      reportedCostUsd: 0.1,
+      artifact: null,
+      authoring: authoring({
+        authoringMessageId: "msg_author",
+        renderCallCount: 1,
+        authoredArtifactBytes: 412,
+      }),
+      accepted: true,
+      failureReasons: [],
+    });
+
+    // The 9,000 exploration tokens are real, and they are still reported...
+    expect(entry.record.outputTokens).toBe(9_350);
+    // ...but the artifact cost 350 tokens to emit, and THAT is the format's cost.
+    expect(entry.record.authoredOutputTokens).toBe(350);
+    expect(entry.record.authoredArtifactBytes).toBe(412);
+  });
+
+  test("an attempt that never authored anything reports 0, not the session total", () => {
+    const entry = buildAttemptRecord({
+      attemptIndex: 0,
+      entries: [exploration],
+      excludedMessageIds: new Set(),
+      wallClockMs: 30_000,
+      reportedCostUsd: 0.1,
+      artifact: null,
+      authoring: authoring(),
+      accepted: false,
+      failureReasons: ["nothing authored"],
+    });
+
+    expect(entry.record.outputTokens).toBe(9_000);
+    expect(entry.record.authoredOutputTokens).toBe(0);
+  });
+
+  test("the run's headline total sums the authored tokens of every attempt, repairs included", () => {
+    const totals = summariseRun(
+      [
+        attemptRecord({ attemptIndex: 0, outputTokens: 9_350, authoredOutputTokens: 350 }),
+        attemptRecord({
+          attemptIndex: 1,
+          outputTokens: 1_200,
+          authoredOutputTokens: 300,
+          authoredArtifactBytes: 400,
+          accepted: true,
+        }),
+      ],
+      0,
+    );
+
+    expect(totals.totalAuthoredOutputTokens).toBe(650);
+    expect(totals.passingAuthoredOutputTokens).toBe(300);
+    expect(totals.passingAuthoredArtifactBytes).toBe(400);
+    // The secondary metric survives alongside it — both are published.
+    expect(totals.totalOutputTokens).toBe(10_550);
+  });
+});
+
+// DID THE MODEL CLIMB THE LADDER? -------------------------------------------------------
+
+describe("reference usage", () => {
+  // The ladder only pays off if the model REACHES for the reference. If it pastes
+  // the file anyway, the compression is available and unused — a major negative
+  // result, and one the harness must be able to report rather than hide.
+  test("a run that pasted the file reports usedReference false", () => {
+    const totals = summariseRun([attemptRecord({ usedReference: false, accepted: true })], 0);
+
+    expect(totals.usedReference).toBe(false);
+    expect(totals.referenceKindsUsed).toEqual([]);
+  });
+
+  test("a run that reached for the reference on ANY attempt reports it, with the kinds", () => {
+    const totals = summariseRun(
+      [
+        attemptRecord({ attemptIndex: 0, usedReference: false }),
+        attemptRecord({
+          attemptIndex: 1,
+          usedReference: true,
+          referenceKindsUsed: ["GitDiff"],
+          accepted: true,
+        }),
+      ],
+      0,
+    );
+
+    expect(totals.usedReference).toBe(true);
+    expect(totals.referenceKindsUsed).toEqual(["GitDiff"]);
   });
 });
 

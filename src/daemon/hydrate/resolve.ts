@@ -4,7 +4,7 @@
 // reference re-resolves through exactly the same code that first hydrated it.
 
 import { resolveDiffPatch, resolveDiffSides, type DiffOptions, type DiffSides } from "./git.ts";
-import { parseCsv, type CsvRow } from "./csv.ts";
+import { parseCsv, type CsvParseResult } from "./csv.ts";
 import {
   MAX_CSV_READ_BYTES,
   MAX_CSV_ROWS,
@@ -21,7 +21,11 @@ export function resolveFileReference(absPath: string, lines: string | null): Res
   return { ok: true, value: read.text };
 }
 
-export function resolveCsvReference(absPath: string, limit: number | null): Resolved<CsvRow[]> {
+// Resolves to the whole TABLE — header row included — because a CSV reference
+// carries a table's shape as well as its data: DataTable's `columns` are derived
+// from the header (./columns.ts), and a row cap must never cost the caller the
+// header of the rows it kept.
+export function resolveCsvReference(absPath: string, limit: number | null): Resolved<CsvParseResult> {
   const stat = statRegularFile(absPath);
   if (!stat.ok) return stat;
   if (stat.sizeBytes > MAX_CSV_READ_BYTES) {
@@ -35,11 +39,11 @@ export function resolveCsvReference(absPath: string, limit: number | null): Reso
   const parsed = parseCsv(read.text);
   const rowCap = Math.min(limit ?? MAX_CSV_ROWS, MAX_CSV_ROWS);
   if (parsed.rows.length <= rowCap) {
-    return { ok: true, value: parsed.rows };
+    return { ok: true, value: parsed };
   }
   return {
     ok: true,
-    value: parsed.rows.slice(0, rowCap),
+    value: { columns: parsed.columns, rows: parsed.rows.slice(0, rowCap) },
     note: `capped to ${rowCap} of ${parsed.rows.length} rows`,
   };
 }

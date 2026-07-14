@@ -34,9 +34,9 @@ import { CACHE_READ_PRICE_MULTIPLIER, EvalPaths, ModelPricing } from "./config.t
 import { runClaudeProbe } from "./driver.ts";
 import type { EvalDaemon } from "./daemon.ts";
 import {
+  ArmId,
   AuthoringSurface,
   type Arm,
-  type ArmId,
   type AttemptRecord,
   type AuthoredArtifact,
   type EvalModel,
@@ -50,6 +50,11 @@ const TOKENS_PER_MILLION = 1_000_000;
 // contributes no system prompt and the task contributes nine tokens.
 const HARNESS_PROBE_PROMPT = "reply with the single word: ok";
 const HARNESS_PROBE_SYSTEM_PROMPT = "";
+
+// The probe only needs an arm id to satisfy the canvas server's --mcp-config env;
+// the canvas tool SCHEMA — which is the thing a probe measures — is identical for
+// every arm, so which one is named here cannot change the measurement.
+const HARNESS_PROBE_ARM_ID: ArmId = ArmId.ParchmentMarkupHigh;
 
 // ---- Assistant messages, deduped ---------------------------------------------
 
@@ -152,6 +157,45 @@ export function summariseTranscript(
   };
 }
 
+// THE HEADLINE METRIC AND THE SECONDARY ONE — the distinction is the thesis.
+//
+// A session's total output tokens include the model reading files, running git,
+// and thinking. That is real cost and it is reported (`outputTokens`), but it is
+// dominated by AGENTIC EXPLORATION, which is a property of the task and the
+// harness, not of the FORMAT. Measured on its own it would have us comparing
+// session behaviour and calling it a format comparison.
+//
+// The format's cost is the cost of EMITTING the artifact: the output tokens of
+// the single assistant message that carried the render call
+// (`authoredOutputTokens`). That is an exact number read from the transcript —
+// not a character proxy, not an estimate — and it is computed by the SAME rule
+// for every arm (the canvas_render call, or the Write call).
+export type AuthoringMeasurement = {
+  // Which assistant message carried the render call, from driver.ts.
+  authoringMessageId: string | null;
+  renderCallCount: number;
+  // Exact byte length of what the model emitted into the tool call.
+  authoredArtifactBytes: number;
+  // Did the model CLIMB the ladder, or paste the file anyway?
+  usedReference: boolean;
+  referenceKindsUsed: readonly string[];
+};
+
+// evals/types.ts is owned elsewhere and its AttemptRecord/RunRecord cannot be
+// edited from here, so the eval's measurements extend them structurally. Any
+// consumer typed against AttemptRecord keeps working unchanged.
+export type EvalAttemptRecord = AttemptRecord & {
+  authoredOutputTokens: number;
+  authoredArtifactBytes: number;
+  renderCallCount: number;
+  usedReference: boolean;
+  referenceKindsUsed: readonly string[];
+};
+
+export type EvalRunRecord = Omit<RunRecord, "attempts"> & {
+  attempts: readonly EvalAttemptRecord[];
+};
+
 export type AttemptInput = {
   attemptIndex: number;
   entries: readonly TraceEntry[];
@@ -161,22 +205,31 @@ export type AttemptInput = {
   // Claude Code's own cost figure. Reported next to ours; never used as ours.
   reportedCostUsd: number;
   artifact: AuthoredArtifact | null;
+  authoring: AuthoringMeasurement;
   accepted: boolean;
   failureReasons: readonly string[];
 };
 
 export type AttemptLedgerEntry = {
-  record: AttemptRecord;
+  record: EvalAttemptRecord;
   // Feed straight back into the next attempt's excludedMessageIds.
   messageIds: readonly string[];
 };
 
 export function buildAttemptRecord(input: AttemptInput): AttemptLedgerEntry {
+  const messages = collectMessageUsage(input.entries, input.excludedMessageIds);
   const usage = summariseTranscript(input.entries, input.excludedMessageIds);
 
-  const record: AttemptRecord = {
+  const record: EvalAttemptRecord = {
     attemptIndex: input.attemptIndex,
+    // Secondary: the whole session, exploration included.
     outputTokens: usage.outputTokens,
+    // HEADLINE: the cost of emitting the artifact itself.
+    authoredOutputTokens: authoredOutputTokensOf(messages, input.authoring.authoringMessageId),
+    authoredArtifactBytes: input.authoring.authoredArtifactBytes,
+    renderCallCount: input.authoring.renderCallCount,
+    usedReference: input.authoring.usedReference,
+    referenceKindsUsed: input.authoring.referenceKindsUsed,
     inputTokens: usage.inputTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheCreationTokens: usage.cacheCreationTokens,
@@ -191,11 +244,34 @@ export function buildAttemptRecord(input: AttemptInput): AttemptLedgerEntry {
   return { record, messageIds: usage.messageIds };
 }
 
+// An attempt that never authored anything spent zero tokens EMITTING an artifact.
+// That reads as 0, not as the session total — it did not pay the format's cost
+// because it never produced the format.
+function authoredOutputTokensOf(
+  messages: readonly MessageUsage[],
+  authoringMessageId: string | null,
+): number {
+  if (authoringMessageId === null) return 0;
+
+  const authoringMessage = messages.find((message) => message.messageId === authoringMessageId);
+  return authoringMessage?.outputTokens ?? 0;
+}
+
 // ---- One run (authoring turn + every repair) ----------------------------------
 
 export type RunTotals = {
-  // THE OBJECTIVE FUNCTION: every output token the run spent, repairs included.
-  // A format that passes on attempt 3 does not get to report attempt 3's cost.
+  // THE HEADLINE: every output token spent EMITTING an artifact, repairs
+  // included. A format that needed three attempts pays for three artifacts.
+  totalAuthoredOutputTokens: number;
+  // The authored size of the artifact that finally passed (null if none did).
+  passingAuthoredOutputTokens: number | null;
+  passingAuthoredArtifactBytes: number | null;
+  // Did the model reach for the reference on ANY attempt? The ladder only pays
+  // off if it does, so this is a headline finding in its own right.
+  usedReference: boolean;
+  referenceKindsUsed: readonly string[];
+  // SECONDARY: every output token the run spent, agentic exploration included.
+  // Real cost, honestly reported — but not the format's cost.
   totalOutputTokens: number;
   totalInputTokens: number;
   totalCacheReadTokens: number;
@@ -214,12 +290,20 @@ export type RunTotals = {
 };
 
 export function summariseRun(
-  attempts: readonly AttemptRecord[],
+  attempts: readonly EvalAttemptRecord[],
   systemPromptTokens: number,
 ): RunTotals {
   const passingAttempt = attempts.find((attempt) => attempt.accepted);
+  const referenceKindsUsed = [
+    ...new Set(attempts.flatMap((attempt) => [...attempt.referenceKindsUsed])),
+  ];
 
   return {
+    totalAuthoredOutputTokens: sumBy(attempts, (attempt) => attempt.authoredOutputTokens),
+    passingAuthoredOutputTokens: passingAttempt?.authoredOutputTokens ?? null,
+    passingAuthoredArtifactBytes: passingAttempt?.authoredArtifactBytes ?? null,
+    usedReference: attempts.some((attempt) => attempt.usedReference),
+    referenceKindsUsed,
     totalOutputTokens: sumBy(attempts, (attempt) => attempt.outputTokens),
     totalInputTokens: sumBy(attempts, (attempt) => attempt.inputTokens),
     totalCacheReadTokens: sumBy(attempts, (attempt) => attempt.cacheReadTokens),
@@ -243,12 +327,12 @@ export type BuildRunRecordInput = {
   scenarioId: string;
   model: EvalModel;
   replicate: number;
-  attempts: readonly AttemptRecord[];
+  attempts: readonly EvalAttemptRecord[];
   systemPromptTokens: number;
   archivePath: string;
 };
 
-export function buildRunRecord(input: BuildRunRecordInput): RunRecord {
+export function buildRunRecord(input: BuildRunRecordInput): EvalRunRecord {
   const totals = summariseRun(input.attempts, input.systemPromptTokens);
 
   return {
@@ -347,6 +431,7 @@ async function probeSurface(
 ): Promise<HarnessProbe> {
   const probe = await runClaudeProbe({
     surface,
+    armId: HARNESS_PROBE_ARM_ID,
     model: options.model,
     systemPrompt: HARNESS_PROBE_SYSTEM_PROMPT,
     prompt: HARNESS_PROBE_PROMPT,
@@ -400,6 +485,7 @@ export async function measureSystemPromptTokens(options: {
 }): Promise<number> {
   const probe = await runClaudeProbe({
     surface: options.arm.surface,
+    armId: options.arm.id,
     model: options.model,
     systemPrompt: options.arm.systemPrompt,
     prompt: HARNESS_PROBE_PROMPT,

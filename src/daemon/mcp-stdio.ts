@@ -18,6 +18,7 @@ import {
   sendSlotOps,
 } from "./canvas-client.ts";
 import { LiveSourceInputSchema } from "./live/types.ts";
+import { compileMarkup } from "./markup/index.ts";
 import { prepareSpec } from "./spec-validation.ts";
 import { STATE_DIR } from "./state.ts";
 import { ensureLibrarySeeded, listLibraryEntryNames, readLibraryEntry, writeLibraryEntry } from "./library.ts";
@@ -126,6 +127,32 @@ function specRejection(issues: string[]): ReturnType<typeof errorText> {
   );
 }
 
+type SpecInput = z.infer<typeof SpecInputSchema>;
+
+type ResolvedSpec = { ok: true; spec: JsonRenderSpec } | { ok: false; issues: string[] };
+
+// canvas_render takes the spec by either door: the JSON element map, or a markup
+// document the daemon compiles into one. Both converge here, and both then flow
+// through prepareSpec — the runtime never learns which door was used.
+function resolveRenderSpec(spec: SpecInput | undefined, markup: string | undefined): ResolvedSpec {
+  const hasSpec = spec !== undefined;
+  const hasMarkup = markup !== undefined;
+  if (hasSpec === hasMarkup) {
+    return {
+      ok: false,
+      issues: [
+        `canvas_render needs exactly one of "spec" (the JSON element map) or "markup" (the HTML-flavored dialect) — ${hasSpec ? "both were given" : "neither was given"}.`,
+      ],
+    };
+  }
+  if (markup !== undefined) {
+    const compiled = compileMarkup(markup);
+    if (compiled.issues.length > 0) return { ok: false, issues: compiled.issues };
+    return { ok: true, spec: compiled.spec };
+  }
+  return { ok: true, spec: spec as unknown as JsonRenderSpec };
+}
+
 const server = new McpServer({ name: "parchment", version: "0.1.0" });
 
 server.registerTool(
@@ -164,7 +191,7 @@ server.registerTool(
   {
     title: "Compose a Generative UI",
     description:
-      "DEFAULT tool for rich content — charts, tables, diagrams, forms, documents, dashboards — composed from a 52-component catalog. Specs carry `state`, $state/$bindState/$template expressions, repeat lists, and `on` event bindings (interactive forms). Prop values also accept reference forms the daemon hydrates from local sources — {\"$file\"}, {\"$diff\"}, {\"$csv\"}, {\"$img\"}, optionally {\"watch\":true} (see canvas-tools references/content-refs.md). Invalid specs return a precise issue list — fix and re-push with the same slotId. Composition and grammar: the canvas-tools and canvas-spec skills.",
+      "DEFAULT tool for rich content — charts, tables, diagrams, forms, documents, dashboards — composed from a 52-component catalog. Pass `markup` (preferred: an HTML/JSX-flavored document — semantic tags plus <Metric>/<Chart>/<DataTable> — compiling to the same spec in far fewer tokens; canvas-spec references/markup.md) or `spec` (the json-render form). NEVER PASTE CONTENT YOU CAN REFERENCE BY PATH: {\"$file\"}, {\"$diff\"}, {\"$csv\"}, {\"$img\"} (markup: <GitDiff file=…/>, <CodeBlock file=… lines=…/>, <DataTable src=…/>) make the daemon read local sources itself — a reference costs ~15 tokens where the pasted bytes cost thousands; add {\"watch\":true} to keep it live (canvas-tools references/content-refs.md). Both forms carry `state`, $state/$bindState/$template expressions, repeat lists, and `on` event bindings. Invalid input returns a precise issue list — fix and re-push with the same slotId.",
     inputSchema: z.object({
       title: z.string().describe("Slot title shown in the tab strip."),
       kind: z
@@ -175,14 +202,19 @@ server.registerTool(
         ])
         .optional()
         .describe("'dashboard' for metrics/charts, 'report' for long-form prose, else 'render' (default)."),
-      spec: SpecInputSchema,
+      spec: SpecInputSchema.optional(),
+      markup: z.string().optional().describe("Markup document. Give exactly one of spec|markup."),
       slotId: z.string().optional().describe("Existing slot id to replace, else a new slot."),
     }),
   },
-  async ({ title, kind, spec, slotId }) => {
+  async ({ title, kind, spec, markup, slotId }) => {
     try {
       const resolvedSessionId = await resolveSessionId();
-      const { spec: preparedSpec, issues } = prepareSpec(spec as unknown as JsonRenderSpec);
+      const source = resolveRenderSpec(spec, markup);
+      if (!source.ok) {
+        return specRejection(source.issues);
+      }
+      const { spec: preparedSpec, issues } = prepareSpec(source.spec);
       if (issues.length > 0) {
         return specRejection(issues);
       }

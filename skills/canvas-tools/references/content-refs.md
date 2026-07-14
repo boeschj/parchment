@@ -15,7 +15,7 @@ Options are always siblings of the `$`-key.
 |---|---|---|
 | `{"$file": "src/a.ts", "lines": "40-80"}` | file text (line range applied) | `CodeBlock.code`, `Markdown.content` |
 | `{"$diff": "src/a.ts", "base": "HEAD~1", "staged": false}` | unified patch string | `CodeBlock.code` |
-| `{"$csv": "data/results.csv", "limit": 500}` | array of row objects | `DataTable.rows`, `Chart.data` |
+| `{"$csv": "data/results.csv", "limit": 500}` | array of row objects (+ `columns` on a DataTable) | `DataTable.rows`, `Chart.data` |
 | `{"$img": "shots/after.png"}` | a daemon-served URL | `Image.src` |
 
 Bare-string shorthand for a whole resource, no options: `"$file:src/a.ts"`,
@@ -49,14 +49,28 @@ older commit, or `"staged": true` for index-vs-HEAD.
 
 ## A CSV table
 
+A `$csv` in `rows` carries the file's header too, so **`columns` is optional on a
+DataTable** — omit it and the daemon derives one column per header cell, in file
+order, typing and right-aligning the ones whose cells are numbers. You have not
+read the file; it has.
+
+```json
+{"type": "DataTable", "props": {"rows": {"$csv": "bench/results.csv"}}}
+```
+
+Author `columns` only to OVERRIDE that: to show a subset, reorder, rename a
+header, or set a width. What you write always wins — the daemon fills `columns`
+only when it is absent.
+
 ```json
 {"type": "DataTable", "props": {
   "rows": {"$csv": "bench/results.csv"},
   "columns": [{"key": "name", "header": "Case"},
-              {"key": "ms", "header": "ms", "type": "number", "align": "right"}]}}
+              {"key": "ms", "header": "p99 (ms)", "type": "number", "align": "right"}]}}
 ```
 
-You still author `columns` — that's your editorial choice about what to show.
+Nothing else derives: a `Chart` fed by the same `$csv` still needs its own `x`
+and `y` (which series to plot is your editorial call, not the file's).
 
 ## Snapshot vs live
 

@@ -40,8 +40,10 @@ import {
   EvalModel,
   type Arm,
   type EvalScenario,
-  type RunRecord,
 } from "./types.ts";
+// Runs carry the eval's own measurements (authoredOutputTokens, usedReference) on
+// top of types.ts's RunRecord — see ledger.ts.
+import type { EvalRunRecord as RunRecord } from "./ledger.ts";
 
 // This CLI orchestrates; it does not drive the model. No fake data is stubbed in
 // behind any of these imports: if a module is missing, the command fails loudly
@@ -53,6 +55,7 @@ import { everyScenario } from "./scenarios/index.ts";
 import { startEvalDaemon, type EvalDaemon } from "./daemon.ts";
 import {
   REAL_VOCABULARY_INVERSE,
+  vocabularyForArm,
   SCRAMBLED_VOCABULARY_INVERSE,
   type AuthoringVocabulary,
 } from "./render/materialize.ts";
@@ -62,25 +65,6 @@ import {
   measureSystemPromptTokens,
   type HarnessConstant,
 } from "./ledger.ts";
-
-// The terse arm minifies only the STRUCTURAL keys; its component and prop names
-// are the real ones. Expanded back before compiling.
-//
-// Copied from the grammar the terse arm is actually SHOWN — catalog/surface.ts,
-// renderTerseJsonGrammar: "r = root key, e = elements, t = type, p = props,
-// c = children, s = seeded state". Every key it is taught must be expandable: a
-// missing entry here would leave `r`/`e`/`s` unexpanded, the spec would fail to
-// compile, and the terse arm would be scored a failure this harness caused. The
-// arm most likely to beat us on density is the last one that may be handicapped
-// by a typo in our own table.
-const TERSE_SPEC_KEYS = {
-  r: "root",
-  e: "elements",
-  t: "type",
-  p: "props",
-  c: "children",
-  s: "state",
-} as const;
 
 // ---- Defaults ----------------------------------------------------------------
 
@@ -342,17 +326,11 @@ async function measureProtocolCosts(
 // it is compiled, because the scramble is an AUTHORING experiment, not a runtime
 // one. Passing the identity map for a scrambled arm would score its output as if
 // the names had been real, so the maps are resolved per arm and never defaulted.
+// The terse arm's structural-key expansion (r/e/t/p/c/s) is applied by the
+// decoder itself, which expands the spec ENVELOPE only and never reaches into
+// props or data — so no expansion map needs handing around here any more.
 function authoringVocabularyFor(arm: Arm): AuthoringVocabulary {
-  const isScrambled = arm.id === ArmId.ScrambledMarkupHigh || arm.id === ArmId.ScrambledMarkupLow;
-  if (isScrambled) return SCRAMBLED_VOCABULARY_INVERSE;
-
-  // Only the terse arm authors short structural keys. Handing the expansion map
-  // to any other arm would rename an element whose KEY happened to be "c" or "t".
-  if (arm.id === ArmId.TerseJson) {
-    return { inverse: REAL_VOCABULARY.inverse, terseSpecKeys: TERSE_SPEC_KEYS };
-  }
-
-  return REAL_VOCABULARY_INVERSE;
+  return vocabularyForArm(arm.id);
 }
 
 // Each run gets its own working directory with a fresh copy of the fixtures, so

@@ -20,25 +20,26 @@
 // that passes on its third attempt does not get to report its third attempt's
 // cost.
 
-import { join } from "node:path";
+import { cpSync, mkdirSync } from "node:fs";
+import { basename, join } from "node:path";
 import { EvalPaths, MAX_REPAIR_TURNS, RUN_TIMEOUT_MS } from "./config.ts";
 import type { EvalDaemon } from "./daemon.ts";
 import { runArmAttempt, type ArmAttemptResult } from "./driver.ts";
-import { buildAttemptRecord, buildRunRecord } from "./ledger.ts";
+import {
+  buildAttemptRecord,
+  buildRunRecord,
+  type AuthoringMeasurement,
+  type EvalAttemptRecord,
+  type EvalRunRecord,
+} from "./ledger.ts";
 import {
   MaterializeOutcome,
+  detectReferenceUsage,
   materializeArtifact,
   type AuthoringVocabulary,
 } from "./render/materialize.ts";
 import { checkAcceptance } from "./verify/index.ts";
-import type {
-  Arm,
-  AttemptRecord,
-  EvalModel,
-  EvalScenario,
-  RepairSignal,
-  RunRecord,
-} from "./types.ts";
+import type { Arm, EvalModel, EvalScenario, RepairSignal } from "./types.ts";
 
 const SCREENSHOTS_DIRNAME = "screenshots";
 
@@ -64,8 +65,10 @@ export type RepairLoopOptions = {
   systemPromptTokens: number;
 };
 
-export async function runWithRepairLoop(options: RepairLoopOptions): Promise<RunRecord> {
-  const attempts: AttemptRecord[] = [];
+export async function runWithRepairLoop(options: RepairLoopOptions): Promise<EvalRunRecord> {
+  stageFixturesInto(options.cwd);
+
+  const attempts: EvalAttemptRecord[] = [];
   const messageIdsAlreadyCounted = new Set<string>();
 
   let resumeSessionId: string | null = null;
@@ -99,6 +102,7 @@ export async function runWithRepairLoop(options: RepairLoopOptions): Promise<Run
       wallClockMs: attempt.wallClockMs,
       reportedCostUsd: attempt.cliResult?.totalCostUsd ?? 0,
       artifact: attempt.artifact,
+      authoring: measureAuthoring(attempt, options.arm),
       accepted: judgement.accepted,
       failureReasons: judgement.failureReasons,
     });
@@ -122,6 +126,49 @@ export async function runWithRepairLoop(options: RepairLoopOptions): Promise<Run
     systemPromptTokens: options.systemPromptTokens,
     archivePath: runDirOf(options.runId),
   });
+}
+
+// ---- The run's working directory ------------------------------------------------
+
+// THE MODEL'S CWD MUST CONTAIN THE SCENARIO'S FILES.
+//
+// The scenarios speak in paths relative to the cwd ("the git repository is at
+// ./repo"), a LOW-fidelity arm can only paste a file it can READ, and a
+// high-fidelity arm still needs `git show` to exist somewhere. Measured, with an
+// empty cwd: the model spent six turns and then replied "the `repo` directory
+// doesn't exist in the working directory" — an entire attempt burned on a harness
+// mistake, scored as an arm's failure.
+//
+// The fixtures are COPIED, never symlinked: an arm holding Write must not be able
+// to reach the real fixture tree or its git history.
+const FIXTURE_ANSWER_KEY_FILENAME = "index.ts";
+
+function stageFixturesInto(cwd: string): void {
+  mkdirSync(cwd, { recursive: true });
+  cpSync(EvalPaths.fixtures, cwd, { recursive: true, filter: isNotAnswerKey });
+}
+
+// evals/fixtures/index.ts is FIXTURE_FACTS — the rubric's ground truth: the exact
+// rows, the peak error bucket, the pinned added/removed diff lines. Staging it
+// into the model's own working directory would hand every arm the answer key to
+// the test it is being scored against. It stays out.
+function isNotAnswerKey(sourcePath: string): boolean {
+  return basename(sourcePath) !== FIXTURE_ANSWER_KEY_FILENAME;
+}
+
+// The headline metric's inputs, read from what the model ACTUALLY emitted into
+// the tool call. Identical rule for every arm.
+function measureAuthoring(attempt: ArmAttemptResult, arm: Arm): AuthoringMeasurement {
+  const source = attempt.artifact?.source ?? "";
+  const usage = detectReferenceUsage(arm.id, source);
+
+  return {
+    authoringMessageId: attempt.authoringMessageId,
+    renderCallCount: attempt.renderCallCount,
+    authoredArtifactBytes: Buffer.byteLength(source, "utf8"),
+    usedReference: usage.usedReference,
+    referenceKindsUsed: usage.referenceKindsUsed,
+  };
 }
 
 function promptFor(arm: Arm, scenario: EvalScenario, repairSignal: RepairSignal | null): string {
