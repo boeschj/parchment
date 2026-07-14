@@ -29,6 +29,36 @@ The entire artifact the high-fidelity arm authored, in five out of five runs:
 
 51 bytes. The daemon fetches the bytes at push time.
 
+## The half of the thesis that DIED
+
+We predicted that familiar, top-of-distribution vocabulary (`<GitDiff>`, `<Chart>`)
+would beat opaque names, because familiarity is itself a compression and
+reliability mechanism. **It isn't. That prediction is false.**
+
+Same grammar, same runtime, same prompt structure, same semantic descriptions —
+only the identifiers were replaced with opaque tokens (`<C22 a1=… a2=…>`), with the
+mapping given exactly as clearly as the real one:
+
+| Vocabulary | Pass | pass@1 | Authored tokens | Climbed the ladder |
+|---|---|---|---:|---:|
+| Real (`<GitDiff file=… base=…>`) | 5/5 | 5/5 | 158 | 5/5 |
+| **Scrambled** (`<C22 a1=… a2=…>`) | 5/5 | 5/5 | 177 | **5/5** |
+
+Ratio 1.12x, **95% CI 0.98x–1.26x — it brackets 1.00**. The scrambled arm authored
+`<C22 a1="repo/src/server.ts" a2="HEAD~1" />` and climbed the ladder just as
+reliably. Familiarity bought us **nothing measurable**.
+
+This is consistent with the Anka result (a novel DSL with zero pretraining exposure
+hit 99.9% parse success), and we now agree with it: **models do not fumble
+unfamiliar grammars.** Anyone repeating the "familiar syntax is why this works"
+claim — including us, previously — is not supported by this data.
+
+**What survives is stronger and simpler.** The 51x win is not in the *words*. It is
+in giving the model a component that *does the work* — a reference it can point at
+a file instead of pasting the file. That is a semantic and architectural property,
+and it is entirely orthogonal to what the tags are called. The ladder is the
+product; the vocabulary was a story we told ourselves.
+
 ## The result that could have sunk this, and didn't
 
 The ladder only pays off **if the model actually reaches for the reference
@@ -59,10 +89,9 @@ just aren't a property of the format.
 
 - **One scenario, one model, N=5.** The CSV and log ladder scenarios, the six
   ported scenarios, opus, and haiku have **not run**. This is a pilot.
-- **The vocabulary ablation has not run.** Whether familiar tags (`<Chart>`) beat
-  opaque ones (`<C08>`) at identical grammar is the other half of the thesis and
-  is **not yet tested**. The arms exist and the prompts are built to be identical
-  in structure; the numbers do not exist yet. We are not claiming it.
+- **The ablation ran at N=5, one scenario.** Its CI (0.98x–1.26x) is wide enough
+  that a small real effect could hide inside it. What it rules out is a LARGE
+  familiarity effect — which is exactly what we had claimed.
 - **`raw-html` is not a pure format comparison.** It writes an entire standalone
   document; parchment writes into a running runtime. Its 88x is honest as
   "cost to get this on screen", not as "HTML is 88x more verbose".

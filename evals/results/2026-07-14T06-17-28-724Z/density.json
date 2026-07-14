@@ -1,0 +1,18 @@
+[
+  {
+    "armId": "parchment-markup-high",
+    "scenarioId": "ladder-git-diff",
+    "origin": "accepted-run",
+    "bytes": 51,
+    "approximateTokens": 24,
+    "approximateTokensByBytesRule": 13
+  },
+  {
+    "armId": "scrambled-markup-high",
+    "scenarioId": "ladder-git-diff",
+    "origin": "accepted-run",
+    "bytes": 184,
+    "approximateTokens": 83,
+    "approximateTokensByBytesRule": 46
+  }
+]

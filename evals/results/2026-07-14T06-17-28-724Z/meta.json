@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-07-14T06:20:02.475Z",
+  "modelIds": {},
+  "claudeCliVersion": null,
+  "scenarios": [
+    {
+      "id": "ladder-git-diff",
+      "title": "Show the diff of a real file with changed lines highlighted",
+      "exercisesLadder": true,
+      "sourceFileRelativePaths": [
+        "repo/src/server.ts"
+      ],
+      "sourceFileBytes": 9988
+    }
+  ],
+  "harnessConstantsByModel": {
+    "sonnet": {
+      "model": "sonnet",
+      "probes": [
+        {
+          "surface": "canvas-tool",
+          "promptTokens": 16081,
+          "outputTokens": 4,
+          "sessionId": "594401a1-6b21-48cf-a85a-6b7bd1f788fd",
+          "transcriptPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-evals--scratch-runs-harness-probe/594401a1-6b21-48cf-a85a-6b7bd1f788fd.jsonl"
+        },
+        {
+          "surface": "written-file",
+          "promptTokens": 15610,
+          "outputTokens": 4,
+          "sessionId": "291cb67d-d56f-41e6-bacf-bbd99ce27c82",
+          "transcriptPath": "/Users/boeschj/.claude/projects/-Users-boeschj-Documents-GitHub-parchment-evals--scratch-runs-harness-probe/291cb67d-d56f-41e6-bacf-bbd99ce27c82.jsonl"
+        }
+      ],
+      "promptTokensBySurface": {
+        "canvas-tool": 16081,
+        "written-file": 15610
+      }
+    }
+  },
+  "archiveRelativePath": "evals/results/2026-07-14T06-17-28-724Z",
+  "bootstrap": {
+    "resamples": 10000,
+    "confidence": 0.95,
+    "seed": 20260713
+  }
+}

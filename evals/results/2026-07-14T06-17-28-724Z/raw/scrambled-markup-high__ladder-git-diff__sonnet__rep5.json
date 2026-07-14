@@ -1,0 +1,39 @@
+{
+  "runId": "scrambled-markup-high__ladder-git-diff__sonnet__rep5",
+  "armId": "scrambled-markup-high",
+  "scenarioId": "ladder-git-diff",
+  "model": "sonnet",
+  "replicate": 5,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 543,
+      "authoredOutputTokens": 164,
+      "authoredArtifactBytes": 43,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "GitDiff"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 51922,
+      "cacheCreationTokens": 10987,
+      "assistantTurnCount": 3,
+      "wallClockMs": 13723,
+      "reportedCostUsd": 0.09042259999999999,
+      "artifact": {
+        "source": "<C22 a1=\"repo/src/server.ts\" a2=\"HEAD~1\" />",
+        "toolInput": {
+          "title": "server.ts diff (HEAD~1 → HEAD)",
+          "markup": "<C22 a1=\"repo/src/server.ts\" a2=\"HEAD~1\" />"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4369,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/scrambled-markup-high__ladder-git-diff__sonnet__rep5"
+}

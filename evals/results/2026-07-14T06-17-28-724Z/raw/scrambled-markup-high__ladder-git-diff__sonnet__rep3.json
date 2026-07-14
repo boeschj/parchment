@@ -1,0 +1,39 @@
+{
+  "runId": "scrambled-markup-high__ladder-git-diff__sonnet__rep3",
+  "armId": "scrambled-markup-high",
+  "scenarioId": "ladder-git-diff",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 378,
+      "authoredOutputTokens": 194,
+      "authoredArtifactBytes": 184,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "GitDiff"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 51820,
+      "cacheCreationTokens": 10915,
+      "assistantTurnCount": 3,
+      "wallClockMs": 9320,
+      "reportedCostUsd": 0.087465,
+      "artifact": {
+        "source": "<t01>\n<t02>src/server.ts — HEAD~1 vs HEAD</t02>\n<t05>Side-by-side comparison of the last commit's changes to the server file.</t05>\n<C22 a1=\"repo/src/server.ts\" a2=\"HEAD~1\" />\n</t01>",
+        "toolInput": {
+          "title": "server.ts diff (HEAD~1 → HEAD)",
+          "markup": "<t01>\n<t02>src/server.ts — HEAD~1 vs HEAD</t02>\n<t05>Side-by-side comparison of the last commit's changes to the server file.</t05>\n<C22 a1=\"repo/src/server.ts\" a2=\"HEAD~1\" />\n</t01>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4369,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/scrambled-markup-high__ladder-git-diff__sonnet__rep3"
+}

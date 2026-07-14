@@ -1,0 +1,39 @@
+{
+  "runId": "parchment-markup-high__ladder-git-diff__sonnet__rep4",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-git-diff",
+  "model": "sonnet",
+  "replicate": 4,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 350,
+      "authoredOutputTokens": 135,
+      "authoredArtifactBytes": 51,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "GitDiff"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 51714,
+      "cacheCreationTokens": 10796,
+      "assistantTurnCount": 3,
+      "wallClockMs": 7760,
+      "reportedCostUsd": 0.08629420000000002,
+      "artifact": {
+        "source": "<GitDiff file=\"repo/src/server.ts\" base=\"HEAD~1\" />",
+        "toolInput": {
+          "title": "server.ts diff (HEAD~1 → HEAD)",
+          "markup": "<GitDiff file=\"repo/src/server.ts\" base=\"HEAD~1\" />"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4325,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-git-diff__sonnet__rep4"
+}
