@@ -113,6 +113,25 @@ describe("prepareSpec — single-pass rejection messages", () => {
     ]);
   });
 
+  it("5b. chart with a static empty data array: names both ways out", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        elements: {
+          page: { type: "Stack", props: {}, children: ["c"] },
+          c: { type: "Chart", props: { kind: "line", x: "day", y: "revenue", data: [] }, children: [] },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      "elements/c/props/data: Chart data is an empty array — the chart paints one blank mark with no axis labels, " +
+        "and a static [] can never fill. " +
+        'Seed the rows you are plotting (e.g. "data": [{"day": "Mon", "runs": 12}]), or, if the rows arrive later, ' +
+        'bind data to state ("data": {"$state": "/series"}) and seed "series" in the spec-level "state" — ' +
+        "a bound chart may start empty, a literal one may not.",
+    ]);
+  });
+
   it("6. duplicate intent id: names the element and the repeated id", () => {
     const { issues } = prepareSpec(
       spec({
@@ -157,6 +176,27 @@ describe("prepareSpec — no false rejections", () => {
           trend: {
             type: "Chart",
             props: { kind: "line", x: "t", y: "ms", xScale: "time", data: { $state: "/series" } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  // The empty-at-first chart is the whole reason a static [] is rejected rather
+  // than repaired: a chart with no rows YET is a bound chart, and it must stay
+  // renderable from the moment the spec lands, before any row exists.
+  it("accepts a {$state}-bound chart whose seeded rows are still empty", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        state: { series: [] },
+        elements: {
+          page: { type: "Stack", props: {}, children: ["c"] },
+          c: {
+            type: "Chart",
+            props: { kind: "line", x: "t", y: "ms", data: { $state: "/series" } },
             children: [],
           },
         },

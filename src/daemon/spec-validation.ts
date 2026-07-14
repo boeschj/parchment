@@ -706,6 +706,7 @@ function collectChartDataIssues(spec: JsonRenderSpec): string[] {
 function firstChartDataIssue(key: string, props: Record<string, unknown>): string | null {
   const data = props.data;
   if (!Array.isArray(data)) return null; // {$state}/live-fed data validates at runtime
+  if (data.length === 0) return emptyChartDataMessage(key);
   const seriesKeys = seriesKeysOf(props.y);
   if (seriesKeys.length === 0) return null;
   for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
@@ -722,6 +723,20 @@ function firstChartDataIssue(key: string, props: Record<string, unknown>): strin
     }
   }
   return null;
+}
+
+// A literal [] is an authoring mistake, never an empty-at-first chart. It paints
+// one meaningless mark and no axis labels, and nothing can ever fill it: a
+// static array is frozen into the spec, so the rows the model meant to plot are
+// gone. The legitimate "no rows yet" chart binds data to state
+// ("data": {"$state": "/series"}), which the agent and live sources can write
+// into — that path is left alone, seeded empty or not.
+function emptyChartDataMessage(key: string): string {
+  return (
+    `elements/${key}/props/data: Chart data is an empty array — the chart paints one blank mark with no axis labels, and a static [] can never fill. ` +
+    `Seed the rows you are plotting (e.g. "data": [{"day": "Mon", "runs": 12}]), or, if the rows arrive later, bind data to state ` +
+    `("data": {"$state": "/series"}) and seed "series" in the spec-level "state" — a bound chart may start empty, a literal one may not.`
+  );
 }
 
 function seriesKeysOf(y: unknown): string[] {
