@@ -455,3 +455,143 @@ exports[`golden: mixed-report compiles to the expected spec 1`] = `
   "state": undefined,
 }
 `;
+
+exports[`golden: reference-review compiles to the expected spec 1`] = `
+{
+  "elements": {
+    "button-10": {
+      "children": [],
+      "on": {
+        "press": [
+          {
+            "action": "canvas.intent",
+            "params": {
+              "id": "merge-pr",
+              "params": {
+                "pr": 412,
+              },
+            },
+          },
+        ],
+      },
+      "props": {
+        "label": "Merge",
+      },
+      "type": "Button",
+    },
+    "chart-7": {
+      "children": [],
+      "props": {
+        "data": {
+          "$csv": "bench/results.csv",
+        },
+        "height": 260,
+        "kind": "line",
+        "title": "p99 across runs",
+        "x": "run",
+        "y": "p99_ms",
+      },
+      "type": "Chart",
+    },
+    "codeblock-4": {
+      "children": [],
+      "props": {
+        "code": {
+          "$file": "src/api/cache.ts",
+          "lines": "40-80",
+        },
+        "startLine": 40,
+        "title": "src/api/cache.ts",
+      },
+      "type": "CodeBlock",
+    },
+    "datatable-6": {
+      "children": [],
+      "props": {
+        "rows": {
+          "$csv": "bench/results.csv",
+        },
+      },
+      "type": "DataTable",
+    },
+    "diffviewer-2": {
+      "children": [],
+      "props": {
+        "$diff": "src/api/cache.ts",
+        "base": "HEAD~1",
+      },
+      "type": "DiffViewer",
+    },
+    "heading-0": {
+      "children": [],
+      "props": {
+        "level": "h1",
+        "text": "Cache fix — review",
+      },
+      "type": "Heading",
+    },
+    "heading-3": {
+      "children": [],
+      "props": {
+        "level": "h2",
+        "text": "The hot path it touches",
+      },
+      "type": "Heading",
+    },
+    "heading-5": {
+      "children": [],
+      "props": {
+        "level": "h2",
+        "text": "Benchmark",
+      },
+      "type": "Heading",
+    },
+    "heading-8": {
+      "children": [],
+      "props": {
+        "level": "h2",
+        "text": "Live",
+      },
+      "type": "Heading",
+    },
+    "root": {
+      "children": [
+        "heading-0",
+        "text-1",
+        "diffviewer-2",
+        "heading-3",
+        "codeblock-4",
+        "heading-5",
+        "datatable-6",
+        "chart-7",
+        "heading-8",
+        "terminal-9",
+        "button-10",
+      ],
+      "props": {},
+      "type": "Stack",
+    },
+    "terminal-9": {
+      "children": [],
+      "props": {
+        "command": "tail -f logs/app.log",
+        "output": {
+          "$file": "logs/app.log",
+          "watch": true,
+        },
+      },
+      "type": "Terminal",
+    },
+    "text-1": {
+      "children": [],
+      "props": {
+        "text": "The TTL now tracks the sync interval. One file changed.",
+        "variant": "body",
+      },
+      "type": "Text",
+    },
+  },
+  "root": "root",
+  "state": undefined,
+}
+`;

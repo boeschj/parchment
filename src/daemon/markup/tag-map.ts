@@ -16,6 +16,8 @@ export const TagHandler = {
   Quote: "quote",
   PreCode: "pre-code",
   Table: "table",
+  GitDiff: "git-diff",
+  LogStream: "log-stream",
 } as const;
 
 export type TagHandler = (typeof TagHandler)[keyof typeof TagHandler];
@@ -27,7 +29,9 @@ type TagRule =
   | { handler: typeof TagHandler.List; ordered: boolean }
   | { handler: typeof TagHandler.Quote }
   | { handler: typeof TagHandler.PreCode }
-  | { handler: typeof TagHandler.Table };
+  | { handler: typeof TagHandler.Table }
+  | { handler: typeof TagHandler.GitDiff }
+  | { handler: typeof TagHandler.LogStream };
 
 const container = (component: string): TagRule => ({ handler: TagHandler.Component, component });
 
@@ -61,6 +65,11 @@ export const SEMANTIC_TAG_RULES: Readonly<Record<string, TagRule>> = {
   blockquote: { handler: TagHandler.Quote },
   pre: { handler: TagHandler.PreCode },
   table: { handler: TagHandler.Table },
+  // Reference-first aliases, named the way the ecosystem already names them.
+  // <GitDiff file="src/x.ts"/> is a DiffViewer whose two sides the daemon fetches
+  // from git; <LogStream file="app.log" watch/> is a Terminal fed by a tailed file.
+  gitdiff: { handler: TagHandler.GitDiff },
+  logstream: { handler: TagHandler.LogStream },
 } as const;
 
 export function semanticRuleFor(tag: string): TagRule | null {

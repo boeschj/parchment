@@ -23,10 +23,27 @@ import {
   FORM_CONTROL_COMPONENTS,
   naturalValuePropOf,
 } from "./conventions.ts";
+import {
+  buildReferenceExpression,
+  isLocalPath,
+  ReferenceAttr,
+  ReferenceExpressionKey,
+  referenceTargetOf,
+  startLineOf,
+  type ReferenceOptions,
+} from "./references.ts";
 
 export type BuiltElementBody = {
   props: Record<string, unknown>;
   on?: Record<string, ActionBinding[]>;
+};
+
+type ReferenceAttrs = {
+  path: string | null;
+  // Set when the author wrote `diff="..."` instead of `file="..."`, so the text
+  // prop resolves to a unified patch rather than the file's contents.
+  key: ReferenceExpressionKey | null;
+  options: ReferenceOptions;
 };
 
 type FormCheck = { type: string; message?: string; args?: Record<string, unknown> };
@@ -55,6 +72,7 @@ export function buildElementBody(
   const props: Record<string, unknown> = {};
   const nativeChecks: FormCheck[] = [];
   const isFormControl = FORM_CONTROL_COMPONENTS.has(component);
+  const reference: ReferenceAttrs = { path: null, key: null, options: {} };
 
   let bindPointer: string | null = null;
   let intentId: string | null = null;
@@ -65,6 +83,8 @@ export function buildElementBody(
 
   for (const [rawName, rawValue] of Object.entries(attribs)) {
     const name = rawName.toLowerCase();
+
+    if (consumeReferenceAttr(component, name, rawValue, reference)) continue;
 
     if (name === SUGAR_ATTRS.Bind) {
       bindPointer = rawValue;
@@ -108,6 +128,7 @@ export function buildElementBody(
   appendTypeInferredCheck(typeValue, nativeChecks);
   mergeChecks(props, nativeChecks);
   applyBindSugar(component, bindPointer, props);
+  applyFileReference(component, reference, props);
 
   const pressBindings = buildPressBindings(
     { intentId, intentParamsRaw, submitId, payloadRaw },
@@ -125,6 +146,113 @@ function applyClassAttr(
 ): void {
   const propName = propNameFor(component, "classname");
   if (propName !== null) props[propName] = rawValue.trim();
+}
+
+// ---- Reference attributes (the fidelity ladder's top rung) ------------------
+
+// A reference attribute is only consumed as one when the component can actually
+// take a reference AND the name is not already a real prop — so DiffViewer keeps
+// `file` as its path LABEL while CodeBlock's `file` names bytes for the daemon
+// to fetch. Image is the one judgement call: `src` is a reference only when it
+// names a local path rather than a URL.
+function consumeReferenceAttr(
+  component: string,
+  name: string,
+  rawValue: string,
+  reference: ReferenceAttrs,
+): boolean {
+  const target = referenceTargetOf(component);
+  if (target === null) return false;
+
+  if (name === ReferenceAttr.File) {
+    reference.path = rawValue.trim();
+    return true;
+  }
+  if (name === ReferenceAttr.Src && isReferenceableSrc(component, rawValue)) {
+    reference.path = rawValue.trim();
+    return true;
+  }
+  if (name === ReferenceAttr.Diff) {
+    reference.path = rawValue.trim();
+    reference.key = ReferenceExpressionKey.Diff;
+    return true;
+  }
+  return consumeReferenceOption(component, name, rawValue, reference.options);
+}
+
+// `src` names a real prop on Image (where it is normally a URL) and no prop at
+// all on DataTable/Chart/Sparkline (where it can only mean a data file).
+function isReferenceableSrc(component: string, rawValue: string): boolean {
+  if (propNameFor(component, ReferenceAttr.Src) === null) return true;
+  return isLocalPath(rawValue);
+}
+
+function consumeReferenceOption(
+  component: string,
+  name: string,
+  rawValue: string,
+  options: ReferenceOptions,
+): boolean {
+  if (propNameFor(component, name) !== null) return false;
+  if (name === ReferenceAttr.Lines) {
+    options.lines = rawValue.trim();
+    return true;
+  }
+  if (name === ReferenceAttr.Base) {
+    options.base = rawValue.trim();
+    return true;
+  }
+  if (name === ReferenceAttr.Watch) {
+    options.watch = isTruthyFlag(rawValue);
+    return true;
+  }
+  if (name === ReferenceAttr.Staged) {
+    options.staged = isTruthyFlag(rawValue);
+    return true;
+  }
+  if (name === ReferenceAttr.Limit && isNumericString(rawValue.trim())) {
+    options.limit = Number(rawValue.trim());
+    return true;
+  }
+  return false;
+}
+
+function isTruthyFlag(rawValue: string): boolean {
+  return rawValue.trim().toLowerCase() !== "false";
+}
+
+function applyFileReference(
+  component: string,
+  reference: ReferenceAttrs,
+  props: Record<string, unknown>,
+): void {
+  const path = reference.path;
+  if (path === null) return;
+  const target = referenceTargetOf(component);
+  if (target === null) return;
+
+  const key = reference.key ?? target.key;
+  props[target.prop] = buildReferenceExpression(key, path, reference.options);
+  applyCodeBlockGutter(component, key, path, reference.options, props);
+}
+
+// A referenced excerpt should label itself with the path the model already named
+// and number its lines the way the file does — both free at compile time.
+function applyCodeBlockGutter(
+  component: string,
+  key: ReferenceExpressionKey,
+  path: string,
+  options: ReferenceOptions,
+  props: Record<string, unknown>,
+): void {
+  if (component !== "CodeBlock") return;
+  if (props.title === undefined) props.title = path;
+  if (key === ReferenceExpressionKey.Diff) {
+    if (props.language === undefined) props.language = "diff";
+    return;
+  }
+  const startLine = startLineOf(options.lines);
+  if (startLine !== null && props.startLine === undefined) props.startLine = startLine;
 }
 
 function assignProp(

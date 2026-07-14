@@ -434,6 +434,145 @@ describe("deterministic keys", () => {
   });
 });
 
+// The ladder is the point of the dialect: naming a file costs ~16 output tokens
+// where pasting both sides of it costs ~15,000. These tests pin the expression
+// shapes the daemon's hydration engine resolves, and the precedence rules that
+// keep a reference attribute from stealing a prop that legitimately owns the
+// name. Every assertion is made on the spec AFTER prepareSpec, because
+// prepareSpec is not a pass-through: autoFixSpec hoists the reserved element
+// fields (on/repeat/watch/visible) out of props, and the shape that reaches the
+// hydrator is the one that survives that.
+function preparedElements(markup: string): Record<string, UIElement> {
+  const compiled = compileMarkup(markup);
+  expect(compiled.issues).toEqual([]);
+  const prepared = prepareSpec(compiled.spec);
+  expect(prepared.issues).toEqual([]);
+  return prepared.spec.elements;
+}
+
+function preparedRoot(markup: string): UIElement {
+  const root = preparedElements(markup).root;
+  if (!root) throw new Error(`no root compiled from: ${markup}`);
+  return root;
+}
+
+describe("fidelity ladder: reference attributes", () => {
+  test("<GitDiff> compiles to a DiffViewer carrying the element-level $diff reference", () => {
+    const diff = preparedRoot('<GitDiff file="src/daemon/server.ts" base="HEAD~1"/>');
+    expect(diff.type).toBe("DiffViewer");
+    expect(diff.props).toEqual({ $diff: "src/daemon/server.ts", base: "HEAD~1" });
+  });
+
+  test("<GitDiff staged> rides as a sibling option of the $diff key", () => {
+    expect(preparedRoot('<GitDiff file="a.ts" staged/>').props).toEqual({ $diff: "a.ts", staged: true });
+  });
+
+  // autoFixSpec treats `watch` as a reserved ELEMENT field, so a top-level
+  // props.watch does NOT stay in props — it is hoisted onto the element (as a
+  // bare boolean, which UIElement.watch is not even typed to hold). The hydrator
+  // reads it from either location. Asserting the whole serialized element pins
+  // the shape that actually reaches the hydrator, so this can never drift
+  // silently.
+  test("<GitDiff watch> survives prepareSpec with watch hoisted to the element", () => {
+    const diff = preparedRoot('<GitDiff file="a.ts" watch/>');
+    expect(JSON.parse(JSON.stringify(diff))).toEqual({
+      type: "DiffViewer",
+      props: { $diff: "a.ts" },
+      children: [],
+      watch: true,
+    });
+  });
+
+  test("<GitDiff> without a file is rejected", () => {
+    expect(issuesOf('<GitDiff base="HEAD"/>')[0]).toContain('<GitDiff> needs file="<path>"');
+  });
+
+  test("CodeBlock file+lines references the file and numbers the gutter from it", () => {
+    const code = preparedRoot('<CodeBlock file="src/foo.ts" lines="40-80"/>');
+    expect(code.props).toEqual({
+      code: { $file: "src/foo.ts", lines: "40-80" },
+      title: "src/foo.ts",
+      startLine: 40,
+    });
+  });
+
+  test("CodeBlock diff= renders a unified patch and labels the language", () => {
+    const code = preparedRoot('<CodeBlock diff="src/foo.ts" base="HEAD~1"/>');
+    expect(code.props).toEqual({
+      code: { $diff: "src/foo.ts", base: "HEAD~1" },
+      title: "src/foo.ts",
+      language: "diff",
+    });
+  });
+
+  test("DataTable and Chart take src as a csv reference", () => {
+    expect(preparedRoot('<DataTable src="results.csv" limit="500"/>').props).toEqual({
+      rows: { $csv: "results.csv", limit: 500 },
+    });
+    expect(preparedRoot('<Chart src="results.csv" kind="line" x="t" y="ms"/>').props).toEqual({
+      kind: "line",
+      x: "t",
+      y: "ms",
+      data: { $csv: "results.csv" },
+    });
+  });
+
+  // Here `watch` is nested INSIDE the expression value, not a top-level prop, so
+  // it is invisible to autoFixSpec and survives exactly where it was emitted.
+  test("<LogStream file watch> is a Terminal fed by a tailed file", () => {
+    const terminal = preparedRoot('<LogStream file="app.log" watch/>');
+    expect(terminal.type).toBe("Terminal");
+    expect(terminal.props).toEqual({
+      command: "tail -f app.log",
+      output: { $file: "app.log", watch: true },
+    });
+    expect(terminal.watch).toBeUndefined();
+  });
+
+  test("Markdown and Terminal take file references too", () => {
+    expect(preparedRoot('<Markdown file="README.md"/>').props).toEqual({
+      content: { $file: "README.md" },
+    });
+    expect(preparedRoot('<Terminal file="build.log" command="bun run build"/>').props).toEqual({
+      command: "bun run build",
+      output: { $file: "build.log" },
+    });
+  });
+
+  test("a local Image src becomes an image reference; a URL stays a URL", () => {
+    expect(preparedRoot('<Image src="shots/after.png" alt="s"/>').props).toEqual({
+      alt: "s",
+      src: { $img: "shots/after.png" },
+    });
+    expect(preparedRoot('<img src="https://x.dev/a.png" alt="a">').props.src).toBe("https://x.dev/a.png");
+    expect(preparedRoot('<img src="/logo.png" alt="l">').props.src).toBe("/logo.png");
+  });
+
+  test("DiffViewer keeps `file` as its path label, not a reference", () => {
+    expect(preparedRoot('<DiffViewer file="a.ts" before="x" after="y"/>').props.file).toBe("a.ts");
+  });
+
+  test("every reference form survives prepareSpec with zero issues", () => {
+    const elements = preparedElements(`<section>
+      <GitDiff file="src/a.ts" watch/>
+      <CodeBlock file="src/b.ts" lines="1-20"/>
+      <DataTable src="out.csv"/>
+      <Chart src="out.csv" kind="line" x="t" y="ms"/>
+      <LogStream file="app.log" watch/>
+      <Markdown file="README.md"/>
+    </section>`);
+    expect(Object.values(elements).map((element) => element.type)).toEqual([
+      "DiffViewer",
+      "CodeBlock",
+      "DataTable",
+      "Chart",
+      "Terminal",
+      "Markdown",
+      "Stack",
+    ]);
+  });
+});
+
 describe("rejections", () => {
   test("script is rejected and never carried into the spec", () => {
     const { spec, issues } = compile("<section><script>alert(1)</script></section>");

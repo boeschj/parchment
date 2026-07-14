@@ -7,12 +7,18 @@
 import { describe, expect, test } from "bun:test";
 import { compileMarkup } from "./index.ts";
 import { prepareSpec } from "../spec-validation.ts";
-import { DASHBOARD_MARKUP, MIXED_REPORT_MARKUP, SIGNUP_FORM_MARKUP } from "./goldens.fixture.ts";
+import {
+  DASHBOARD_MARKUP,
+  MIXED_REPORT_MARKUP,
+  REFERENCE_REVIEW_MARKUP,
+  SIGNUP_FORM_MARKUP,
+} from "./goldens.fixture.ts";
 
 const GOLDENS = [
   { name: "dashboard", markup: DASHBOARD_MARKUP },
   { name: "signup-form", markup: SIGNUP_FORM_MARKUP },
   { name: "mixed-report", markup: MIXED_REPORT_MARKUP },
+  { name: "reference-review", markup: REFERENCE_REVIEW_MARKUP },
 ];
 
 for (const golden of GOLDENS) {
@@ -87,6 +93,27 @@ describe("golden: signup-form", () => {
     expect(spec.elements["button-5"]?.on?.press).toEqual([
       { action: "canvas.submit", params: { id: "signup", payload: { $state: "/form" } } },
     ]);
+  });
+});
+
+// The ladder's payoff, asserted end to end: not one byte of the diff, the source
+// excerpt, the benchmark rows, or the log tail appears in the authored document.
+describe("golden: reference-review", () => {
+  const spec = prepareSpec(compileMarkup(REFERENCE_REVIEW_MARKUP).spec).spec;
+
+  test("every heavy element is a reference, not pasted content", () => {
+    expect(spec.elements["diffviewer-2"]?.props).toEqual({ $diff: "src/api/cache.ts", base: "HEAD~1" });
+    expect(spec.elements["codeblock-4"]?.props.code).toEqual({
+      $file: "src/api/cache.ts",
+      lines: "40-80",
+    });
+    expect(spec.elements["datatable-6"]?.props.rows).toEqual({ $csv: "bench/results.csv" });
+    expect(spec.elements["chart-7"]?.props.data).toEqual({ $csv: "bench/results.csv" });
+    expect(spec.elements["terminal-9"]?.props.output).toEqual({ $file: "logs/app.log", watch: true });
+  });
+
+  test("the whole review costs well under a thousand characters to author", () => {
+    expect(REFERENCE_REVIEW_MARKUP.length).toBeLessThan(1000);
   });
 });
 

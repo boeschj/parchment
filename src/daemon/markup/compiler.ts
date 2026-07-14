@@ -27,6 +27,7 @@ import { buildElementBody } from "./attributes.ts";
 import { RAW_TEXT_COMPONENTS, textContentPropOf } from "./conventions.ts";
 import { elementKeyFor, ROOT_KEY } from "./keys.ts";
 import { hasMarkdownSyntax, renderInlineNodes, renderListElement, renderQuote } from "./prose.ts";
+import { gitDiffProps } from "./references.ts";
 import { compileTableElement } from "./tables.ts";
 import {
   FORBIDDEN_TAGS,
@@ -222,7 +223,72 @@ function compileSemanticNode(
   }
   if (handler === TagHandler.Quote) return registerMarkdown(renderQuote(element), path, ctx);
   if (handler === TagHandler.PreCode) return compilePreCode(element, path, ctx);
+  if (handler === TagHandler.GitDiff) return compileGitDiff(element, path, ctx);
+  if (handler === TagHandler.LogStream) return compileLogStream(element, path, ctx);
   return compileTableNode(element, path, ctx);
+}
+
+// ---- Reference-first aliases ------------------------------------------------
+
+const GIT_DIFF_ATTRS: ReadonlySet<string> = new Set([
+  "file",
+  "base",
+  "staged",
+  "watch",
+  "language",
+  "editableside",
+]);
+
+// <GitDiff file="src/daemon/server.ts"/> — a whole two-sided diff in ~16 output
+// tokens, where pasting both sides of that file costs ~15,000. It compiles to a
+// DiffViewer carrying the element-level $diff reference the hydration engine
+// expands into file/before/after, so the model never emits a line of the file.
+function compileGitDiff(element: Element, path: number[], ctx: CompileContext): string | null {
+  const key = elementKeyFor("DiffViewer", path);
+  const file = element.attribs.file?.trim();
+  if (file === undefined || file.length === 0) {
+    ctx.issues.push(`elements/${key}: <GitDiff> needs file="<path>" — the file to diff.`);
+    return null;
+  }
+  for (const name of Object.keys(element.attribs)) {
+    if (GIT_DIFF_ATTRS.has(name.toLowerCase())) continue;
+    ctx.issues.push(
+      `elements/${key}: unknown attribute "${name}" on <GitDiff>. Known attributes: file, base, staged, watch, language, editableSide`,
+    );
+  }
+  const props = gitDiffProps(file, {
+    ...(optionalAttr(element, "base") !== null ? { base: optionalAttr(element, "base") ?? "" } : {}),
+    ...(hasFlag(element, "staged") ? { staged: true } : {}),
+    ...(hasFlag(element, "watch") ? { watch: true } : {}),
+  });
+  const language = optionalAttr(element, "language");
+  if (language !== null) props.language = language;
+  const editableSide = optionalAttr(element, "editableside");
+  if (editableSide !== null) props.editableSide = editableSide;
+
+  ctx.elements[key] = { type: "DiffViewer", props, children: [] };
+  return key;
+}
+
+function optionalAttr(element: Element, name: string): string | null {
+  const value = element.attribs[name]?.trim();
+  if (value === undefined || value.length === 0) return null;
+  return value;
+}
+
+function hasFlag(element: Element, name: string): boolean {
+  const value = element.attribs[name];
+  if (value === undefined) return false;
+  return value.trim().toLowerCase() !== "false";
+}
+
+// <LogStream file="app.log" watch/> — a Terminal whose output the daemon tails.
+// The command line defaults to the tail the daemon is actually running, so the
+// element reads honestly without the model spending tokens on it.
+function compileLogStream(element: Element, path: number[], ctx: CompileContext): string | null {
+  const file = element.attribs.file?.trim();
+  const preset = file !== undefined && file.length > 0 ? { command: `tail -f ${file}` } : undefined;
+  return compileComponentNode("Terminal", element, path, false, preset, ctx);
 }
 
 // ---- Prose runs -------------------------------------------------------------
