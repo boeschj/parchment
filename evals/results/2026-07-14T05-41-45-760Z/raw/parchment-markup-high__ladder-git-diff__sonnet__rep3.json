@@ -1,0 +1,39 @@
+{
+  "runId": "parchment-markup-high__ladder-git-diff__sonnet__rep3",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-git-diff",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 510,
+      "authoredOutputTokens": 244,
+      "authoredArtifactBytes": 251,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "GitDiff"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 56010,
+      "cacheCreationTokens": 15004,
+      "assistantTurnCount": 3,
+      "wallClockMs": 13263,
+      "reportedCostUsd": 0.115231,
+      "artifact": {
+        "source": "<section>\n  <h1>src/server.ts — HEAD~1 to HEAD</h1>\n  <p>Changes from \"Add inventory catalog HTTP service\" to \"Harden server: request timeouts, structured logs, graceful shutdown\".</p>\n  <GitDiff file=\"repo/src/server.ts\" base=\"HEAD~1\" />\n</section>",
+        "toolInput": {
+          "title": "server.ts diff (HEAD~1 → HEAD)",
+          "markup": "<section>\n  <h1>src/server.ts — HEAD~1 to HEAD</h1>\n  <p>Changes from \"Add inventory catalog HTTP service\" to \"Harden server: request timeouts, structured logs, graceful shutdown\".</p>\n  <GitDiff file=\"repo/src/server.ts\" base=\"HEAD~1\" />\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4325,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-git-diff__sonnet__rep3"
+}
