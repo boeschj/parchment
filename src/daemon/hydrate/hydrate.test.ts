@@ -20,6 +20,7 @@ import { hydrateSpec, HydrationMode } from "./index.ts";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
 const LINES_TXT = join(FIXTURES, "lines.txt");
 const RESULTS_CSV = join(FIXTURES, "results.csv");
+const APP_LOG = join(FIXTURES, "app.log");
 
 const stubBlobUrl = (absPath: string): string => buildBlobUrl(absPath, "test-token");
 
@@ -56,6 +57,7 @@ async function makeWorkspace(): Promise<Workspace> {
 
   writeFileSync(join(cwd, "lines.txt"), readFileSync(LINES_TXT, "utf8"));
   writeFileSync(join(cwd, "results.csv"), readFileSync(RESULTS_CSV, "utf8"));
+  writeFileSync(join(cwd, "app.log"), readFileSync(APP_LOG, "utf8"));
   return { cwd, filePath, relPath };
 }
 
@@ -394,6 +396,112 @@ describe("hydrateSpec — golden: $file + $diff + $csv", () => {
     expect(meta["change__eldiff"]!.mode).toBe(HydrationMode.Live);
     // The relocated flag must not survive as an invalid element-level watch map.
     expect(result.spec.elements.change!.watch).toBeUndefined();
+  });
+
+  // The gap this closed: a Chart whose data, x and y are ALL facts about a file
+  // the model never opened. It writes the question; the daemon writes the answer.
+  it("fills a Chart's data, x and y from an aggregated $log", async () => {
+    const workspace = await makeWorkspace();
+    const compiled = compileMarkup(
+      '<section><LogStream file="app.log" match="ERROR" groupBy="10m"/></section>',
+    );
+    expect(compiled.issues).toEqual([]);
+    // Validation runs BEFORE hydration and must not report x/y missing — it
+    // reads the same PropValueReferences contract the hydrator fills them from.
+    const prepared = prepareSpec(compiled.spec);
+    expect(prepared.issues).toEqual([]);
+
+    const result = await hydrateSpec({
+      spec: prepared.spec,
+      cwd: workspace.cwd,
+      buildBlobUrl: stubBlobUrl,
+    });
+    expect(result.errors).toEqual([]);
+
+    const chart = result.spec.elements["chart-0"]!;
+    expect(chart.props.data).toEqual({ $state: "/hydrated/chart_0__data" });
+    expect(chart.props.x).toEqual({ $state: "/hydrated/chart_0__x" });
+    expect(chart.props.y).toEqual({ $state: "/hydrated/chart_0__y" });
+
+    const hydrated = result.spec.state?.hydrated as Record<string, unknown>;
+    expect(hydrated["chart_0__x"]).toBe("bucket");
+    expect(hydrated["chart_0__y"]).toBe("count");
+    expect(hydrated["chart_0__data"]).toEqual([
+      { bucket: "09:00", count: 1 },
+      { bucket: "09:10", count: 0 },
+      { bucket: "09:20", count: 2 },
+    ]);
+  });
+
+  // A watched $log re-aggregates the whole file, and the series list is itself a
+  // fact about the file — a level that first appears after the push has to grow
+  // a line of its own, so it gets a source of its own.
+  it("watches an aggregated $log, refreshing both the rows and the series list", async () => {
+    const workspace = await makeWorkspace();
+    const compiled = compileMarkup(
+      '<section><LogStream file="app.log" groupBy="10m" pattern="\\s(?<level>ERROR|WARN)\\s" series="level" watch/></section>',
+    );
+    expect(compiled.issues).toEqual([]);
+    const result = await hydrateSpec({
+      spec: compiled.spec,
+      cwd: workspace.cwd,
+      buildBlobUrl: stubBlobUrl,
+    });
+    expect(result.errors).toEqual([]);
+
+    const hydrated = result.spec.state?.hydrated as Record<string, unknown>;
+    expect(hydrated["chart_0__y"]).toEqual(["ERROR", "WARN"]);
+
+    expect(result.watchSources).toHaveLength(2);
+    expect(result.watchSources).toEqual([
+      expect.objectContaining({
+        statePath: "/hydrated/chart_0__data",
+        target: expect.objectContaining({ kind: "log", select: "rows" }),
+      }),
+      expect.objectContaining({
+        statePath: "/hydrated/chart_0__y",
+        target: expect.objectContaining({ kind: "log", select: "seriesKeys" }),
+      }),
+    ]);
+
+    const meta = result.spec.state?.hydratedMeta as Record<string, { mode: string }>;
+    expect(meta["chart_0__data"]!.mode).toBe(HydrationMode.Live);
+  });
+
+  it("rejects the push when the log cannot answer the question asked of it", async () => {
+    const workspace = await makeWorkspace();
+    const spec: JsonRenderSpec = {
+      root: "chart",
+      elements: {
+        chart: {
+          type: "Chart",
+          props: { kind: "line", data: { $log: "app.log", groupBy: "ten minutes" } },
+          children: [],
+        },
+      },
+    };
+    const result = await hydrateSpec({ spec, cwd: workspace.cwd, buildBlobUrl: stubBlobUrl });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("elements/chart/props/data");
+    expect(result.errors[0]).toContain("is not an interval");
+  });
+
+  // Root confinement is a property of the reference mechanism, not of any one
+  // kind: a $log gets the same answer a $file does.
+  it("refuses a $log outside the session root", async () => {
+    const workspace = await makeWorkspace();
+    const spec: JsonRenderSpec = {
+      root: "chart",
+      elements: {
+        chart: {
+          type: "Chart",
+          props: { kind: "line", data: { $log: "../escape.log", groupBy: "10m" } },
+          children: [],
+        },
+      },
+    };
+    const result = await hydrateSpec({ spec, cwd: workspace.cwd, buildBlobUrl: stubBlobUrl });
+    expect(result.errors[0]).toContain("resolves outside the session root");
   });
 
   it("collects a precise error for a missing $file", async () => {

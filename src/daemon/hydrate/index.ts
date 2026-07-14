@@ -22,15 +22,17 @@ import {
   type HydratedMeta,
 } from "./meta.ts";
 import type { JsonRenderSpec, UIElement } from "../../shared/types.ts";
-import { LiveSourceKind, type LiveSourceConfig } from "../live/types.ts";
+import { LiveSourceKind, LogRefreshSelection, type LiveSourceConfig } from "../live/types.ts";
 import { dataTableColumnsFromCsv } from "./columns.ts";
 import type { CsvParseResult } from "./csv.ts";
+import type { LogAggregationResult, LogReferenceOptions } from "./logs.ts";
 import {
   resolveCsvReference,
   resolveDiffPatchReference,
   resolveDiffSidesReference,
   resolveFileReference,
   resolveImgReference,
+  resolveLogReference,
   resolveReferencePath,
   type Resolved,
 } from "./resolve.ts";
@@ -39,6 +41,9 @@ const HYDRATED_NAMESPACE = "hydrated";
 const HYDRATED_META_NAMESPACE = "hydratedMeta";
 const DIFF_VIEWER_TYPE = "DiffViewer";
 const DIFF_SIBLING_OPTION_KEYS = ["base", "staged", "watch"] as const;
+// Chart's series prop — the one a $log supplies from the file's own contents,
+// and therefore the one a watched $log has to keep re-deriving.
+const CHART_SERIES_PROP = "y";
 
 // One slot's references share a budget, so a spec cannot smuggle 40 near-cap
 // files past the per-file limit and land 20 MB in a single slot's state.
@@ -268,8 +273,16 @@ async function hydratePropValue(
     return undefined;
   }
   if (resolved.note) context.notes.push(`${location}: ${resolved.note}`);
-  applySuppliedProps(key, element, propName, resolved.value.supplies, mode, context);
-  registerValueWatch(kind, refId, path, resolvedPath.absPath, reference, context);
+  const supplied = applySuppliedProps(key, element, propName, resolved.value.supplies, mode, context);
+  registerValueWatch({
+    kind,
+    refId,
+    displayPath: path,
+    absPath: resolvedPath.absPath,
+    reference,
+    supplied,
+    context,
+  });
   return stateBinding(refId);
 }
 
@@ -282,6 +295,10 @@ async function hydratePropValue(
 //
 // The author always wins: a hand-written `columns` is never overwritten — the
 // derived shape is a floor, not a ceiling.
+//
+// Returns the refIds it actually filled, keyed by prop, so a watched reference
+// can keep a SUPPLIED prop live too (a $log's `y` is the set of series the file
+// contained — a level that first appears an hour from now belongs on the chart).
 function applySuppliedProps(
   key: string,
   element: UIElement,
@@ -289,10 +306,11 @@ function applySuppliedProps(
   supplies: Record<string, unknown>,
   mode: HydrationMode,
   context: WalkContext,
-): void {
+): SuppliedRefIds {
+  const filled: SuppliedRefIds = new Map();
   const contract = propValueReferenceOf(element.type, element.props);
-  if (contract === null) return;
-  if (contract.prop !== propName) return;
+  if (contract === null) return filled;
+  if (contract.prop !== propName) return filled;
 
   for (const suppliedProp of contract.supplies) {
     if (element.props[suppliedProp] !== undefined) continue;
@@ -305,13 +323,21 @@ function applySuppliedProps(
       continue;
     }
     element.props[suppliedProp] = stateBinding(refId);
+    filled.set(suppliedProp, refId);
   }
+  return filled;
 }
 
-// Only file-backed text references re-resolve on change; a $csv row cap or a
-// $img URL has nothing meaningful to stream.
+type SuppliedRefIds = Map<string, string>;
+
+// Only file-backed references re-resolve on change; a $csv row cap or a $img URL
+// has nothing meaningful to stream.
 function isWatchable(kind: ReferenceExpressionKey): boolean {
-  return kind === ReferenceExpressionKey.File || kind === ReferenceExpressionKey.Diff;
+  return (
+    kind === ReferenceExpressionKey.File ||
+    kind === ReferenceExpressionKey.Diff ||
+    kind === ReferenceExpressionKey.Log
+  );
 }
 
 // What a resolved reference yields: the value the referenced prop binds to, plus
@@ -336,6 +362,9 @@ async function resolveByKind(
   if (kind === ReferenceExpressionKey.Csv) {
     return asReference(resolveCsvReference(absPath, numberOption(reference.limit)), csvReference);
   }
+  if (kind === ReferenceExpressionKey.Log) {
+    return asReference(resolveLogReference(absPath, logOptionsOf(reference)), logReference);
+  }
   if (kind === ReferenceExpressionKey.Img) {
     return asReference(resolveImgReference(absPath, context.buildBlobUrl), suppliesNothing);
   }
@@ -357,9 +386,32 @@ function csvReference(csv: CsvParseResult): ResolvedReference {
   return { value: csv.rows, supplies };
 }
 
+// A $log fills `data` with the aggregated rows and offers the two props that
+// describe them: which key is the X axis (the bucket) and which key(s) are the
+// series. Both are answers the daemon computed by reading the file — the model
+// asked the question and the daemon shaped the chart.
+function logReference(log: LogAggregationResult): ResolvedReference {
+  const supplies: SuppliedPropsOf<typeof ReferenceExpressionKey.Log> = { x: log.x, y: log.y };
+  return { value: log.rows, supplies };
+}
+
 // $file, $diff and $img fill exactly the one prop they sit in.
 function suppliesNothing(value: string): ResolvedReference {
   return { value, supplies: {} };
+}
+
+// The sibling options of a {$log}, read off the authored reference. Every one is
+// optional but `groupBy`, and the aggregator — not this reader — decides what a
+// bad one means, so both the push and the live refresh reject identically.
+function logOptionsOf(reference: Record<string, unknown>): LogReferenceOptions {
+  return {
+    groupBy: stringOption(reference.groupBy),
+    match: stringOption(reference.match),
+    parser: stringOption(reference.parser),
+    pattern: stringOption(reference.pattern),
+    series: stringOption(reference.series),
+    metric: stringOption(reference.metric),
+  };
 }
 
 function asReference<T>(
@@ -372,14 +424,18 @@ function asReference<T>(
   return { ok: true, value: reference, note: resolved.note };
 }
 
-function registerValueWatch(
-  kind: ReferenceExpressionKey,
-  refId: string,
-  displayPath: string,
-  absPath: string,
-  reference: Record<string, unknown>,
-  context: WalkContext,
-): void {
+type ValueWatch = {
+  kind: ReferenceExpressionKey;
+  refId: string;
+  displayPath: string;
+  absPath: string;
+  reference: Record<string, unknown>;
+  supplied: SuppliedRefIds;
+  context: WalkContext;
+};
+
+function registerValueWatch(watch: ValueWatch): void {
+  const { kind, refId, absPath, reference, context } = watch;
   if (reference.watch !== true) return;
   if (kind === ReferenceExpressionKey.File) {
     context.watchSources.push(
@@ -397,12 +453,42 @@ function registerValueWatch(
         kind: "diff-patch",
         cwd: context.cwd,
         absPath,
-        displayPath,
+        displayPath: watch.displayPath,
         base: stringOption(reference.base),
         staged: reference.staged === true,
       }),
     );
+    return;
   }
+  if (kind === ReferenceExpressionKey.Log) registerLogWatch(watch);
+}
+
+// A watched $log re-aggregates the whole file on every change — the rows are a
+// function of all of it, so there is nothing to append. When `series` split the
+// chart, the series LIST is re-derived beside the rows: a log that starts
+// emitting FATAL an hour after the push grows a line for it, live.
+function registerLogWatch(watch: ValueWatch): void {
+  const { refId, absPath, reference, context } = watch;
+  const options = logOptionsOf(reference);
+  context.watchSources.push(
+    referenceRefreshSource(refId, absPath, {
+      kind: "log",
+      absPath,
+      options,
+      select: LogRefreshSelection.Rows,
+    }),
+  );
+
+  const seriesRefId = watch.supplied.get(CHART_SERIES_PROP);
+  if (options.series === null || seriesRefId === undefined) return;
+  context.watchSources.push(
+    referenceRefreshSource(seriesRefId, absPath, {
+      kind: "log",
+      absPath,
+      options,
+      select: LogRefreshSelection.SeriesKeys,
+    }),
+  );
 }
 
 // ---- Shared helpers --------------------------------------------------------

@@ -15,10 +15,12 @@ import {
   resolveDiffPatchReference,
   resolveDiffSidesReference,
   resolveFileReference,
+  resolveLogReference,
   type Resolved,
 } from "../hydrate/resolve.ts";
 import { buildHydratedMeta, HydrationMode } from "../hydrate/meta.ts";
 import type { SlotStatePump } from "./pump.ts";
+import { LogRefreshSelection } from "./types.ts";
 import type {
   ReferenceRefreshSourceConfig,
   ReferenceRefreshTarget,
@@ -73,6 +75,9 @@ function resolveTarget(target: ReferenceRefreshTarget): Promise<Resolved<unknown
   if (target.kind === "file") {
     return Promise.resolve(resolveFileReference(target.absPath, target.lines));
   }
+  if (target.kind === "log") {
+    return Promise.resolve(refreshLog(target));
+  }
   if (target.kind === "diff-sides") {
     return resolveDiffSidesReference(target.cwd, target.absPath, target.displayPath, {
       base: target.base,
@@ -83,6 +88,21 @@ function resolveTarget(target: ReferenceRefreshTarget): Promise<Resolved<unknown
     base: target.base,
     staged: target.staged,
   });
+}
+
+// The whole log is re-read and re-aggregated on every change — a bucket's count
+// is a function of all the lines in it, so there is no cursor to advance and
+// nothing to append. One source writes the rows; when the chart is split by a
+// captured field, a second writes the series list the new rows are keyed by.
+function refreshLog(
+  target: Extract<ReferenceRefreshTarget, { kind: "log" }>,
+): Resolved<unknown> {
+  const aggregated = resolveLogReference(target.absPath, target.options);
+  if (!aggregated.ok) return aggregated;
+  if (target.select === LogRefreshSelection.SeriesKeys) {
+    return { ok: true, value: aggregated.value.y };
+  }
+  return { ok: true, value: aggregated.value.rows };
 }
 
 function fileSignature(path: string): string {

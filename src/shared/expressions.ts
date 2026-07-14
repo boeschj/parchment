@@ -47,6 +47,7 @@ export const ReferenceExpressionKey = {
   Diff: "$diff",
   Csv: "$csv",
   Img: "$img",
+  Log: "$log",
 } as const;
 
 export type ReferenceExpressionKey =
@@ -62,7 +63,30 @@ export type DiffReference = { $diff: string; base?: string; staged?: boolean; wa
 export type CsvReference = { $csv: string; limit?: number };
 export type ImgReference = { $img: string };
 
-export type ReferenceExpression = FileReference | DiffReference | CsvReference | ImgReference;
+// A $log names a log file AND the question asked of it: the daemon reads every
+// line, keeps the ones that `match`, extracts fields with the file-tail parser
+// grammar (parser: jsonl|regex|number + a `pattern` of named groups — the same
+// grammar canvas_live's file-tail sources already speak), buckets them by
+// `groupBy` (a duration: "10m", "30s", "1h", "1d"), and computes `metric` per
+// bucket — optionally one series per distinct value of the `series` field.
+// The model never reads the log and never emits a data point.
+export type LogReference = {
+  $log: string;
+  groupBy: string;
+  match?: string;
+  parser?: string;
+  pattern?: string;
+  series?: string;
+  metric?: string;
+  watch?: boolean;
+};
+
+export type ReferenceExpression =
+  | FileReference
+  | DiffReference
+  | CsvReference
+  | ImgReference
+  | LogReference;
 
 // An ELEMENT-LEVEL reference is a $-key sitting directly in props (rather than
 // as a prop's value): `{"type": "DiffViewer", "props": {"$diff": "src/a.ts"}}`.
@@ -114,6 +138,17 @@ export const PropValueReferences = {
     prop: "rows",
     key: ReferenceExpressionKey.Csv,
     supplies: ["columns"],
+  },
+  // A $log in Chart.data is the same bargain, one rung further: the daemon does
+  // the AGGREGATION too, so the props that describe the result — which key is
+  // the X axis, which keys are the series — are things only the daemon can know.
+  // It has read the file and bucketed it; the model has not. `y` is a single
+  // metric key ("count") until `series` splits it, and then it is whatever
+  // distinct values the file actually contained.
+  Chart: {
+    prop: "data",
+    key: ReferenceExpressionKey.Log,
+    supplies: ["x", "y"],
   },
 } as const satisfies Record<string, PropValueReferenceContract>;
 
@@ -187,7 +222,9 @@ export function parseReferenceValue(value: unknown): Record<string, unknown> | n
 // "$diff:src/a.ts", "$csv:data/x.csv", "$img:shot.png". Safe under the
 // existing $-prefix convention (a real content string does not begin "$file:")
 // and carries no options — the object form is canonical when a line range,
-// git base, or watch flag is needed.
+// git base, or watch flag is needed. $log has no shorthand on purpose: a log
+// reference without a `groupBy` is not a question, so its options are never
+// optional.
 const REFERENCE_SHORTHAND_PATTERN = /^\$(file|diff|csv|img):(.+)$/;
 
 export function parseReferenceShorthand(raw: string): ReferenceExpression | null {

@@ -5,9 +5,11 @@
 
 import { resolveDiffPatch, resolveDiffSides, type DiffOptions, type DiffSides } from "./git.ts";
 import { parseCsv, type CsvParseResult } from "./csv.ts";
+import { aggregateLog, type LogAggregationResult, type LogReferenceOptions } from "./logs.ts";
 import {
   MAX_CSV_READ_BYTES,
   MAX_CSV_ROWS,
+  readTextForAggregation,
   readTextForHydration,
   resolveReferencePath,
   statRegularFile,
@@ -46,6 +48,23 @@ export function resolveCsvReference(absPath: string, limit: number | null): Reso
     value: { columns: parsed.columns, rows: parsed.rows.slice(0, rowCap) },
     note: `capped to ${rowCap} of ${parsed.rows.length} rows`,
   };
+}
+
+// The only reference that resolves to an ANSWER rather than to content: the
+// daemon reads the log, buckets it, aggregates it, and hands back chart rows.
+// A model that writes <LogStream file="app.log" match="ERROR" groupBy="10m"/>
+// has emitted 12 tokens and read nothing.
+export function resolveLogReference(
+  absPath: string,
+  options: LogReferenceOptions,
+): Resolved<LogAggregationResult> {
+  const read = readTextForAggregation(absPath);
+  if (!read.ok) return read;
+  const aggregated = aggregateLog(read.text, options);
+  if (!aggregated.ok) return aggregated;
+  const notes = aggregated.value.notes;
+  if (notes.length === 0) return { ok: true, value: aggregated.value };
+  return { ok: true, value: aggregated.value, note: notes.join("; ") };
 }
 
 export function resolveImgReference(

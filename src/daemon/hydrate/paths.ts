@@ -18,6 +18,7 @@ import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 export const MAX_FILE_HYDRATE_BYTES = 512 * 1024;
 export const MAX_FILE_READ_BYTES = 8 * 1024 * 1024;
 export const MAX_CSV_READ_BYTES = 8 * 1024 * 1024;
+export const MAX_LOG_READ_BYTES = 8 * 1024 * 1024;
 export const MAX_CSV_ROWS = 10_000;
 
 const BINARY_SNIFF_BYTES = 8192;
@@ -171,6 +172,26 @@ export function readTextForHydration(absPath: string, lines: string | null): Tex
     };
   }
   return { ok: true, text: text.value };
+}
+
+// The read behind an AGGREGATED reference. Same confinement, same regular-file
+// rule, same binary rejection — but no hydrate-size cap, because what lands in
+// state is the aggregate (a few dozen rows), not the file. A log is allowed to
+// be big precisely because the daemon is the one reading it.
+export function readTextForAggregation(absPath: string): TextReadResult {
+  const stat = statRegularFile(absPath);
+  if (!stat.ok) return stat;
+  if (stat.sizeBytes > MAX_LOG_READ_BYTES) {
+    return {
+      ok: false,
+      error: `${absPath} is ${formatKilobytes(stat.sizeBytes)}, past the ${formatKilobytes(MAX_LOG_READ_BYTES)} read ceiling — aggregate a rotated slice of the log instead.`,
+    };
+  }
+  const buffer = readFileSync(absPath);
+  if (looksBinary(buffer)) {
+    return { ok: false, error: `${absPath} looks like a binary file; a $log aggregates text lines.` };
+  }
+  return { ok: true, text: buffer.toString("utf8") };
 }
 
 function applyLineRangeOrPassThrough(

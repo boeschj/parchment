@@ -27,7 +27,7 @@ import { buildElementBody } from "./attributes.ts";
 import { RAW_TEXT_COMPONENTS, textContentPropOf } from "./conventions.ts";
 import { elementKeyFor, ROOT_KEY } from "./keys.ts";
 import { hasMarkdownSyntax, renderInlineNodes, renderListElement, renderQuote } from "./prose.ts";
-import { gitDiffProps } from "./references.ts";
+import { gitDiffProps, logChartData } from "./references.ts";
 import { compileTableElement } from "./tables.ts";
 import {
   FORBIDDEN_TAGS,
@@ -282,13 +282,135 @@ function hasFlag(element: Element, name: string): boolean {
   return value.trim().toLowerCase() !== "false";
 }
 
-// <LogStream file="app.log" watch/> — a Terminal whose output the daemon tails.
-// The command line defaults to the tail the daemon is actually running, so the
-// element reads honestly without the model spending tokens on it.
+// <LogStream> reads a log two ways, and `groupBy` is the whole difference:
+//
+//   <LogStream file="app.log" watch/>                        → a live tail
+//   <LogStream file="app.log" match="ERROR" groupBy="10m"/>  → a chart of it
+//
+// With a bucket it is a QUESTION, and the daemon answers it: reads the file,
+// keeps the matching lines, buckets them by a real interval, aggregates, and
+// fills the Chart's data, x and y. The model emits a dozen tokens and never
+// opens the log — which is the entire point, and precisely what a `groupBy` of
+// hour|day|week could not do for a question asked in ten-minute buckets.
+const LOG_TAIL_ATTRS: ReadonlySet<string> = new Set(["file", "watch"]);
+
+const LOG_CHART_ATTRS: ReadonlySet<string> = new Set([
+  "file",
+  "groupby",
+  "match",
+  "pattern",
+  "parser",
+  "series",
+  "metric",
+  "watch",
+  "kind",
+  "title",
+  "height",
+]);
+
+// The attributes that only mean something once there is a bucket to aggregate
+// into. Writing one without `groupBy` is a question the daemon cannot answer, so
+// it is named as an error rather than silently dropped into a tail.
+const LOG_AGGREGATION_ATTRS = ["match", "pattern", "parser", "series", "metric"] as const;
+
+const LOG_GROUP_BY_ATTR = "groupby";
+const DEFAULT_LOG_CHART_KIND = "line";
+const CHART_TYPE = "Chart";
+const TERMINAL_TYPE = "Terminal";
+
 function compileLogStream(element: Element, path: number[], ctx: CompileContext): string | null {
-  const file = element.attribs.file?.trim();
-  const preset = file !== undefined && file.length > 0 ? { command: `tail -f ${file}` } : undefined;
-  return compileComponentNode("Terminal", element, path, false, preset, ctx);
+  const file = optionalAttr(element, "file");
+  if (file === null) {
+    const key = elementKeyFor(CHART_TYPE, path);
+    ctx.issues.push(`elements/${key}: <LogStream> needs file="<path>" — the log file to read.`);
+    return null;
+  }
+  const groupBy = optionalAttr(element, LOG_GROUP_BY_ATTR);
+  if (groupBy !== null) return compileLogChart(element, file, groupBy, path, ctx);
+
+  const aggregating = LOG_AGGREGATION_ATTRS.filter((attr) => optionalAttr(element, attr) !== null);
+  if (aggregating.length > 0) {
+    const key = elementKeyFor(TERMINAL_TYPE, path);
+    ctx.issues.push(
+      `elements/${key}: <LogStream ${aggregating[0]}="…"/> aggregates the log, which needs a time bucket: ` +
+        `add groupBy="10m" (any duration — 30s, 5m, 1h, 1d). Without groupBy, <LogStream file="${file}" watch/> is a live tail.`,
+    );
+    return null;
+  }
+  return compileLogTail(element, file, path, ctx);
+}
+
+// A Terminal whose output the daemon tails. The command line defaults to the
+// tail the daemon is actually running, so the element reads honestly without the
+// model spending tokens on it.
+function compileLogTail(
+  element: Element,
+  file: string,
+  path: number[],
+  ctx: CompileContext,
+): string | null {
+  reportUnknownLogAttrs(element, LOG_TAIL_ATTRS, TERMINAL_TYPE, path, ctx);
+  return compileComponentNode(TERMINAL_TYPE, element, path, false, { command: `tail -f ${file}` }, ctx);
+}
+
+// The Chart carries the $log and nothing else it does not need: `x` and `y` are
+// deliberately absent, because which key is the axis and which are the series
+// are facts about the FILE. The hydrator supplies them (shared/expressions.ts
+// declares the contract; the validator reads the same table, so their absence is
+// not an error).
+function compileLogChart(
+  element: Element,
+  file: string,
+  groupBy: string,
+  path: number[],
+  ctx: CompileContext,
+): string {
+  const key = elementKeyFor(CHART_TYPE, path);
+  reportUnknownLogAttrs(element, LOG_CHART_ATTRS, CHART_TYPE, path, ctx);
+
+  const props: Record<string, unknown> = {
+    kind: optionalAttr(element, "kind") ?? DEFAULT_LOG_CHART_KIND,
+    data: logChartData(file, {
+      groupBy,
+      match: optionalAttr(element, "match"),
+      pattern: optionalAttr(element, "pattern"),
+      parser: optionalAttr(element, "parser"),
+      series: optionalAttr(element, "series"),
+      metric: optionalAttr(element, "metric"),
+      watch: hasFlag(element, "watch"),
+    }),
+  };
+  const title = optionalAttr(element, "title");
+  if (title !== null) props.title = title;
+  const height = numericAttr(element, "height");
+  if (height !== null) props.height = height;
+
+  ctx.elements[key] = { type: CHART_TYPE, props, children: [] };
+  return key;
+}
+
+function reportUnknownLogAttrs(
+  element: Element,
+  known: ReadonlySet<string>,
+  component: string,
+  path: number[],
+  ctx: CompileContext,
+): void {
+  const key = elementKeyFor(component, path);
+  for (const name of Object.keys(element.attribs)) {
+    if (known.has(name.toLowerCase())) continue;
+    ctx.issues.push(
+      `elements/${key}: unknown attribute "${name}" on <LogStream>. Known attributes: ` +
+        `file, groupBy, match, pattern, parser, series, metric, watch, kind, title, height`,
+    );
+  }
+}
+
+function numericAttr(element: Element, name: string): number | null {
+  const raw = optionalAttr(element, name);
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
 // ---- Prose runs -------------------------------------------------------------

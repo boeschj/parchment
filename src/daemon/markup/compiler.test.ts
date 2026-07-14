@@ -529,6 +529,55 @@ describe("fidelity ladder: reference attributes", () => {
     expect(terminal.watch).toBeUndefined();
   });
 
+  // The gap the log-chart benchmark scenario found: with a bucket, <LogStream>
+  // is a QUESTION, and it compiles to a Chart whose data the daemon aggregates.
+  // `x` and `y` are deliberately absent — they are facts about the file, and the
+  // hydrator supplies them.
+  test("<LogStream groupBy> is a Chart the daemon aggregates", () => {
+    const chart = preparedRoot('<LogStream file="app.log" match="ERROR" groupBy="10m"/>');
+    expect(chart.type).toBe("Chart");
+    expect(chart.props).toEqual({
+      kind: "line",
+      data: { $log: "app.log", groupBy: "10m", match: "ERROR" },
+    });
+  });
+
+  test("<LogStream> carries the full query: series, metric, parser, and chart shape", () => {
+    const chart = preparedRoot(
+      '<LogStream file="app.log" groupBy="5m" pattern="(?<level>ERROR|WARN)" series="level" metric="count" kind="bar" title="Errors" height="240" watch/>',
+    );
+    expect(chart.props).toEqual({
+      kind: "bar",
+      title: "Errors",
+      height: 240,
+      data: {
+        $log: "app.log",
+        groupBy: "5m",
+        pattern: "(?<level>ERROR|WARN)",
+        series: "level",
+        metric: "count",
+        watch: true,
+      },
+    });
+  });
+
+  // The bucket is the whole difference between the two readings of a log, so a
+  // query with no bucket is named as one rather than silently becoming a tail.
+  test("<LogStream match> without a bucket is rejected, naming groupBy", () => {
+    const issue = issuesOf('<LogStream file="app.log" match="ERROR"/>')[0];
+    expect(issue).toContain('add groupBy="10m"');
+  });
+
+  test("<LogStream> without a file is rejected", () => {
+    expect(issuesOf('<LogStream groupBy="10m"/>')[0]).toContain('<LogStream> needs file="<path>"');
+  });
+
+  test("an unknown <LogStream> attribute is named, with the ones that exist", () => {
+    const issue = issuesOf('<LogStream file="app.log" groupBy="10m" bucket="10m"/>')[0];
+    expect(issue).toContain('unknown attribute "bucket"');
+    expect(issue).toContain("groupBy, match, pattern, parser, series, metric");
+  });
+
   test("Markdown and Terminal take file references too", () => {
     expect(preparedRoot('<Markdown file="README.md"/>').props).toEqual({
       content: { $file: "README.md" },

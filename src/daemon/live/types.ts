@@ -4,6 +4,7 @@
 
 import * as z from "zod/v4";
 import { LiveSourceKind } from "../../shared/types.ts";
+import type { LogReferenceOptions } from "../hydrate/logs.ts";
 
 // The kind vocabulary lives in shared/types.ts (the browser renders it too);
 // re-exported here so daemon modules keep importing it from their own layer.
@@ -108,11 +109,27 @@ export type ClaudeSessionsSourceConfig = SourceIdentity & {
   limit: number;
 };
 
+// A watched $log re-aggregates into TWO state paths — the rows the chart plots,
+// and the series list those rows are keyed by (which the file itself decides).
+// One source per path, each naming what it re-derives.
+export const LogRefreshSelection = {
+  Rows: "rows",
+  SeriesKeys: "seriesKeys",
+} as const;
+
+export type LogRefreshSelection = (typeof LogRefreshSelection)[keyof typeof LogRefreshSelection];
+
 // What a watched reference re-resolves through — enough to re-run the exact
 // resolver that first hydrated it, self-contained so it survives a daemon
 // restart (the persisted config is JSON only).
 export type ReferenceRefreshTarget =
   | { kind: "file"; absPath: string; lines: string | null }
+  | {
+      kind: "log";
+      absPath: string;
+      options: LogReferenceOptions;
+      select: LogRefreshSelection;
+    }
   | {
       kind: "diff-sides";
       cwd: string;

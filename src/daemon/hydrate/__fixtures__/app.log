@@ -1,0 +1,6 @@
+2026-05-11T09:00:04.182Z INFO  [http] request_completed duration_ms=3
+2026-05-11T09:00:31.000Z ERROR [http] upstream_timeout duration_ms=15001
+2026-05-11T09:05:00.000Z WARN  [http] slow_response duration_ms=900
+2026-05-11T09:10:00.000Z INFO  [http] request_completed duration_ms=7
+2026-05-11T09:20:00.000Z ERROR [store] write_failed duration_ms=120
+2026-05-11T09:20:30.000Z ERROR [store] write_failed duration_ms=240

@@ -8,6 +8,7 @@ import type { WebSocketSubscriber } from "../sessions.ts";
 import {
   LiveApplyMode,
   LiveSourceKind,
+  LogRefreshSelection,
   TailLineParser,
   type CommandPollSourceConfig,
   type FileTailSourceConfig,
@@ -346,6 +347,68 @@ describe("reference-refresh source", () => {
       writeFileSync(watchedPath, "const version = 2;\nconst added = true;\n");
       await waitFor("refresh after edit", () =>
         String(hydratedCode() ?? "").includes("added = true"),
+      );
+    } finally {
+      stopSlotLiveSources(sessionId, slot.id);
+    }
+  });
+
+  // A watched $log does not stream lines — it re-AGGREGATES. A bucket's count is
+  // a function of every line in it, so a new ERROR arriving in a bucket that was
+  // already on screen has to move the point that is already plotted.
+  it("re-aggregates a watched $log, so a new line moves the bucket already on the chart", async () => {
+    const sessionId = uniqueSessionId();
+    const slot = createDashboard(sessionId, { hydrated: {}, hydratedMeta: {} });
+    const logPath = join(fakeHome, `watched-${randomUUID()}.log`);
+    writeFileSync(logPath, "2026-05-11T09:00:00.000Z ERROR boom\n");
+
+    setSlotLiveSources(sessionId, slot.id, [
+      {
+        kind: LiveSourceKind.ReferenceRefresh,
+        id: "chart__data",
+        statePath: "/hydrated/chart__data",
+        metaStatePath: "/hydratedMeta/chart__data",
+        watchPath: logPath,
+        target: {
+          kind: "log",
+          absPath: logPath,
+          select: LogRefreshSelection.Rows,
+          options: {
+            groupBy: "10m",
+            match: "ERROR",
+            parser: null,
+            pattern: null,
+            series: null,
+            metric: null,
+          },
+        },
+      },
+    ]);
+    try {
+      const rows = (): unknown => {
+        const current = ensureSession(sessionId).slots.find((c) => c.id === slot.id);
+        const hydrated = current?.state["hydrated"];
+        return isRecord(hydrated) ? hydrated["chart__data"] : undefined;
+      };
+
+      await waitFor("initial aggregation", () =>
+        JSON.stringify(rows()) === JSON.stringify([{ bucket: "09:00", count: 1 }]),
+      );
+
+      appendFileSync(logPath, "2026-05-11T09:05:00.000Z ERROR boom again\n");
+      await waitFor("re-aggregation after append", () =>
+        JSON.stringify(rows()) === JSON.stringify([{ bucket: "09:00", count: 2 }]),
+      );
+
+      // A line in a NEW bucket extends the axis, rather than appending a point
+      // to the old one.
+      appendFileSync(logPath, "2026-05-11T09:12:00.000Z ERROR later\n");
+      await waitFor("new bucket after append", () =>
+        JSON.stringify(rows()) ===
+        JSON.stringify([
+          { bucket: "09:00", count: 2 },
+          { bucket: "09:10", count: 1 },
+        ]),
       );
     } finally {
       stopSlotLiveSources(sessionId, slot.id);

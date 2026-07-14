@@ -309,8 +309,9 @@ async function handleSessionRoute(
     }
     // Reference hydration runs here, in the daemon, because it needs the
     // session's cwd (relative paths) and the daemon's own git/filesystem/blob
-    // access. It rewrites {$file}/{$diff}/{$csv}/{$img} props into {$state}
-    // bindings and seeds their content into the slot's "/hydrated" namespace.
+    // access. It rewrites {$file}/{$diff}/{$csv}/{$img}/{$log} props into
+    // {$state} bindings and seeds their content — for a {$log}, the AGGREGATE it
+    // computed — into the slot's "/hydrated" namespace.
     const session = ensureSession(sessionId, body.cwd ?? "");
     const hydration = await hydrateSpec({
       spec: spec as unknown as JsonRenderSpec,

@@ -15,14 +15,18 @@
 //   {"$diff": "src/a.ts", "base": "HEAD~1", "staged": true} → unified patch
 //   {"$csv":  "data/x.csv", "limit": 500}                   → row objects
 //   {"$img":  "shots/after.png"}                            → blob URL
+//   {"$log":  "app.log", "groupBy": "10m", "match": "ERROR"} → chart rows
 // A diff is two-sided, so on a DiffViewer `$diff` is an ELEMENT-level props key
-// that expands into file/before/after rather than filling one prop.
+// that expands into file/before/after rather than filling one prop. A $log is
+// the only reference that ANSWERS rather than quotes: the daemon buckets and
+// aggregates the log, and supplies the Chart's `x` and `y` from what it found.
 
 export const ReferenceExpressionKey = {
   File: "$file",
   Diff: "$diff",
   Csv: "$csv",
   Image: "$img",
+  Log: "$log",
 } as const;
 
 export type ReferenceExpressionKey =
@@ -103,6 +107,37 @@ function referenceOptionEntries(options: ReferenceOptions): Record<string, unkno
 // engine expands into DiffViewer's file/before/after.
 export function gitDiffProps(path: string, options: ReferenceOptions): Record<string, unknown> {
   return buildReferenceExpression(ReferenceExpressionKey.Diff, path, options);
+}
+
+// The question a <LogStream> asks of its file. `groupBy` is the only required
+// one — a log reference with no bucket is not a chart — and the rest ride as
+// sibling keys the aggregator reads.
+export type LogQueryAttrs = {
+  groupBy: string;
+  match: string | null;
+  pattern: string | null;
+  parser: string | null;
+  series: string | null;
+  metric: string | null;
+  watch: boolean;
+};
+
+export function logChartData(path: string, query: LogQueryAttrs): Record<string, unknown> {
+  return {
+    [ReferenceExpressionKey.Log]: path,
+    groupBy: query.groupBy,
+    ...optionalEntry("match", query.match),
+    ...optionalEntry("pattern", query.pattern),
+    ...optionalEntry("parser", query.parser),
+    ...optionalEntry("series", query.series),
+    ...optionalEntry("metric", query.metric),
+    ...(query.watch ? { watch: true } : {}),
+  };
+}
+
+function optionalEntry(name: string, value: string | null): Record<string, string> {
+  if (value === null) return {};
+  return { [name]: value };
 }
 
 // "40-80" | "40" | "40-" | "-80" — the gutter starts wherever the range does, so
