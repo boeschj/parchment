@@ -1,0 +1,457 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden: dashboard compiles to the expected spec 1`] = `
+{
+  "elements": {
+    "button-5": {
+      "children": [],
+      "on": {
+        "press": [
+          {
+            "action": "canvas.intent",
+            "params": {
+              "id": "rerun-pipeline",
+              "params": {
+                "cache": false,
+                "pipeline": "ci",
+              },
+            },
+          },
+        ],
+      },
+      "props": {
+        "label": "Re-run without cache",
+      },
+      "type": "Button",
+    },
+    "callout-3": {
+      "children": [],
+      "props": {
+        "body": 
+"The cache step missed on Wednesday and added 19 minutes.
+Re-run the pipeline with \`--no-cache\` to reproduce."
+,
+        "title": "Wednesday regression",
+        "tone": "warning",
+      },
+      "type": "Callout",
+    },
+    "chart-2": {
+      "children": [],
+      "props": {
+        "data": {
+          "$state": "/ci",
+        },
+        "height": 280,
+        "kind": "bar",
+        "title": "Pipeline minutes per day",
+        "x": "day",
+        "y": "minutes",
+      },
+      "type": "Chart",
+    },
+    "datatable-4": {
+      "children": [],
+      "props": {
+        "caption": "Slowest jobs",
+        "columns": [
+          {
+            "header": "Job",
+            "key": "job",
+          },
+          {
+            "align": "right",
+            "header": "p99 ms",
+            "key": "p99_ms",
+            "type": "number",
+          },
+          {
+            "align": "right",
+            "header": "Calls",
+            "key": "calls",
+            "type": "number",
+          },
+        ],
+        "rows": [
+          {
+            "calls": 842,
+            "job": "bundle",
+            "p99_ms": 1240,
+          },
+          {
+            "calls": 510,
+            "job": "typecheck",
+            "p99_ms": 980,
+          },
+          {
+            "calls": 320,
+            "job": "unit tests",
+            "p99_ms": 612,
+          },
+        ],
+      },
+      "type": "DataTable",
+    },
+    "heading-0": {
+      "children": [],
+      "props": {
+        "level": "h1",
+        "text": "CI health — last 5 days",
+      },
+      "type": "Heading",
+    },
+    "metric-1-0": {
+      "children": [],
+      "props": {
+        "delta": "-38%",
+        "label": "p99 build",
+        "tone": "success",
+        "trend": "down",
+        "value": "412ms",
+      },
+      "type": "Metric",
+    },
+    "metric-1-1": {
+      "children": [],
+      "props": {
+        "delta": "+12%",
+        "label": "Pipeline minutes",
+        "tone": "warning",
+        "trend": "up",
+        "value": "191",
+      },
+      "type": "Metric",
+    },
+    "metric-1-2": {
+      "children": [],
+      "props": {
+        "detail": "3 flaky, 5 real",
+        "label": "Failures",
+        "value": "8",
+      },
+      "type": "Metric",
+    },
+    "root": {
+      "children": [
+        "heading-0",
+        "stack-1",
+        "chart-2",
+        "callout-3",
+        "datatable-4",
+        "button-5",
+      ],
+      "props": {},
+      "type": "Stack",
+    },
+    "stack-1": {
+      "children": [
+        "metric-1-0",
+        "metric-1-1",
+        "metric-1-2",
+      ],
+      "props": {},
+      "type": "Stack",
+    },
+  },
+  "root": "root",
+  "state": {
+    "ci": [
+      {
+        "day": "Mon",
+        "failures": 2,
+        "minutes": 41,
+      },
+      {
+        "day": "Tue",
+        "failures": 0,
+        "minutes": 36,
+      },
+      {
+        "day": "Wed",
+        "failures": 5,
+        "minutes": 52,
+      },
+      {
+        "day": "Thu",
+        "failures": 1,
+        "minutes": 33,
+      },
+      {
+        "day": "Fri",
+        "failures": 0,
+        "minutes": 29,
+      },
+    ],
+  },
+}
+`;
+
+exports[`golden: signup-form compiles to the expected spec 1`] = `
+{
+  "elements": {
+    "button-5": {
+      "children": [],
+      "on": {
+        "press": [
+          {
+            "action": "canvas.submit",
+            "params": {
+              "id": "signup",
+              "payload": {
+                "$state": "/form",
+              },
+            },
+          },
+        ],
+      },
+      "props": {
+        "label": "Sign up",
+        "variant": "primary",
+      },
+      "type": "Button",
+    },
+    "input-0": {
+      "children": [],
+      "props": {
+        "checks": [
+          {
+            "message": "Required",
+            "type": "required",
+          },
+        ],
+        "label": "Name",
+        "name": "name",
+        "value": {
+          "$bindState": "/form/name",
+        },
+      },
+      "type": "Input",
+    },
+    "input-1": {
+      "children": [],
+      "props": {
+        "checks": [
+          {
+            "message": "Required",
+            "type": "required",
+          },
+          {
+            "message": "Enter a valid email",
+            "type": "email",
+          },
+        ],
+        "label": "Email",
+        "name": "email",
+        "type": "email",
+        "value": {
+          "$bindState": "/form/email",
+        },
+      },
+      "type": "Input",
+    },
+    "input-2": {
+      "children": [],
+      "props": {
+        "checks": [
+          {
+            "message": "Required",
+            "type": "required",
+          },
+          {
+            "args": {
+              "value": 8,
+            },
+            "message": "Must be at least 8 characters",
+            "type": "minLength",
+          },
+        ],
+        "label": "Password",
+        "name": "password",
+        "type": "password",
+        "value": {
+          "$bindState": "/form/password",
+        },
+      },
+      "type": "Input",
+    },
+    "markdown-4": {
+      "children": [],
+      "props": {
+        "content": "By signing up you agree to the [terms of service](https://example.com/terms).",
+      },
+      "type": "Markdown",
+    },
+    "root": {
+      "children": [
+        "input-0",
+        "input-1",
+        "input-2",
+        "select-3",
+        "markdown-4",
+        "button-5",
+      ],
+      "props": {
+        "description": "Takes about a minute.",
+        "title": "Create your account",
+      },
+      "type": "Card",
+    },
+    "select-3": {
+      "children": [],
+      "props": {
+        "label": "Plan",
+        "name": "plan",
+        "options": [
+          "Starter",
+          "Team",
+          "Enterprise",
+        ],
+        "value": {
+          "$bindState": "/form/plan",
+        },
+      },
+      "type": "Select",
+    },
+  },
+  "root": "root",
+  "state": {
+    "form": {
+      "email": "",
+      "name": "",
+      "password": "",
+      "plan": "Starter",
+    },
+  },
+}
+`;
+
+exports[`golden: mixed-report compiles to the expected spec 1`] = `
+{
+  "elements": {
+    "callout-5": {
+      "children": [],
+      "props": {
+        "body": "Set the TTL to the sync interval, not to a guess: \`ttl: FIVE_MINUTES\`.",
+        "title": "The one-line fix",
+        "tone": "tip",
+      },
+      "type": "Callout",
+    },
+    "codeblock-4": {
+      "children": [],
+      "props": {
+        "code": 
+"export async function getCached(key: string): Promise<string | null> {
+  const hit = await redis.get(key, { ttl: THIRTY_SECONDS });
+  if (hit !== null) return hit;
+  return fetchAndCache(key);
+}"
+,
+        "highlightLines": [
+          2,
+        ],
+        "language": "typescript",
+        "title": "src/api/cache.ts",
+      },
+      "type": "CodeBlock",
+    },
+    "heading-0": {
+      "children": [],
+      "props": {
+        "level": "h1",
+        "text": "Why the invoice cache kept missing",
+      },
+      "type": "Heading",
+    },
+    "heading-2": {
+      "children": [],
+      "props": {
+        "level": "h2",
+        "text": "What happens today",
+      },
+      "type": "Heading",
+    },
+    "heading-6": {
+      "children": [],
+      "props": {
+        "level": "h2",
+        "text": "Verification",
+      },
+      "type": "Heading",
+    },
+    "link-10": {
+      "children": [],
+      "props": {
+        "href": "https://example.com/pr/412",
+        "label": "Open PR #412",
+      },
+      "type": "Link",
+    },
+    "markdown-1": {
+      "children": [],
+      "props": {
+        "content": "The TTL was **30 seconds** while the upstream sync runs every **5 minutes**, so the cache was cold for most of every window. The fix lives in \`src/api/cache.ts\`.",
+      },
+      "type": "Markdown",
+    },
+    "markdown-3": {
+      "children": [],
+      "props": {
+        "content": 
+"- The first request after a sync repopulates the key.
+- Every request 30s later misses again and hits Postgres.
+- Postgres sees ~8x the read volume it should."
+,
+      },
+      "type": "Markdown",
+    },
+    "root": {
+      "children": [
+        "heading-0",
+        "markdown-1",
+        "heading-2",
+        "markdown-3",
+        "codeblock-4",
+        "callout-5",
+        "heading-6",
+        "terminal-7",
+        "separator-8",
+        "text-9",
+        "link-10",
+      ],
+      "props": {},
+      "type": "Stack",
+    },
+    "separator-8": {
+      "children": [],
+      "props": {},
+      "type": "Separator",
+    },
+    "terminal-7": {
+      "children": [],
+      "props": {
+        "command": "bun test src/api",
+        "cwd": "~/parchment",
+        "exitCode": 0,
+        "output": 
+"✓ cache.test.ts (12 tests) 84ms
+✓ routes.test.ts (9 tests) 112ms
+
+21 pass, 0 fail (196ms)"
+,
+      },
+      "type": "Terminal",
+    },
+    "text-9": {
+      "children": [],
+      "props": {
+        "text": "Full write-up and the PR are linked below.",
+        "variant": "body",
+      },
+      "type": "Text",
+    },
+  },
+  "root": "root",
+  "state": undefined,
+}
+`;
