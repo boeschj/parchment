@@ -1,5 +1,17 @@
 # Benchmarks
 
+> **⚠️ These results are INVALIDATED pending re-measurement (2026-07-13).**
+> Internal review found the acceptance rubric only counted component types —
+> it never verified props, data bindings, rendered DOM, or interactions.
+> Specs with silently-stripped unknown props (e.g. a Chart with no `kind` or
+> `data`) were counted as passing. The first-pass-rate and win/loss tables
+> below therefore overstate parchment and must not be cited. A rebuilt
+> harness with browser-real, identical-rubric acceptance for every arm is in
+> progress; numbers will be republished — whatever they say. The daemon
+> startup timings and the tool-surface measurements are unaffected (they do
+> not depend on the invalid rubric).
+
+
 Measured comparisons between parchment's `canvas_*` MCP tools and the obvious
 baseline: the model writing a single self-contained HTML file. The one-shot
 scenario numbers below come from real headless `claude -p` runs on
