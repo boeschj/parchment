@@ -69,6 +69,16 @@ function propSignature(
   return `${propName}${marker}: ${typeNotation(field)}`;
 }
 
+// What ONE prop accepts, in the same notation the signature prints, walked off
+// the same widened schema the validator parses against. Exported so that any
+// other prompt — the eval harness's component reference among them — can state a
+// prop's accepted values without hand-listing an enum that goes stale the moment
+// the schema widens.
+export function propTypeNotation(componentName: string, propName: string): string {
+  const shape = WidenedComponentPropSchemas[componentName]?.shape ?? {};
+  return typeNotation(shape[propName]);
+}
+
 function componentSection(): string {
   const names = Object.keys(ComponentContracts);
   const lines = names.map((componentName) => {

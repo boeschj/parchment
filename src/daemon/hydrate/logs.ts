@@ -253,6 +253,16 @@ function parseLogQuery(options: LogReferenceOptions): { ok: true; value: LogQuer
   };
 }
 
+// The `groupBy` grammar as a model must be TOLD it, exported from the function
+// that parses it. A prompt that hand-lists the accepted buckets is a prompt that
+// can go stale: the first grammar took only hour|day|week, so a task asked in
+// ten-minute buckets was literally unaskable, and a model handed that grammar
+// rationally bypassed the whole reference. logs.test.ts asserts every duration
+// named here actually parses, so the sentence cannot outlive the code.
+export const BUCKET_INTERVAL_SYNTAX = "<n>s|<n>m|<n>h|<n>d|<n>w";
+
+export const BUCKET_INTERVAL_EXAMPLES = ["30s", "5m", "10m", "1h", "1d", "1w"] as const;
+
 // "10m", "30s", "1h", "1d", "1w" — and the words `hour`/`day`/`week` the first
 // grammar shipped with.
 export function parseBucketInterval(

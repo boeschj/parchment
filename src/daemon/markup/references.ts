@@ -140,6 +140,90 @@ function optionalEntry(name: string, value: string | null): Record<string, strin
   return { [name]: value };
 }
 
+// ---- The reference tags' attribute grammar ---------------------------------
+//
+// ONE TABLE, TWO READERS. The compiler validates <GitDiff>/<LogStream> against
+// it and rejects anything else; every tool that DESCRIBES the dialect to a model
+// renders the attribute list from it. A grammar a model is TOLD and a grammar a
+// compiler ENFORCES that are two hand-kept lists is how a benchmark ends up
+// measuring a reference the model was never given the words to reach for.
+
+// The reference options are markup ATTRIBUTES, not catalog props, so no schema
+// carries their type. This is that type, for anything that has to print one.
+export const ReferenceAttrType = {
+  Path: "path",
+  Text: "str",
+  Flag: "bool",
+  Duration: "duration",
+  Number: "num",
+} as const;
+
+export type ReferenceAttrType = (typeof ReferenceAttrType)[keyof typeof ReferenceAttrType];
+
+// `null` means the attribute is a real prop of the component the tag compiles
+// to, so its type comes from that component's schema and is never restated here.
+type ReferenceTagAttrs = Readonly<Record<string, ReferenceAttrType | null>>;
+
+export type ReferenceTagSpec = {
+  readonly compilesTo: string;
+  readonly attrs: ReferenceTagAttrs;
+  // The props the daemon fills from the reference. The model omits them, and
+  // spec-validation reads the same fact off shared/expressions.ts so it does not
+  // report them missing.
+  readonly supplies: readonly string[];
+};
+
+export const REFERENCE_TAG_GRAMMAR = {
+  GitDiff: {
+    compilesTo: "DiffViewer",
+    attrs: {
+      file: ReferenceAttrType.Path,
+      base: ReferenceAttrType.Text,
+      staged: ReferenceAttrType.Flag,
+      watch: ReferenceAttrType.Flag,
+      language: null,
+      editableSide: null,
+    },
+    supplies: ["file", "before", "after"],
+  },
+  LogStream: {
+    compilesTo: "Chart",
+    attrs: {
+      file: ReferenceAttrType.Path,
+      groupBy: ReferenceAttrType.Duration,
+      match: ReferenceAttrType.Text,
+      pattern: ReferenceAttrType.Text,
+      parser: ReferenceAttrType.Text,
+      series: ReferenceAttrType.Text,
+      metric: ReferenceAttrType.Text,
+      watch: ReferenceAttrType.Flag,
+      kind: null,
+      title: null,
+      height: null,
+    },
+    supplies: ["data", "x", "y"],
+  },
+} as const satisfies Record<string, ReferenceTagSpec>;
+
+export type ReferenceTagName = keyof typeof REFERENCE_TAG_GRAMMAR;
+
+// Without `groupBy` a <LogStream> is a live tail, not a chart — so these are the
+// attributes that only mean something once there is a bucket to aggregate into.
+// Writing one without `groupBy` is a question the daemon cannot answer.
+export const LOG_AGGREGATION_ATTRS = ["match", "pattern", "parser", "series", "metric"] as const;
+
+// The tail form's whole grammar: <LogStream file="app.log" watch/>.
+export const LOG_TAIL_ATTRS = ["file", "watch"] as const;
+
+export function referenceTagAttrNames(tag: ReferenceTagName): readonly string[] {
+  return Object.keys(REFERENCE_TAG_GRAMMAR[tag].attrs);
+}
+
+// The compiler matches attributes the way an HTML parser hands them over.
+export function lowercaseAttrSet(names: readonly string[]): ReadonlySet<string> {
+  return new Set(names.map((name) => name.toLowerCase()));
+}
+
 // "40-80" | "40" | "40-" | "-80" — the gutter starts wherever the range does, so
 // a referenced excerpt numbers its lines the way the file does.
 const LINE_RANGE_START_PATTERN = /^(\d+)/;

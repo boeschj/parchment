@@ -27,7 +27,14 @@ import { buildElementBody } from "./attributes.ts";
 import { RAW_TEXT_COMPONENTS, textContentPropOf } from "./conventions.ts";
 import { elementKeyFor, ROOT_KEY } from "./keys.ts";
 import { hasMarkdownSyntax, renderInlineNodes, renderListElement, renderQuote } from "./prose.ts";
-import { gitDiffProps, logChartData } from "./references.ts";
+import {
+  gitDiffProps,
+  logChartData,
+  lowercaseAttrSet,
+  referenceTagAttrNames,
+  LOG_AGGREGATION_ATTRS,
+  LOG_TAIL_ATTRS,
+} from "./references.ts";
 import { compileTableElement } from "./tables.ts";
 import {
   FORBIDDEN_TAGS,
@@ -230,14 +237,11 @@ function compileSemanticNode(
 
 // ---- Reference-first aliases ------------------------------------------------
 
-const GIT_DIFF_ATTRS: ReadonlySet<string> = new Set([
-  "file",
-  "base",
-  "staged",
-  "watch",
-  "language",
-  "editableside",
-]);
+// Every known-attribute set below is DERIVED from the one grammar table in
+// references.ts, so the list the compiler enforces and the list a prompt shows a
+// model cannot drift apart.
+const GIT_DIFF_ATTR_NAMES = referenceTagAttrNames("GitDiff");
+const GIT_DIFF_ATTRS: ReadonlySet<string> = lowercaseAttrSet(GIT_DIFF_ATTR_NAMES);
 
 // <GitDiff file="src/daemon/server.ts"/> — a whole two-sided diff in ~16 output
 // tokens, where pasting both sides of that file costs ~15,000. It compiles to a
@@ -253,7 +257,7 @@ function compileGitDiff(element: Element, path: number[], ctx: CompileContext): 
   for (const name of Object.keys(element.attribs)) {
     if (GIT_DIFF_ATTRS.has(name.toLowerCase())) continue;
     ctx.issues.push(
-      `elements/${key}: unknown attribute "${name}" on <GitDiff>. Known attributes: file, base, staged, watch, language, editableSide`,
+      `elements/${key}: unknown attribute "${name}" on <GitDiff>. Known attributes: ${GIT_DIFF_ATTR_NAMES.join(", ")}`,
     );
   }
   const props = gitDiffProps(file, {
@@ -292,26 +296,10 @@ function hasFlag(element: Element, name: string): boolean {
 // fills the Chart's data, x and y. The model emits a dozen tokens and never
 // opens the log — which is the entire point, and precisely what a `groupBy` of
 // hour|day|week could not do for a question asked in ten-minute buckets.
-const LOG_TAIL_ATTRS: ReadonlySet<string> = new Set(["file", "watch"]);
+const LOG_TAIL_ATTR_SET: ReadonlySet<string> = lowercaseAttrSet(LOG_TAIL_ATTRS);
 
-const LOG_CHART_ATTRS: ReadonlySet<string> = new Set([
-  "file",
-  "groupby",
-  "match",
-  "pattern",
-  "parser",
-  "series",
-  "metric",
-  "watch",
-  "kind",
-  "title",
-  "height",
-]);
-
-// The attributes that only mean something once there is a bucket to aggregate
-// into. Writing one without `groupBy` is a question the daemon cannot answer, so
-// it is named as an error rather than silently dropped into a tail.
-const LOG_AGGREGATION_ATTRS = ["match", "pattern", "parser", "series", "metric"] as const;
+const LOG_CHART_ATTR_NAMES = referenceTagAttrNames("LogStream");
+const LOG_CHART_ATTRS: ReadonlySet<string> = lowercaseAttrSet(LOG_CHART_ATTR_NAMES);
 
 const LOG_GROUP_BY_ATTR = "groupby";
 const DEFAULT_LOG_CHART_KIND = "line";
@@ -349,7 +337,7 @@ function compileLogTail(
   path: number[],
   ctx: CompileContext,
 ): string | null {
-  reportUnknownLogAttrs(element, LOG_TAIL_ATTRS, TERMINAL_TYPE, path, ctx);
+  reportUnknownLogAttrs(element, LOG_TAIL_ATTR_SET, TERMINAL_TYPE, path, ctx);
   return compileComponentNode(TERMINAL_TYPE, element, path, false, { command: `tail -f ${file}` }, ctx);
 }
 
@@ -401,7 +389,7 @@ function reportUnknownLogAttrs(
     if (known.has(name.toLowerCase())) continue;
     ctx.issues.push(
       `elements/${key}: unknown attribute "${name}" on <LogStream>. Known attributes: ` +
-        `file, groupBy, match, pattern, parser, series, metric, watch, kind, title, height`,
+        LOG_CHART_ATTR_NAMES.join(", "),
     );
   }
 }

@@ -3,7 +3,12 @@
 // but no matches plots a real zero instead of disappearing.
 
 import { describe, it, expect } from "bun:test";
-import { aggregateLog, parseBucketInterval, type LogReferenceOptions } from "./logs.ts";
+import {
+  aggregateLog,
+  parseBucketInterval,
+  BUCKET_INTERVAL_EXAMPLES,
+  type LogReferenceOptions,
+} from "./logs.ts";
 
 const NO_OPTIONS: LogReferenceOptions = {
   groupBy: null,
@@ -69,6 +74,15 @@ describe("parseBucketInterval", () => {
     expect(parseBucketInterval("0m").ok).toBe(false);
     expect(parseBucketInterval("10").ok).toBe(false);
     expect(parseBucketInterval(null).ok).toBe(false);
+  });
+
+  // The sentence a model is shown cannot outlive the code that parses it. Every
+  // bucket the exported grammar advertises is a bucket the parser really takes —
+  // the previous grammar promised hour|day|week and could not answer a question
+  // asked in ten minutes, and a model handed it rationally bypassed the whole
+  // reference.
+  it.each([...BUCKET_INTERVAL_EXAMPLES])("advertises %s, and parses it", (duration) => {
+    expect(parseBucketInterval(duration).ok).toBe(true);
   });
 });
 
