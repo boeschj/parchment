@@ -57,6 +57,8 @@ import {
 } from "../catalog/vocabulary.ts";
 import { EvalPaths } from "../config.ts";
 import { pushSpecToDaemon } from "./canvas-push.ts";
+import { compileOpenUiDocument } from "./openui.ts";
+import { compileA2uiDocument } from "./a2ui.ts";
 import type { EvalDaemon } from "../daemon.ts";
 import { ArmId, type Arm, type AuthoredArtifact } from "../types.ts";
 
@@ -67,7 +69,8 @@ const ArtifactFormat = {
   ScrambledMarkup: "scrambled-markup",
   JsonSpec: "json-spec",
   TerseJson: "terse-json",
-  OpenUiJson: "openui-json",
+  OpenUiLang: "openui-lang",
+  A2ui: "a2ui",
   RawHtml: "raw-html",
   RawJsx: "raw-jsx",
 } as const;
@@ -85,11 +88,13 @@ const FORMAT_BY_ARM = {
   [ArmId.ScrambledMarkupHigh]: ArtifactFormat.ScrambledMarkup,
   [ArmId.ScrambledMarkupLow]: ArtifactFormat.ScrambledMarkup,
   [ArmId.TerseJson]: ArtifactFormat.TerseJson,
-  // TODO(evals/arms/openui-lang.ts): OpenUI is a JSON dialect and needs an
-  // OpenUI→spec adapter. Until it lands, its document is decoded as a json-render
-  // spec, which is right only if the arm's system prompt asks for one. Wire the
-  // adapter here — do NOT let this arm quietly report a loss it did not earn.
-  [ArmId.OpenUiLang]: ArtifactFormat.OpenUiJson,
+  // OpenUI Lang is NOT a JSON dialect — it is a line-oriented DSL, and the TODO
+  // that used to sit here decoded it as a json-render spec, which would have
+  // failed every run for a reason that was ours, not its. It is now parsed by its
+  // OWN vendor's parser (evals/render/openui.ts) and its Query() references are
+  // lowered onto the same daemon hydration path parchment's references use.
+  [ArmId.OpenUiLang]: ArtifactFormat.OpenUiLang,
+  [ArmId.A2ui]: ArtifactFormat.A2ui,
   [ArmId.RawHtml]: ArtifactFormat.RawHtml,
   [ArmId.RawJsx]: ArtifactFormat.RawJsx,
 } as const satisfies Record<ArmId, ArtifactFormat>;
@@ -231,6 +236,13 @@ export function decodeAuthoredDocument(
     const decoded = parseSpecJson(source, expandTerseSpec);
     return applyVocabularyToSpec(decoded, vocabulary.inverse);
   }
+
+  // Each rival is decoded by ITS OWN grammar, and by nothing else. OpenUI Lang
+  // goes through @openuidev/lang-core's parser; A2UI through its v1.0 envelope.
+  // Decoding either as a json-render spec would report a loss the arm did not
+  // earn — which is the same sin as manufacturing a win.
+  if (format === ArtifactFormat.OpenUiLang) return compileOpenUiDocument(source);
+  if (format === ArtifactFormat.A2ui) return compileA2uiDocument(source);
 
   return parseSpecJson(source, (parsed) => parsed);
 }

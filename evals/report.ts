@@ -112,24 +112,26 @@ const ARM_FAMILY: Record<ArmId, ArmFamily> = {
   [ArmId.ScrambledMarkupLow]: ArmFamily.Scrambled,
   [ArmId.TerseJson]: ArmFamily.Rival,
   [ArmId.OpenUiLang]: ArmFamily.Rival,
+  [ArmId.A2ui]: ArmFamily.Rival,
   [ArmId.RawHtml]: ArmFamily.Rival,
   [ArmId.RawJsx]: ArmFamily.Rival,
 };
 
-const ARM_FIDELITY: Record<ArmId, Fidelity> = {
-  [ArmId.ParchmentMarkupHigh]: Fidelity.High,
-  [ArmId.ParchmentMarkupLow]: Fidelity.Low,
-  [ArmId.ParchmentJsonHigh]: Fidelity.High,
-  [ArmId.ParchmentJsonLow]: Fidelity.Low,
-  [ArmId.ScrambledMarkupHigh]: Fidelity.High,
-  [ArmId.ScrambledMarkupLow]: Fidelity.Low,
-  // Every rival format is structurally stuck on the low rung: none of them can
-  // name a file and have something else fetch it.
-  [ArmId.TerseJson]: Fidelity.Low,
-  [ArmId.OpenUiLang]: Fidelity.Low,
-  [ArmId.RawHtml]: Fidelity.Low,
-  [ArmId.RawJsx]: Fidelity.Low,
-};
+// THE RUNG IS READ OFF THE ARM, NOT ASSERTED HERE.
+//
+// This used to be a hand-kept table, and it carried the sentence "Every rival
+// format is structurally stuck on the low rung: none of them can name a file and
+// have something else fetch it." That sentence was FALSE, and it was the single
+// most load-bearing assumption in the whole benchmark. OpenUI Lang has `Query()`
+// — a first-class statement in its shipped grammar that names a tool and binds
+// the result into a component's props — and it stands on exactly the rung we do.
+//
+// A parallel table let us assert a rival's weakness without ever checking it. The
+// fidelity now comes from the arm's own declaration, so the claim and the code
+// cannot diverge again.
+function fidelityOf(armId: ArmId): Fidelity {
+  return armFor(armId).fidelity;
+}
 
 // The arm whose authored output the ladder ratios are quoted against.
 const LADDER_REFERENCE_ARM = ArmId.ParchmentMarkupHigh;
@@ -575,7 +577,7 @@ function buildHeadlineSection(
 
       return [
         `\`${cell.armId}\``,
-        ARM_FIDELITY[cell.armId],
+        fidelityOf(cell.armId),
         cell.model,
         `${cell.passingRuns.length}/${cell.allRuns.length}`,
         formatPercentOrNa(passAtK(cell.allRuns, PASS_AT_K_LEVELS.First)),
@@ -664,7 +666,7 @@ function buildLadderClimbingSection(metrics: readonly RunMetrics[]): string {
   // understate a real climb. Its behaviour is reported in the table below, and
   // compared like-for-like in the ablation.
   const productClimbRuns = ladderRuns.filter(
-    (run) => ARM_FIDELITY[run.armId] === Fidelity.High && ARM_FAMILY[run.armId] === ArmFamily.Parchment,
+    (run) => fidelityOf(run.armId) === Fidelity.High && ARM_FAMILY[run.armId] === ArmFamily.Parchment,
   );
   const table = renderMarkdownTable(
     ["Scenario", "Arm", "Rung", "Model", "Climbed", "Rate", "95% CI (Wilson)", "Reference used"],
@@ -766,7 +768,7 @@ function buildClimbRows(ladderRuns: readonly RunMetrics[]): string[][] {
     const identity = [
       first.scenarioId,
       `\`${first.armId}\``,
-      ARM_FIDELITY[first.armId],
+      fidelityOf(first.armId),
       first.model,
     ];
 
@@ -825,11 +827,11 @@ function buildLadderSection(
     (run) => run.authoring?.authoredOutputTokens ?? null,
   ).map((cell) => {
     const authored = authoredOutputsOf(cell.passingRuns);
-    const canClimb = ARM_FIDELITY[cell.armId] === Fidelity.High;
+    const canClimb = fidelityOf(cell.armId) === Fidelity.High;
 
     return [
       `\`${cell.armId}\``,
-      ARM_FIDELITY[cell.armId],
+      fidelityOf(cell.armId),
       cell.model,
       `${cell.passingRuns.length}/${cell.allRuns.length}`,
       canClimb ? referenceFloorFor(cell.armId, density) : "none — no reference mechanism",

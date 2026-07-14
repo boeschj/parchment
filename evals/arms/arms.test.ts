@@ -14,6 +14,7 @@ import {
   STANDALONE_REFERENCE_COMPONENTS,
   SURFACE_COMPONENTS,
 } from "../catalog/vocabulary.ts";
+import { OpenUiToolName } from "../catalog/openui-tools.ts";
 import { ARMS, RAW_HTML_OUTPUT_FILE, RAW_JSX_OUTPUT_FILE, RUNNABLE_ARM_IDS, armFor } from "./index.ts";
 
 const ALL_ARM_IDS = Object.values(ArmId);
@@ -46,28 +47,71 @@ describe("the arm registry", () => {
     expect(armFor(id).id).toBe(id);
   });
 
-  test("openui-lang is registered but never runnable", () => {
-    expect(ARMS[ArmId.OpenUiLang]).toBeDefined();
-    expect(RUNNABLE_ARM_IDS).not.toContain(ArmId.OpenUiLang);
-    expect(RUNNABLE_ARM_IDS).toHaveLength(ALL_ARM_IDS.length - 1);
+  // openui-lang used to be a placeholder that THREW, and was excluded here. It is
+  // implemented now — against its own vendor's parser and its own vendor's prompt
+  // generator — so every arm in the registry runs.
+  test("every registered arm is runnable", () => {
+    expect(RUNNABLE_ARM_IDS).toHaveLength(ALL_ARM_IDS.length);
+    expect(RUNNABLE_ARM_IDS).toContain(ArmId.OpenUiLang);
+    expect(RUNNABLE_ARM_IDS).toContain(ArmId.A2ui);
   });
 });
 
-// ---- The unimplemented rival -------------------------------------------------
+// ---- The rivals are represented at their best ---------------------------------
+//
+// These tests exist because a strawman is the easiest way to win this benchmark
+// and the fastest way to destroy it. Each one pins a specific way we could have
+// quietly crippled a rival.
 
-describe("openui-lang cannot be run by accident", () => {
-  const arm = ARMS[ArmId.OpenUiLang];
+describe("openui-lang is given its content-avoidance mechanism", () => {
+  const prompt = ARMS[ArmId.OpenUiLang].systemPrompt;
 
-  test("reading its system prompt throws", () => {
-    expect(() => arm.systemPrompt).toThrow(/not implemented/);
+  // Query() is OpenUI's answer to parchment's reference. Their own generated
+  // prompt advertises it and forbids pasting tool results. An OpenUI arm without
+  // it is the toolless dialect their checked-in benchmarks/system-prompt.txt
+  // ships — and it would hand us the ladder scenarios by omission.
+  test("the prompt advertises Query and the tools it can call", () => {
+    expect(prompt).toContain("## Query — Live Data Fetching");
+    expect(prompt).toContain("## Available Tools");
+    for (const tool of Object.values(OpenUiToolName)) {
+      expect(prompt).toContain(tool);
+    }
   });
 
-  test("encoding a task throws", () => {
-    expect(() => arm.encodeTask(SCENARIO)).toThrow(/not implemented/);
+  test("the prompt carries their own rule against pasting tool results", () => {
+    expect(prompt).toContain("NEVER hardcode tool results as literal arrays or objects");
   });
 
-  test("building a repair prompt throws", () => {
-    expect(() => arm.repairPrompt(SIGNAL)).toThrow(/not implemented/);
+  test("it is shown the same components every parchment arm is shown", () => {
+    for (const component of SURFACE_COMPONENTS) {
+      expect(prompt).toContain(component);
+    }
+  });
+});
+
+describe("a2ui is given a chart-capable catalog", () => {
+  const prompt = ARMS[ArmId.A2ui].systemPrompt;
+
+  // A2UI's BASIC catalog has no Chart and no Table. Benchmarking a charting task
+  // against it would be a spectacular failure that has nothing to do with its
+  // format — the textbook strawman. Its spec explicitly sanctions custom catalogs,
+  // so it gets ours.
+  test("the catalog contains a Chart and a DataTable", () => {
+    expect(prompt).toContain("Chart —");
+    expect(prompt).toContain("DataTable —");
+  });
+
+  test("it is shown the same components every parchment arm is shown", () => {
+    for (const component of SURFACE_COMPONENTS) {
+      expect(prompt).toContain(component);
+    }
+  });
+
+  // We accused a rival of benchmarking a competitor's JSON pretty-printed. An
+  // A2UI arm that emitted indented JSON would be losing 40% of its tokens to
+  // whitespace by OUR omission — the same act, committed in our own favour.
+  test("it is told to minify", () => {
+    expect(prompt).toContain("MINIFIED");
   });
 });
 
@@ -81,7 +125,14 @@ const EXPECTED_FIDELITY = {
   [ArmId.ScrambledMarkupHigh]: Fidelity.High,
   [ArmId.ScrambledMarkupLow]: Fidelity.Low,
   [ArmId.TerseJson]: Fidelity.Low,
-  [ArmId.OpenUiLang]: Fidelity.Low,
+  // OpenUI Lang stands on the HIGH rung, and it earned it: Query() is a reference
+  // mechanism in its shipped grammar. Any future change that quietly demotes this
+  // arm to `low` — the comfortable answer — fails here.
+  [ArmId.OpenUiLang]: Fidelity.High,
+  // A2UI stands on the low rung because its schema has no reference concept at
+  // all: the only `url` props in the entire v1.0 catalog are Image, Video and
+  // AudioPlayer. Verified, not assumed.
+  [ArmId.A2ui]: Fidelity.Low,
   [ArmId.RawHtml]: Fidelity.Low,
   [ArmId.RawJsx]: Fidelity.Low,
 } as const satisfies Record<ArmId, Fidelity>;
@@ -95,6 +146,7 @@ const EXPECTED_SURFACE = {
   [ArmId.ScrambledMarkupLow]: AuthoringSurface.CanvasTool,
   [ArmId.TerseJson]: AuthoringSurface.CanvasTool,
   [ArmId.OpenUiLang]: AuthoringSurface.CanvasTool,
+  [ArmId.A2ui]: AuthoringSurface.CanvasTool,
   [ArmId.RawHtml]: AuthoringSurface.WrittenFile,
   [ArmId.RawJsx]: AuthoringSurface.WrittenFile,
 } as const satisfies Record<ArmId, AuthoringSurface>;
@@ -290,10 +342,13 @@ describe("the raw arms are given the format's real terms", () => {
     expect(prompt).toContain("no network access");
   });
 
-  test("raw-jsx is told where to write and what is available", () => {
+  // raw-jsx is granted a real chart library on purpose: a JSX arm that had to
+  // hand-draw its SVG would be losing to an omission rather than to a format.
+  test("raw-jsx is told where to write, and that react and recharts are in scope", () => {
     const prompt = armFor(ArmId.RawJsx).systemPrompt;
     expect(prompt).toContain(RAW_JSX_OUTPUT_FILE);
-    expect(prompt).toContain("React is available");
+    expect(prompt).toContain("react");
+    expect(prompt).toContain("recharts");
   });
 
   // Their protocol cost is near zero, and that is the competing format's genuine

@@ -27,9 +27,16 @@ export type EvalModel = (typeof EvalModel)[keyof typeof EvalModel];
 // The rung an arm is allowed to stand on. This is the eval's headline variable.
 //
 // Low: the model must EMIT the content. To show a diff it pastes the file's
-//   before and after text; to show a CSV it pastes every row. Every competing
-//   format (raw HTML, raw JSX, terse JSON, OpenUI) is structurally stuck here —
-//   they have no way to name a file and have something else fetch it.
+//   before and after text; to show a CSV it pastes every row. raw-html, raw-jsx,
+//   terse-json and A2UI are all structurally stuck here — VERIFIED, not assumed:
+//   an exhaustive search of A2UI's v1.0 schema set for a uri/resource/fetch
+//   concept finds only Image.url, Video.url and AudioPlayer.url. None of them can
+//   name a file and have something else fetch it.
+//
+//   OpenUI Lang is NOT stuck here, and that is the single most important thing
+//   this matrix found. `Query(tool, args, defaults)` is in its shipped grammar,
+//   the host executes it, and its result plucks straight into a component's props.
+//   It stands on the same rung parchment does (evals/catalog/openui-tools.ts).
 // High: the catalog exposes components that take a REFERENCE (a path, a git
 //   revision range) and the daemon hydrates the bytes at push time. "Show me
 //   the diff" becomes ~15 authored tokens instead of ~2,000 pasted ones.
@@ -55,6 +62,7 @@ export const ArmId = {
   ScrambledMarkupLow: "scrambled-markup-low",
   TerseJson: "terse-json",
   OpenUiLang: "openui-lang",
+  A2ui: "a2ui",
   RawHtml: "raw-html",
   RawJsx: "raw-jsx",
 } as const;
