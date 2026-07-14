@@ -94,6 +94,10 @@ first time:
 
 ## Token discipline
 
+- NEVER paste a file, diff, or CSV into a spec. Point at it and let the daemon fetch
+  the bytes: `{"$file": "src/a.ts", "lines": "40-80"}`, `{"$diff": "src/a.ts"}`,
+  `{"$csv": "data/x.csv"}`, `{"$img": "shot.png"}` (references/content-refs.md). A full
+  diff slot is ~15 authored tokens.
 - Large datasets (log series, benchmark runs): put the array in `state` ONCE and
   reference it — `Chart`/`DataTable` data props, or `repeat` for lists. Never restate
   rows in multiple components.
@@ -125,6 +129,9 @@ first time:
 - **references/interactivity.md** — the canvas talking back: forms, `$bindState`,
   `canvas.submit` / `canvas.intent`, file uploads, edit kinds, form validation. Read
   before building anything the user interacts with.
+- **references/content-refs.md** — render file/diff/CSV/image content by POINTER
+  (`{"$file"}`, `{"$diff"}`, `{"$csv"}`, `{"$img"}`, `watch:true`) instead of pasting it.
+  Read before putting any file, diff, or CSV in a spec.
 - **references/live-data.md** — the `canvas_live` cookbook (source kinds, append vs
   replace, fleet scanner, worked example). Read before using canvas_live.
 - **references/mcp-apps.md** — hosting third-party MCP app UIs. Read before using canvas_app.

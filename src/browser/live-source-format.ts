@@ -11,6 +11,7 @@ const KIND_LABELS: Record<LiveSourceKind, string> = {
   [LiveSourceKind.CommandPoll]: "shell command",
   [LiveSourceKind.HttpPoll]: "http poll",
   [LiveSourceKind.ClaudeSessions]: "claude sessions",
+  [LiveSourceKind.ReferenceRefresh]: "watched file reference",
 };
 
 export function kindLabel(kind: LiveSourceKind): string {

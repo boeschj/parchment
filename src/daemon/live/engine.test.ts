@@ -310,6 +310,53 @@ describe("command-poll rehydration across a daemon restart", () => {
   });
 });
 
+describe("reference-refresh source", () => {
+  it("re-hydrates a watched file into slot state and restamps its provenance", async () => {
+    const sessionId = uniqueSessionId();
+    const slot = createDashboard(sessionId, { hydrated: {}, hydratedMeta: {} });
+    const watchedPath = join(fakeHome, `watched-${randomUUID()}.ts`);
+    writeFileSync(watchedPath, "const version = 1;\n");
+
+    setSlotLiveSources(sessionId, slot.id, [
+      {
+        kind: LiveSourceKind.ReferenceRefresh,
+        id: "snippet__code",
+        statePath: "/hydrated/snippet__code",
+        metaStatePath: "/hydratedMeta/snippet__code",
+        watchPath: watchedPath,
+        target: { kind: "file", absPath: watchedPath, lines: null },
+      },
+    ]);
+    try {
+      const hydratedCode = (): unknown => {
+        const current = ensureSession(sessionId).slots.find((c) => c.id === slot.id);
+        const hydrated = current?.state["hydrated"];
+        return isRecord(hydrated) ? hydrated["snippet__code"] : undefined;
+      };
+      const hydratedMode = (): unknown => {
+        const current = ensureSession(sessionId).slots.find((c) => c.id === slot.id);
+        const meta = current?.state["hydratedMeta"];
+        const entry = isRecord(meta) ? meta["snippet__code"] : undefined;
+        return isRecord(entry) ? entry["mode"] : undefined;
+      };
+
+      await waitFor("initial hydration", () => hydratedCode() === "const version = 1;\n");
+      expect(hydratedMode()).toBe("live");
+
+      writeFileSync(watchedPath, "const version = 2;\nconst added = true;\n");
+      await waitFor("refresh after edit", () =>
+        String(hydratedCode() ?? "").includes("added = true"),
+      );
+    } finally {
+      stopSlotLiveSources(sessionId, slot.id);
+    }
+  });
+});
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 describe("source lifecycle", () => {
   it("replaces a slot's sources wholesale and persists the bindings", () => {
     const sessionId = uniqueSessionId();

@@ -33,9 +33,35 @@ import {
   PropNormalForms,
   WidenedComponentPropSchemas,
 } from "../shared/catalog/prop-normal-forms.ts";
-import { isExpressionValue, isPlainObject, parseStateShorthand } from "../shared/expressions.ts";
+import {
+  elementLevelReferenceOf,
+  isExpressionValue,
+  isPlainObject,
+  parseStateShorthand,
+} from "../shared/expressions.ts";
 import { extractIntentMenu } from "./intents.ts";
 import type { JsonRenderSpec, UIElement } from "../shared/types.ts";
+
+// The element the daemon will actually render: an element-level reference
+// ({"$diff": "src/a.ts"} on a DiffViewer) is expanded at push time into the
+// props it supplies. Validation runs first, so it checks this post-expansion
+// view — otherwise the authored form is rejected for props about to be filled.
+// A state binding stands in for each supplied value: same shape hydration writes.
+function withElementLevelReferenceExpanded(element: UIElement): UIElement {
+  const props = element.props ?? {};
+  const contract = elementLevelReferenceOf(element.type, props);
+  if (!contract) return element;
+
+  const expanded: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(props)) {
+    if (contract.consumes.includes(name)) continue;
+    expanded[name] = value;
+  }
+  for (const supplied of contract.supplies) {
+    if (expanded[supplied] === undefined) expanded[supplied] = { $state: "/hydrated" };
+  }
+  return { ...element, props: expanded };
+}
 
 export type SpecPreparation = {
   spec: JsonRenderSpec;
@@ -198,11 +224,16 @@ function collectPropIssues(spec: JsonRenderSpec): string[] {
       issues.push(`elements/${key}: unknown component type "${element.type}". Known types: ${known}`);
       continue;
     }
-    issues.push(...unknownPropIssues(key, element, contract));
-    issues.push(...missingRequiredPropIssues(key, element, contract));
-    issues.push(...staticPropTypeIssues(key, element));
-    issues.push(...bindStateIssues(key, element, contract));
-    issues.push(...formCheckIssues(key, element, contract));
+    // An element-level reference ({"$diff": "src/a.ts"} on a DiffViewer) is
+    // expanded by the daemon at push time, AFTER this runs. Validate the
+    // post-expansion shape so the authored form isn't rejected for props the
+    // hydrator is about to supply.
+    const elementView = withElementLevelReferenceExpanded(element);
+    issues.push(...unknownPropIssues(key, elementView, contract));
+    issues.push(...missingRequiredPropIssues(key, elementView, contract));
+    issues.push(...staticPropTypeIssues(key, elementView));
+    issues.push(...bindStateIssues(key, elementView, contract));
+    issues.push(...formCheckIssues(key, elementView, contract));
   }
   return issues;
 }

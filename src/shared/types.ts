@@ -166,6 +166,10 @@ export const LiveSourceKind = {
   CommandPoll: "command-poll",
   HttpPoll: "http-poll",
   ClaudeSessions: "claude-sessions",
+  // Daemon-minted only (never accepted from canvas_live's input schema): a
+  // watched $file/$diff reference re-resolves and replaces its slot-state path
+  // when the underlying file changes. See daemon/live/reference-refresh.ts.
+  ReferenceRefresh: "reference-refresh",
 } as const;
 
 export type LiveSourceKind = (typeof LiveSourceKind)[keyof typeof LiveSourceKind];

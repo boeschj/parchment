@@ -108,11 +108,44 @@ export type ClaudeSessionsSourceConfig = SourceIdentity & {
   limit: number;
 };
 
+// What a watched reference re-resolves through — enough to re-run the exact
+// resolver that first hydrated it, self-contained so it survives a daemon
+// restart (the persisted config is JSON only).
+export type ReferenceRefreshTarget =
+  | { kind: "file"; absPath: string; lines: string | null }
+  | {
+      kind: "diff-sides";
+      cwd: string;
+      absPath: string;
+      displayPath: string;
+      base: string | null;
+      staged: boolean;
+    }
+  | {
+      kind: "diff-patch";
+      cwd: string;
+      absPath: string;
+      displayPath: string;
+      base: string | null;
+      staged: boolean;
+    };
+
+export type ReferenceRefreshSourceConfig = SourceIdentity & {
+  kind: typeof LiveSourceKind.ReferenceRefresh;
+  watchPath: string;
+  // Written alongside statePath on every refresh so a live reference's hash and
+  // hydratedAt track the content actually on screen, rather than freezing at
+  // whatever the push-time snapshot recorded.
+  metaStatePath: string;
+  target: ReferenceRefreshTarget;
+};
+
 export type LiveSourceConfig =
   | FileTailSourceConfig
   | CommandPollSourceConfig
   | HttpPollSourceConfig
-  | ClaudeSessionsSourceConfig;
+  | ClaudeSessionsSourceConfig
+  | ReferenceRefreshSourceConfig;
 
 export type NormalizeSourceResult =
   | { ok: true; config: LiveSourceConfig }
@@ -232,12 +265,16 @@ export function liveSourceTarget(config: LiveSourceConfig): string {
       return config.url;
     case LiveSourceKind.ClaudeSessions:
       return `claude sessions (last ${config.sinceHours}h, max ${config.limit})`;
+    case LiveSourceKind.ReferenceRefresh:
+      return config.watchPath;
   }
 }
 
-// file-tail watches the file rather than polling it, so it has no interval.
+// file-tail and reference-refresh watch their file rather than polling it, so
+// they have no interval.
 export function liveSourceIntervalMs(config: LiveSourceConfig): number | null {
   if (config.kind === LiveSourceKind.FileTail) return null;
+  if (config.kind === LiveSourceKind.ReferenceRefresh) return null;
   return config.intervalMs;
 }
 

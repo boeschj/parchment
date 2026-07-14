@@ -28,7 +28,7 @@ import {
 import { upsertSlot, removeSlot, markSlotError, requestSlotOps, resolveSlotOps } from "./slots.ts";
 import { clearPersistedSlots } from "./session-store.ts";
 import { registerTranscriptPath, readTranscriptBacklog, firstHumanPrompt } from "./transcript.ts";
-import type { SlotOps, SlotOpsResult } from "../shared/types.ts";
+import type { JsonRenderSpec, SlotOps, SlotOpsResult } from "../shared/types.ts";
 import {
   recordEdit,
   buildInjectionPayload,
@@ -42,11 +42,14 @@ import {
   listSessionLiveSources,
   rehydratePersistedLiveSources,
   setSlotLiveSources,
+  setSlotReferenceRefreshSources,
   stopAllLiveSources,
   stopSessionLiveSources,
   stopSlotSource,
 } from "./live/engine.ts";
 import { CommandApprovalScope } from "./live/approved-commands.ts";
+import { hydrateSpec } from "./hydrate/index.ts";
+import { allowBlobPath, buildBlobUrl, BLOB_ROUTE_PATH, serveBlob } from "./hydrate/blob.ts";
 import {
   LiveSourceInputSchema,
   normalizeLiveSource,
@@ -113,6 +116,14 @@ async function handleFetch(
 
   if (path === "/api/bootstrap") {
     return jsonResponse({ token: SERVER_TOKEN });
+  }
+
+  // Local-image blob route for the $img reference. Token-checked inside
+  // serveBlob (an <img> tag cannot carry the x-canvas-token header, so the
+  // token rides in the query string); the Host/Origin guard above already
+  // confined it to loopback.
+  if (path === BLOB_ROUTE_PATH) {
+    return serveBlob(url, SERVER_TOKEN);
   }
 
   if (path === "/api/health") {
@@ -296,9 +307,32 @@ async function handleSessionRoute(
         "spec must be { root, elements }",
       );
     }
+    // Reference hydration runs here, in the daemon, because it needs the
+    // session's cwd (relative paths) and the daemon's own git/filesystem/blob
+    // access. It rewrites {$file}/{$diff}/{$csv}/{$img} props into {$state}
+    // bindings and seeds their content into the slot's "/hydrated" namespace.
+    const session = ensureSession(sessionId, body.cwd ?? "");
+    const hydration = await hydrateSpec({
+      spec: spec as unknown as JsonRenderSpec,
+      cwd: session.cwd,
+      // The path reaching here is already root-confined and realpath'd by the
+      // hydrator; registering it is what authorizes the blob route to serve it.
+      buildBlobUrl: (absPath) => {
+        allowBlobPath(absPath);
+        return buildBlobUrl(absPath, SERVER_TOKEN);
+      },
+    });
+    if (hydration.errors.length > 0) {
+      return errorResponse(
+        HttpStatus.BadRequest,
+        ErrorCode.BadRequest,
+        `reference hydration failed:\n${hydration.errors.map((issue) => `- ${issue}`).join("\n")}`,
+      );
+    }
+    const hydratedSpec = hydration.spec;
     // Intent bindings must be resolvable daemon-side or the push fails —
     // an unextractable intent would otherwise become an unclickable button.
-    const intentExtraction = extractIntentMenu(spec as never);
+    const intentExtraction = extractIntentMenu(hydratedSpec as never);
     if (intentExtraction.issues.length > 0) {
       return errorResponse(
         HttpStatus.BadRequest,
@@ -313,13 +347,16 @@ async function handleSessionRoute(
       cwd: body.cwd ?? "",
       kind: body.kind,
       title: body.title,
-      spec: spec as never,
+      spec: hydratedSpec,
       origin,
       ...(body.slotId !== undefined ? { slotId: body.slotId } : {}),
       status,
       ...(body.state !== undefined ? { state: body.state } : {}),
     });
-    return jsonResponse({ ok: true, slot });
+    // {watch:true} references become live reference-refresh sources, merged
+    // alongside any canvas_live sources already on the slot.
+    setSlotReferenceRefreshSources(sessionId, slot.id, hydration.watchSources);
+    return jsonResponse({ ok: true, slot, notes: hydration.notes });
   }
 
   if (subPath === "/slots/ops" && method === "POST") {
