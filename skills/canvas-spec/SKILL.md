@@ -108,8 +108,17 @@ columns[].label→header · Metric value/delta numbers → display strings.
 6. Mermaid source is raw (no fences), `<br/>` for label line breaks.
 7. Scene3D: y is up, rotation in degrees, rest shapes on the floor at `y = height/2`.
 
+## Authoring in markup instead of JSON
+
+`canvas_render` also takes a `markup` string (HTML + widgets as custom elements)
+that compiles to this same spec — usually far fewer tokens, and it can REFERENCE
+files (`<GitDiff file="src/a.ts"/>`) instead of pasting them. See
+**references/markup.md**.
+
 ## References (pull on demand)
 
+- **references/markup.md** — the markup dialect: tag table, the fidelity ladder
+  (reference files instead of pasting them), attribute sugar, worked examples.
 - **references/components.md** — full shadcn prop tables (layout, content, inputs).
 - **references/expressions-and-events.md** — conditions, `$and`/`$or`, `watch`, the
   full state-action set, per-component events.
