@@ -93,8 +93,23 @@ const STRING_PROPERTY = { type: "string" } as const;
 export const OPENUI_TOOL_SPECS = [
   {
     name: OpenUiToolName.ReadCsv,
+    // The second sentence is here because its ABSENCE cost this arm a repair turn
+    // in a smoke run, and the cost was ours, not its format's.
+    //
+    // parchment's own high-fidelity prompt carries a hydration note — "the daemon
+    // reads the file, infers the columns from its header, and fills rows and
+    // columns; omit them" — so its model knows not to invent column labels. OpenUI
+    // was told only that the tool RETURNS columns. Its first artifact duly used
+    // Query() for the rows (it climbed the ladder perfectly) and then hand-wrote
+    // prettified headers — "Run ID" for `run_id` — and failed the rubric's check
+    // for the file's real column names.
+    //
+    // That is an information asymmetry in the PROMPT, not a difference between the
+    // formats, and publishing the repair turn it caused would have been publishing
+    // our own omission as OpenUI's weakness. The same fact, in OpenUI's own idiom.
     description:
-      "Read a CSV file from disk. Returns every one of its data rows, and its column names taken from the header.",
+      "Read a CSV file from disk. Returns every one of its data rows, and its column names taken " +
+      "from the header — pass those columns to the table rather than writing your own labels.",
     inputSchema: {
       type: "object",
       properties: { path: { ...STRING_PROPERTY, description: "Path to the CSV file." } },
