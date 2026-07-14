@@ -12,12 +12,13 @@ import type { RenderAttemptPredicate } from "./metrics/extract-metrics.ts";
 import { extractTranscriptMetrics } from "./metrics/extract-metrics.ts";
 import { readTranscriptEntries } from "./metrics/read-transcript.ts";
 import { runClaudeHeadless } from "./claude-cli.ts";
+import { MARKUP_ARM_INSTRUCTION } from "./config.ts";
 import { writeCanvasMcpConfig } from "./mcp-config.ts";
 import { locateSessionJsonl } from "./session-locator.ts";
 import { fetchSessionSlots, validateParchmentSlots } from "./validators/parchment-validator.ts";
 import { validateHtmlFile } from "./validators/html-validator.ts";
 import type { ScenarioDefinition } from "./scenarios/types.ts";
-import { Arm, type Model, type RunRecord, type ValidationResult } from "./types.ts";
+import { Arm, isParchmentArm, type Model, type RunRecord, type ValidationResult } from "./types.ts";
 import type { BenchDaemon } from "./daemon-harness.ts";
 
 export type RunOneRepOptions = {
@@ -62,12 +63,23 @@ export async function runOneRep(options: RunOneRepOptions): Promise<RunRecord> {
   };
 }
 
+// Both parchment arms run the scenario's UNCHANGED parchment prompt; the markup
+// arm just has the dialect steer appended, so the task is identical and only the
+// authoring surface differs.
+function promptFor(scenario: ScenarioDefinition, arm: Arm): string {
+  if (arm === Arm.Html) return scenario.htmlPrompt;
+  if (arm === Arm.ParchmentMarkup) {
+    return `${scenario.parchmentPrompt}\n\n${MARKUP_ARM_INSTRUCTION}`;
+  }
+  return scenario.parchmentPrompt;
+}
+
 async function buildClaudeInvocationInput(
   options: RunOneRepOptions,
   sessionId: string,
   runDir: string,
 ): Promise<Parameters<typeof runClaudeHeadless>[0]> {
-  const prompt = options.arm === Arm.Parchment ? options.scenario.parchmentPrompt : options.scenario.htmlPrompt;
+  const prompt = promptFor(options.scenario, options.arm);
   const shared = {
     prompt,
     model: options.model,
@@ -91,7 +103,7 @@ async function buildClaudeInvocationInput(
 }
 
 function renderAttemptPredicateFor(options: RunOneRepOptions, runDir: string): RenderAttemptPredicate {
-  if (options.arm === Arm.Parchment) {
+  if (isParchmentArm(options.arm)) {
     const toolName = options.scenario.parchmentTool;
     return (toolUse) => toolUse.toolName === toolName;
   }

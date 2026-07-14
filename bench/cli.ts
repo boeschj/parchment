@@ -15,7 +15,7 @@ import { BENCH_RESULTS_DIR, BENCH_RUNS_DIR, DEFAULT_BENCH_PORT, DEFAULT_REPETITI
 import { runOneRep } from "./runner.ts";
 import { saveRawRunRecord, writeReport } from "./report.ts";
 import { findScenario, SCENARIOS } from "./scenarios/index.ts";
-import { Arm, Model, type RunRecord } from "./types.ts";
+import { Arm, isParchmentArm, Model, type RunRecord } from "./types.ts";
 
 type RunCommandOptions = {
   scenarioIds: string[];
@@ -88,7 +88,7 @@ function scenarioTitlesForRecords(records: RunRecord[]): Map<string, string> {
 
 async function runCommand(options: RunCommandOptions): Promise<void> {
   const scenarios = options.scenarioIds.map(findScenario);
-  const needsDaemon = options.arms.includes(Arm.Parchment);
+  const needsDaemon = options.arms.some(isParchmentArm);
   const daemon = needsDaemon ? await startBenchDaemon({ port: options.daemonPort }) : undefined;
 
   const resultsDir = join(BENCH_RESULTS_DIR, timestampForDirName());
@@ -166,8 +166,8 @@ function parseListFlag<T>(raw: string, parseOne: (value: string) => T): T[] {
 }
 
 function parseArm(value: string): Arm {
-  if (value === Arm.Parchment || value === Arm.Html) return value;
-  throw new Error(`unknown arm "${value}" — expected "parchment" or "html"`);
+  if (value === Arm.Parchment || value === Arm.ParchmentMarkup || value === Arm.Html) return value;
+  throw new Error(`unknown arm "${value}" — expected "parchment", "parchment-markup", or "html"`);
 }
 
 function parseModel(value: string): Model {
@@ -187,7 +187,7 @@ function printUsage(): void {
       "",
       "run options:",
       "  --scenario <id|all>     Scenario id from bench/scenarios/index.ts, or 'all' (default: all)",
-      "  --arms <list>           Comma-separated: parchment,html (default: parchment,html)",
+      "  --arms <list>           Comma-separated: parchment,parchment-markup,html (default: parchment,html)",
       "  --models <list>         Comma-separated: haiku,sonnet,opus (default: haiku)",
       "  --reps <n>              Repetitions per (scenario, arm, model) (default: 3)",
       "  --port <n>              Bench daemon port (default: 7811)",

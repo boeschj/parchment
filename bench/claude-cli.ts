@@ -15,7 +15,7 @@
 // "Not logged in · Please run /login"). --setting-sources "" gets the same
 // noise reduction without breaking auth.
 
-import { Arm, type Model } from "./types.ts";
+import { Arm, isParchmentArm, type Model } from "./types.ts";
 import type { ClaudeRunResult } from "./types.ts";
 import { CanvasTool, HTML_ARM_TOOLS } from "./config.ts";
 
@@ -88,7 +88,7 @@ function buildClaudeArgs(options: RunClaudeHeadlessOptions): string[] {
     ...buildAppendSystemPromptArgs(options),
   ];
 
-  return options.arm === Arm.Parchment
+  return isParchmentArm(options.arm)
     ? [...sharedArgs, ...buildParchmentArmArgs(options)]
     : [...sharedArgs, ...buildHtmlArmArgs()];
 }

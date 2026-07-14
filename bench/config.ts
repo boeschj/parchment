@@ -53,3 +53,29 @@ export const HTML_ARM_TOOLS = ["Write", "Edit"] as const;
 export const DEFAULT_REPETITIONS = 3;
 export const DEFAULT_MODEL_FOR_REPS = "haiku" as const;
 export const HEADLINE_MODEL = "sonnet" as const;
+
+// The parchment-markup arm's steer. It is APPENDED to the scenario's unchanged
+// parchment prompt, so both parchment arms attempt the identical task and the
+// only variable is the authoring surface — which is the whole point of the
+// comparison. It is deliberately a minimal contract: the thesis under test is
+// that a model's HTML/JSX prior carries the rest, so anything the prior already
+// supplies is left unsaid. The fidelity ladder is stated first because it, not
+// the syntax, is where the tokens actually are.
+export const MARKUP_ARM_INSTRUCTION = `Author the UI as a markup document passed to canvas_render's \`markup\` argument (do NOT pass \`spec\`).
+
+The dialect is HTML with the canvas widgets as custom elements.
+
+PREFER THE HIGHEST-FIDELITY ELEMENT AVAILABLE. Never paste content you can reference by path — a reference costs ~15 tokens where the pasted bytes cost thousands:
+- <GitDiff file="src/a.ts" base="HEAD~1"/> — a full two-sided diff. Never paste a diff.
+- <CodeBlock file="src/a.ts" lines="40-80"/> — a source excerpt. Never paste code you can name.
+- <DataTable src="results.csv"/> and <Chart src="results.csv" kind="line" x="run" y="p99"/> — never paste rows you can name.
+- <LogStream file="app.log" watch/> — a live log tail.
+- <Markdown file="README.md"/>, <Image src="shot.png"/>.
+Paste content inline ONLY when it exists nowhere on disk (e.g. you are inventing it).
+
+Otherwise:
+- Semantic tags map to components: section/div→Stack, h1-h4→Heading, p→Text/Markdown, ul/ol→Markdown list, table→DataTable, form→Card, hr→Separator, a→Link, button→Button, input/textarea/select→Input/Textarea/Select.
+- Widgets are custom elements whose attributes are the component's props: <Metric label="p99" value="412ms" trend="down"/>, <Callout tone="warning">…</Callout>, <Terminal command="…">…</Terminal>, <MermaidEditor>…raw mermaid…</MermaidEditor>, <Steps items="[…]"/>, <Sparkline/>.
+- Elements that carry text (CodeBlock, Terminal, MermaidEditor, Callout, Markdown, Heading, Button) take it as their content.
+- Seed state with one top-level <state>{…json…}</state>. An attribute value starting with [ or { is parsed as JSON; a "$state.path" string reads state.
+- Two-way bind an input with bind="/form/email". Wire a button with intent="retry" (optional intent-params='{…}') or submit="signup".`;

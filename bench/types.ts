@@ -1,14 +1,25 @@
 // Shared vocabulary for the benchmark harness. Every module below composes
 // these primitives rather than inventing parallel ad-hoc shapes.
 
-// The two authoring approaches under comparison: parchment's canvas_* MCP
-// tools versus a single-file HTML artifact (the Claude Code Artifacts model).
+// The authoring approaches under comparison: parchment's canvas_* MCP tools —
+// reached either by writing a JSON spec ("parchment") or the HTML-flavored
+// markup dialect ("parchment-markup") — versus a single-file HTML artifact
+// (the Claude Code Artifacts model).
 export const Arm = {
   Parchment: "parchment",
+  ParchmentMarkup: "parchment-markup",
   Html: "html",
 } as const;
 
 export type Arm = (typeof Arm)[keyof typeof Arm];
+
+// Both parchment arms drive the same canvas_render tool against the same bench
+// daemon and are checked against the same component-type requirement — the
+// markup dialect compiles to the very same components. They differ only in how
+// the model authors the UI, which is the whole point of the comparison.
+export function isParchmentArm(arm: Arm): boolean {
+  return arm === Arm.Parchment || arm === Arm.ParchmentMarkup;
+}
 
 // `claude -p --model <alias>` accepts these aliases directly.
 export const Model = {
