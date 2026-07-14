@@ -38,12 +38,28 @@ export type RepoContext = { repoRoot: string; relPath: string };
 
 export type RepoResolution = { ok: true; context: RepoContext } | { ok: false; error: string };
 
-async function resolveRepoContext(cwd: string, absPath: string): Promise<RepoResolution> {
-  const topLevel = await runGit(cwd, ["rev-parse", "--show-toplevel"]);
+// THE REPO IS RESOLVED FROM THE FILE, NEVER FROM THE SESSION'S cwd.
+//
+// A file can live in a repository BELOW cwd — a submodule, a vendored checkout,
+// a cloned fixture. Asking git about the cwd then answers for the OUTER repo, and
+// the file's path relative to that outer root is a path the outer repo has never
+// heard of. `git show <rev>:<that path>` fails, contentAtRevision reads the
+// failure as "the file did not exist at this revision", and the DiffViewer
+// renders with an EMPTY before side: a one-sided diff, silently, with no error.
+//
+// The benchmark caught exactly this — a <GitDiff> over a git repo nested inside
+// the run directory came back with before="" and after=<the whole file> — and the
+// model, seeing half a diff, pasted the file by hand instead. Searching from the
+// file's own directory finds the innermost repo that actually contains it, which
+// is the only repo whose revisions can answer for it. For the common case (the
+// file is in cwd's own repo) this resolves to the same root, so nothing changes.
+async function resolveRepoContext(absPath: string): Promise<RepoResolution> {
+  const searchDir = safeRealpath(dirname(absPath));
+  const topLevel = await runGit(searchDir, ["rev-parse", "--show-toplevel"]);
   if (topLevel.code !== 0) {
     return {
       ok: false,
-      error: `not a git repository at ${cwd}: ${firstLine(topLevel.stderr) || "git rev-parse failed"}`,
+      error: `not a git repository at ${searchDir}: ${firstLine(topLevel.stderr) || "git rev-parse failed"}`,
     };
   }
   const repoRoot = topLevel.stdout.trim();
@@ -94,7 +110,7 @@ export async function resolveDiffSides(
   relDisplayPath: string,
   options: DiffOptions,
 ): Promise<{ ok: true; sides: DiffSides } | { ok: false; error: string }> {
-  const repo = await resolveRepoContext(cwd, absPath);
+  const repo = await resolveRepoContext(absPath);
   if (!repo.ok) return repo;
   const { repoRoot, relPath } = repo.context;
 
@@ -120,7 +136,7 @@ export async function resolveDiffPatch(
   relDisplayPath: string,
   options: DiffOptions,
 ): Promise<{ ok: true; patch: string } | { ok: false; error: string }> {
-  const repo = await resolveRepoContext(cwd, absPath);
+  const repo = await resolveRepoContext(absPath);
   if (!repo.ok) return repo;
   const args = ["diff", "--no-color"];
   if (options.staged) args.push("--staged");

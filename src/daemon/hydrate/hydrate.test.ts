@@ -246,6 +246,49 @@ describe("resolveDiffSides", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("not a git repository");
   });
+
+  // THE ONE-SIDED DIFF. The repo used to be resolved from the session's cwd, so a
+  // file living in a repo BELOW cwd — a submodule, a vendored checkout, the
+  // benchmark's own fixture repo — was looked up in the OUTER repo, where its path
+  // does not exist at any revision. `git show` failed, the failure was read as
+  // "the file is new, so it has no before", and the DiffViewer rendered with a
+  // BLANK before side. No error, half a diff.
+  //
+  // The benchmark caught it: the model asked for <GitDiff/>, got a one-sided
+  // render, and pasted the whole file by hand instead — turning a 176-token
+  // artifact into a 9,000-token one.
+  it("resolves the repo from the FILE, so a nested repo below cwd still diffs both sides", async () => {
+    const outer = tmpDir("hydrate-outer-");
+    const outerRun = (args: string[]): Promise<void> =>
+      Bun.spawn(["git", ...args], { cwd: outer, stdout: "ignore", stderr: "ignore" }).exited.then(
+        () => undefined,
+      );
+    // cwd is itself a git repo — the outer one — and the file lives in an inner
+    // repo underneath it. This is a submodule, in miniature.
+    await outerRun(["init"]);
+    await outerRun(["config", "user.email", "t@t.t"]);
+    await outerRun(["config", "user.name", "t"]);
+    writeFileSync(join(outer, "outer.txt"), "outer\n");
+    await outerRun(["add", "."]);
+    await outerRun(["commit", "-m", "outer"]);
+
+    const inner = await makeWorkspace();
+    const nestedPath = join(outer, "vendored");
+    symlinkSync(inner.cwd, nestedPath);
+
+    const filePath = join(nestedPath, inner.relPath);
+    const result = await resolveDiffSides(outer, filePath, `vendored/${inner.relPath}`, {
+      base: null,
+      staged: false,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Both sides, from the INNER repo's history — not an empty string from the
+    // outer repo, which has never heard of this path.
+    expect(result.sides.before).toBe("export const version = 1;\n");
+    expect(result.sides.after).toContain("version = 2");
+  });
 });
 
 describe("$img blob route", () => {
