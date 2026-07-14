@@ -5,6 +5,14 @@
 // with messages precise enough that the model fixes them in ONE retry — the
 // element key, the exact path, and the exact fix.
 //
+// A spec that passes here RENDERS. Every prop name, required prop, event,
+// action, binding and check is validated against the contract the renderer
+// actually implements (src/shared/catalog/component-contracts.ts), because a
+// prop the renderer never reads is a prop the model believes it set: a Chart
+// with {chartType, xKey, series} draws an empty box, a MermaidEditor with
+// `code` draws nothing, a Button with on.click does nothing. All three used to
+// validate.
+//
 // This is deliberately hand-written rather than json-render's catalog.validate:
 // that path strips the interactive fields (on/repeat/watch/state) the canvas
 // depends on (json-render #222). We borrow only autoFixSpec + validateSpec from
@@ -13,6 +21,13 @@
 import { autoFixSpec, validateSpec, type Spec, type SpecIssue } from "@json-render/core";
 import * as z from "zod/v4";
 import { canvasCatalog } from "../shared/catalog/index.ts";
+import {
+  ComponentContracts,
+  ElementFields,
+  KnownActionNames,
+  KnownCheckTypes,
+  type ComponentContract,
+} from "../shared/catalog/component-contracts.ts";
 import {
   PropNameAliases,
   PropNormalForms,
@@ -51,7 +66,7 @@ function fromCoreSpec(spec: Spec): JsonRenderSpec {
 // to a correct render — so they never surface as issues.
 export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   const { spec: autofixed } = autoFixSpec(toCoreSpec(spec));
-  const normalized = withLeafChildren(fromCoreSpec(autofixed));
+  const normalized = withElementDefaults(fromCoreSpec(autofixed));
   const repairs: string[] = [];
   let repaired = repairUnknownComponentTypes(normalized, repairs);
   repaired = normalizeExpressionShorthand(repaired, repairs);
@@ -59,7 +74,10 @@ export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   const issues = [
     ...collectStructuralIssues(repaired),
     ...collectMissingChildIssues(repaired),
+    ...collectElementFieldIssues(repaired),
     ...collectPropIssues(repaired),
+    ...collectEventIssues(repaired),
+    ...collectWatchIssues(repaired),
     ...collectUnseededStateIssues(repaired),
     ...collectChartDataIssues(repaired),
     ...extractIntentMenu(repaired).issues,
@@ -67,10 +85,14 @@ export function prepareSpec(spec: JsonRenderSpec): SpecPreparation {
   return { spec: repaired, issues, repairs };
 }
 
-function withLeafChildren(spec: JsonRenderSpec): JsonRenderSpec {
+function withElementDefaults(spec: JsonRenderSpec): JsonRenderSpec {
   const elements: Record<string, UIElement> = {};
   for (const [key, element] of Object.entries(spec.elements)) {
-    elements[key] = element.children === undefined ? { ...element, children: [] } : element;
+    elements[key] = {
+      ...element,
+      props: element.props ?? {},
+      children: element.children ?? [],
+    };
   }
   return { ...spec, elements };
 }
@@ -119,45 +141,324 @@ function collectMissingChildIssues(spec: JsonRenderSpec): string[] {
   return issues;
 }
 
+// ---- Element fields --------------------------------------------------------
+
+// The renderer reads exactly seven fields off an element. A binding hoisted to
+// the element ("$bindState": {"value": "form.name"}) or a state object parked
+// there is silently dropped — the input renders unbound and the form does
+// nothing.
+
+const ELEMENT_FIELD_NAMES: ReadonlySet<string> = new Set(ElementFields);
+
+function collectElementFieldIssues(spec: JsonRenderSpec): string[] {
+  const issues: string[] = [];
+  for (const [key, element] of Object.entries(spec.elements)) {
+    for (const field of Object.keys(element)) {
+      if (ELEMENT_FIELD_NAMES.has(field)) continue;
+      issues.push(
+        `elements/${key}: unknown element field "${field}". An element carries only: ${ElementFields.join(", ")}.` +
+          elementFieldHint(field),
+      );
+    }
+  }
+  return issues;
+}
+
+function elementFieldHint(field: string): string {
+  if (field.startsWith("$")) {
+    return ` Expressions belong on the prop they drive: "props": {"value": {"${field}": "/form/name"}}.`;
+  }
+  if (field === "state") {
+    return ` State is seeded once at the top of the spec ("state": {...}), not per element.`;
+  }
+  return "";
+}
+
 // ---- Component props -------------------------------------------------------
 
-// Every prop schema is the WIDENED schema from prop-normal-forms.ts — the
-// declared input forms parse (and normalize) directly through it — applied
-// with .partial(). Required props are routinely supplied as runtime expressions
-// ({$state}/{$template}) which staticPropsOnly strips before validation, so
-// enforcing required-ness here would reject valid live-bound specs (e.g. a
-// Metric with value: {$template}, the flagship live-dashboard shape). partial()
-// still catches wrong types and bad enum values on the static props that ARE
-// present — the real single-pass wins — while expression-bound props are
-// covered by the state-seeding and chart-data checks.
-const ComponentPropSchemas: Record<string, z.ZodType> = Object.fromEntries(
-  Object.entries(WidenedComponentPropSchemas).map(
-    ([name, propsSchema]) => [name, propsSchema.partial()] as const,
-  ),
-);
+// Validation parses against the WIDENED schemas from prop-normal-forms.ts, so
+// the declared input forms (gap 16, level 1, xKey) pass straight through. Each
+// prop is checked on its own — never through .partial() on the whole object,
+// which hid every missing required prop, and never after stripping expressions,
+// which hid the rest.
+//
+// Presence-aware required-ness: a required prop is satisfied by ANY value,
+// including a runtime expression ({$state}/{$template}/{$bindState}/{$item}),
+// because the value arrives at render time. It is NOT satisfied by absence —
+// a Chart with no `data` and no `kind` is an empty box, and used to validate.
 
-function staticPropsOnly(props: Record<string, unknown>): Record<string, unknown> {
-  const entries = Object.entries(props).filter(([, value]) => !isExpressionValue(value));
-  return Object.fromEntries(entries);
-}
+const MAX_SUGGESTION_DISTANCE = 2;
 
 function collectPropIssues(spec: JsonRenderSpec): string[] {
   const issues: string[] = [];
   for (const [key, element] of Object.entries(spec.elements)) {
-    const schema = ComponentPropSchemas[element.type];
-    if (!schema) {
+    const contract = ComponentContracts[element.type];
+    if (!contract) {
       const known = canvasCatalog.componentNames.join(", ");
       issues.push(`elements/${key}: unknown component type "${element.type}". Known types: ${known}`);
       continue;
     }
-    const parsed = schema.safeParse(staticPropsOnly(element.props ?? {}));
+    issues.push(...unknownPropIssues(key, element, contract));
+    issues.push(...missingRequiredPropIssues(key, element, contract));
+    issues.push(...staticPropTypeIssues(key, element));
+    issues.push(...bindStateIssues(key, element, contract));
+    issues.push(...formCheckIssues(key, element, contract));
+  }
+  return issues;
+}
+
+function unknownPropIssues(
+  key: string,
+  element: UIElement,
+  contract: ComponentContract,
+): string[] {
+  const issues: string[] = [];
+  for (const propName of Object.keys(element.props)) {
+    if (contract.knownProps.includes(propName)) continue;
+    const suggestion = suggestedPropName(propName, element.type, contract);
+    const didYouMean = suggestion === null ? "" : ` Did you mean "${suggestion}"?`;
+    issues.push(
+      `elements/${key}/props/${propName}: unknown prop "${propName}" for ${element.type} — the renderer ignores it.${didYouMean} ` +
+        `${element.type} accepts: ${contract.knownProps.join(", ")}.`,
+    );
+  }
+  return issues;
+}
+
+// A declared alias that survived normalization (the normal-form name was
+// already set, so the rename was skipped) resolves to its normal name; every
+// other unknown name falls back to nearest-neighbour, which catches typos and
+// stays silent on genuine dialect (there is no honest guess from "chartType"
+// to "kind" — the known-prop list is the fix).
+function suggestedPropName(
+  propName: string,
+  componentType: string,
+  contract: ComponentContract,
+): string | null {
+  const aliases = PropNameAliases[componentType] ?? {};
+  const aliasTarget = aliases[propName.toLowerCase()];
+  if (aliasTarget !== undefined) return aliasTarget;
+  return nearestName(propName, contract.knownProps);
+}
+
+function missingRequiredPropIssues(
+  key: string,
+  element: UIElement,
+  contract: ComponentContract,
+): string[] {
+  const missing = contract.requiredProps.filter(
+    (propName) => element.props[propName] === undefined,
+  );
+  return missing.map(
+    (propName) =>
+      `elements/${key}/props/${propName}: ${element.type} requires "${propName}", which is missing — ` +
+      `give it a value or bind it ({"$state": "/path"}). ${element.type} requires: ${contract.requiredProps.join(", ")}.`,
+  );
+}
+
+function staticPropTypeIssues(key: string, element: UIElement): string[] {
+  const schema = WidenedComponentPropSchemas[element.type];
+  if (!schema) return [];
+  const issues: string[] = [];
+  for (const [propName, value] of Object.entries(element.props)) {
+    const field = schema.shape[propName];
+    if (!field) continue;
+    // {$state}/{$template}/{$item}/... resolve at render time; their shape is
+    // checked by the state-seeding and chart-data passes, not by the schema.
+    if (isExpressionValue(value)) continue;
+    const parsed = field.safeParse(value);
     if (parsed.success) continue;
     for (const issue of parsed.error.issues) {
-      const path = issue.path.length > 0 ? `props/${issue.path.join("/")}` : "props";
-      issues.push(`elements/${key}/${path}: ${issue.message}`);
+      const path = [propName, ...issue.path].join("/");
+      issues.push(`elements/${key}/props/${path}: ${issue.message}`);
     }
   }
   return issues;
+}
+
+// ---- Two-way bindings ------------------------------------------------------
+
+function bindStateIssues(
+  key: string,
+  element: UIElement,
+  contract: ComponentContract,
+): string[] {
+  const issues: string[] = [];
+  for (const [propName, value] of Object.entries(element.props)) {
+    if (!isBindStateExpression(value)) continue;
+    if (contract.bindableProp === propName) continue;
+    issues.push(
+      `elements/${key}/props/${propName}: $bindState on ${element.type}.${propName} never writes back. ` +
+        unbindableFix(element.type, contract),
+    );
+  }
+  return issues;
+}
+
+function unbindableFix(componentType: string, contract: ComponentContract): string {
+  if (contract.bindableProp === null) {
+    return (
+      `${componentType} is read-only — use {"$state": "/path"} to read a value. ` +
+      `$bindState belongs on a form component's value prop (Input/Textarea/Select/Checkbox/Switch/Slider/...).`
+    );
+  }
+  return (
+    `${componentType} writes back only through "${contract.bindableProp}" — move the binding to ` +
+    `props/${contract.bindableProp}, or use {"$state": "/path"} for a read-only value.`
+  );
+}
+
+function isBindStateExpression(value: unknown): boolean {
+  return isPlainObject(value) && typeof value.$bindState === "string";
+}
+
+// ---- Field validation checks -----------------------------------------------
+// props.checks[].type is a bare string in the schema, so an unknown check type
+// silently never runs — and checks on an unbound field never run at all
+// (@json-render/shadcn gates validation on the value binding).
+
+function formCheckIssues(
+  key: string,
+  element: UIElement,
+  contract: ComponentContract,
+): string[] {
+  const checks = element.props.checks;
+  if (!Array.isArray(checks) || checks.length === 0) return [];
+  const issues: string[] = [];
+  checks.forEach((check, index) => {
+    if (!isPlainObject(check)) return;
+    const checkType = check.type;
+    if (typeof checkType !== "string") return;
+    if (KnownCheckTypes.includes(checkType)) return;
+    const suggestion = nearestName(checkType, KnownCheckTypes);
+    const didYouMean = suggestion === null ? "" : ` Did you mean "${suggestion}"?`;
+    issues.push(
+      `elements/${key}/props/checks/${index}/type: unknown check "${checkType}".${didYouMean} ` +
+        `Known checks: ${KnownCheckTypes.join(", ")}.`,
+    );
+  });
+  const bindableProp = contract.bindableProp;
+  if (bindableProp === null) return issues;
+  if (isBindStateExpression(element.props[bindableProp])) return issues;
+  issues.push(
+    `elements/${key}/props/checks: checks only run on a $bindState-bound field, and ${element.type}.${bindableProp} ` +
+      `is not bound — nothing validates. Bind it: "${bindableProp}": {"$bindState": "/form/${key}"}.`,
+  );
+  return issues;
+}
+
+// ---- Events and actions ----------------------------------------------------
+
+function collectEventIssues(spec: JsonRenderSpec): string[] {
+  const issues: string[] = [];
+  for (const [key, element] of Object.entries(spec.elements)) {
+    const contract = ComponentContracts[element.type];
+    if (!contract) continue;
+    for (const [eventName, binding] of Object.entries(element.on ?? {})) {
+      if (!contract.events.includes(eventName)) {
+        issues.push(`elements/${key}/on/${eventName}: ${unemittedEventFix(element.type, eventName, contract)}`);
+        continue;
+      }
+      issues.push(...actionBindingIssues(`elements/${key}/on/${eventName}`, binding));
+    }
+  }
+  return issues;
+}
+
+function unemittedEventFix(
+  componentType: string,
+  eventName: string,
+  contract: ComponentContract,
+): string {
+  if (contract.events.length === 0) {
+    return (
+      `${componentType} emits no events, so this binding never fires. ` +
+      `Move it to a component that does (a Button emits "press").`
+    );
+  }
+  return (
+    `${componentType} does not emit "${eventName}", so this binding never fires. ` +
+    `${componentType} emits: ${contract.events.join(", ")}. Rebind it under "${contract.events[0]}".`
+  );
+}
+
+function actionBindingIssues(path: string, binding: unknown): string[] {
+  const bindings = Array.isArray(binding) ? binding : [binding];
+  const issues: string[] = [];
+  for (const entry of bindings) {
+    if (!isPlainObject(entry) || typeof entry.action !== "string") {
+      issues.push(
+        `${path}: an event binding is an object naming an action, e.g. ` +
+          `{"action": "canvas.submit", "params": {"id": "signup"}} — got ${JSON.stringify(entry)}.`,
+      );
+      continue;
+    }
+    const actionName = entry.action;
+    if (KnownActionNames.includes(actionName)) continue;
+    const suggestion = nearestName(actionName, KnownActionNames);
+    const didYouMean = suggestion === null ? "" : ` Did you mean "${suggestion}"?`;
+    issues.push(
+      `${path}: unknown action "${actionName}" — no handler is registered, so the binding does nothing.${didYouMean} ` +
+        `Known actions: ${KnownActionNames.join(", ")}.`,
+    );
+  }
+  return issues;
+}
+
+// watch maps a state POINTER to the actions that fire when the value there
+// changes. It does not feed props: `"watch": {"data": "buildDuration"}` on a
+// Chart neither watches nor supplies data.
+
+function collectWatchIssues(spec: JsonRenderSpec): string[] {
+  const issues: string[] = [];
+  for (const [key, element] of Object.entries(spec.elements)) {
+    for (const [watchPath, binding] of Object.entries(element.watch ?? {})) {
+      if (!watchPath.startsWith("/")) {
+        issues.push(
+          `elements/${key}/watch/${watchPath}: "${watchPath}" is not a JSON Pointer state path. ` +
+            `watch keys are pointers ("/series") whose value changes fire the bound actions — it does not feed props. ` +
+            `To feed a prop from state, bind the prop: "props": {"<prop>": {"$state": "/${watchPath}"}}.`,
+        );
+        continue;
+      }
+      issues.push(...actionBindingIssues(`elements/${key}/watch${watchPath}`, binding));
+    }
+  }
+  return issues;
+}
+
+// ---- Nearest known name ----------------------------------------------------
+// Cheap, deterministic did-you-mean: the closest candidate within two edits
+// (case-insensitive), which catches typos and case drift ("colums", "Label")
+// and stays quiet when the model invented a name from another dialect.
+
+function nearestName(name: string, candidates: readonly string[]): string | null {
+  let nearest: string | null = null;
+  let nearestDistance = MAX_SUGGESTION_DISTANCE + 1;
+  for (const candidate of candidates) {
+    const distance = editDistance(name.toLowerCase(), candidate.toLowerCase());
+    if (distance >= nearestDistance) continue;
+    nearest = candidate;
+    nearestDistance = distance;
+  }
+  if (nearestDistance > MAX_SUGGESTION_DISTANCE) return null;
+  return nearest;
+}
+
+function editDistance(from: string, to: string): number {
+  let previousRow = Array.from({ length: to.length + 1 }, (_, index) => index);
+  for (let fromIndex = 1; fromIndex <= from.length; fromIndex++) {
+    const currentRow = [fromIndex];
+    for (let toIndex = 1; toIndex <= to.length; toIndex++) {
+      const substitutionCost = from[fromIndex - 1] === to[toIndex - 1] ? 0 : 1;
+      const deletion = (previousRow[toIndex] ?? 0) + 1;
+      const insertion = (currentRow[toIndex - 1] ?? 0) + 1;
+      const substitution = (previousRow[toIndex - 1] ?? 0) + substitutionCost;
+      currentRow.push(Math.min(deletion, insertion, substitution));
+    }
+    previousRow = currentRow;
+  }
+  return previousRow[to.length] ?? to.length;
 }
 
 // ---- Declared input-form normalization ---------------------------------------
@@ -217,9 +518,9 @@ function normalizeDeclaredPropForms(key: string, element: UIElement, repairs: st
 }
 
 function isValidPropValue(type: string, prop: string, value: unknown): boolean {
-  const schema = ComponentPropSchemas[type];
-  if (!schema) return false;
-  return schema.safeParse({ [prop]: value }).success;
+  const field = WidenedComponentPropSchemas[type]?.shape[prop];
+  if (!field) return false;
+  return field.safeParse(value).success;
 }
 
 // ---- Expression shorthand ----------------------------------------------------

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { applySpecPatch, type JsonPatch, type Spec } from "@json-render/core";
 import { prepareSpec } from "./spec-validation.ts";
+import { STARTER_TEMPLATES } from "../shared/templates/index.ts";
+import { demoSpec } from "../../scripts/demo-live.ts";
 import type { JsonRenderSpec } from "../shared/types.ts";
 
 // The six single-pass rejection cases from the W3 brief. Each spec is a
@@ -392,7 +394,7 @@ describe("prepareSpec — observed bench failures now render on the first pass",
           heading: { type: "Heading", props: { level: 1, text: "Log Monitoring" }, children: [] },
           chart: {
             type: "Chart",
-            props: { type: "line", data: { $state: "/errorRateSeries" }, x: "t", y: "value", xScale: "linear", height: 260 },
+            props: { kind: "line", data: { $state: "/errorRateSeries" }, x: "t", y: "value", xScale: "linear", height: 260 },
             children: [],
           },
         },
@@ -425,7 +427,7 @@ describe("prepareSpec — observed bench failures now render on the first pass",
       spec({
         root: "page",
         elements: {
-          page: { type: "Stack", props: { gap: 16, padding: 16 }, children: ["heading", "kpiRow", "chartsGrid"] },
+          page: { type: "Stack", props: { gap: 16 }, children: ["heading", "kpiRow", "chartsGrid"] },
           heading: { type: "Heading", props: { text: "CI Status Dashboard", level: 1 }, children: [] },
           kpiRow: { type: "Grid", props: { columns: 3, gap: 16 }, children: [] },
           chartsGrid: { type: "Grid", props: { columns: 2, gap: 16 }, children: [] },
@@ -556,7 +558,7 @@ describe("prepareSpec — observed dialect failures repair first-pass", () => {
           form: { type: "Form", props: { title: "Sign up" }, children: ["name"] },
           name: {
             type: "Input",
-            props: { label: "Name", value: { $bindState: "/form/name" } },
+            props: { label: "Name", name: "name", value: { $bindState: "/form/name" } },
             children: [],
           },
         },
@@ -575,7 +577,7 @@ describe("prepareSpec — observed dialect failures repair first-pass", () => {
         elements: {
           field: {
             type: "Input",
-            props: { label: "Email", value: "$bindState./form/email" },
+            props: { label: "Email", name: "email", value: "$bindState./form/email" },
             children: [],
           },
         },
@@ -614,5 +616,427 @@ describe("prepareSpec — observed dialect failures repair first-pass", () => {
     );
     expect(issues).toEqual([]);
     expect(repaired.elements["t"]!.props.text).toBe("$state of the art pricing: $12");
+  });
+});
+
+// Every spec below is verbatim from bench/results/2026-07-12T22-28-37-337Z (the
+// run whose results were invalidated) or its opus companion
+// bench/results/2026-07-12T22-32-01-708Z. ALL 24 of those specs passed
+// validation and 23 of them rendered something broken — an empty chart, a blank
+// diagram, a dead button — because the validator applied .partial() to every
+// component schema and stripped expression props before parsing, so a prop the
+// renderer never reads was indistinguishable from a prop it does. Each test
+// below is one of those specs and the exact message the model now gets back.
+
+describe("prepareSpec — everything we ship validates clean", () => {
+  // The starter templates are seeded into every fresh install's library and the
+  // demo spec is the first canvas most people ever see. If strict validation
+  // rejects one of them, the strictness is wrong or the example is — either way
+  // this fails before a user finds out.
+
+  for (const template of STARTER_TEMPLATES) {
+    it(`starter template "${template.name}" validates clean`, () => {
+      expect(prepareSpec(template.spec).issues).toEqual([]);
+    });
+  }
+
+  it("scripts/demo-live.ts spec validates clean", () => {
+    expect(prepareSpec(demoSpec).issues).toEqual([]);
+  });
+});
+
+describe("prepareSpec — a prop the renderer ignores is a rejection", () => {
+  it("Chart {chartType, xKey, series}: names each unknown prop and each missing required one", () => {
+    // status-dashboard-parchment-sonnet-rep1: rendered an empty chart, passed.
+    const { issues } = prepareSpec(
+      spec({
+        root: "buildChart",
+        state: { buildDuration: [{ day: "Mon", minutes: 12 }] },
+        elements: {
+          buildChart: {
+            type: "Chart",
+            props: {
+              title: "Build Durations",
+              chartType: "bar",
+              xKey: "day",
+              series: [{ key: "minutes", label: "Minutes" }],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    // xKey is a DECLARED alias — it normalizes to x and never appears here.
+    expect(issues).toEqual([
+      'elements/buildChart/props/chartType: unknown prop "chartType" for Chart — the renderer ignores it. ' +
+        "Chart accepts: kind, data, x, y, title, height, xScale.",
+      'elements/buildChart/props/series: unknown prop "series" for Chart — the renderer ignores it. ' +
+        "Chart accepts: kind, data, x, y, title, height, xScale.",
+      'elements/buildChart/props/kind: Chart requires "kind", which is missing — give it a value or bind it ' +
+        '({"$state": "/path"}). Chart requires: kind, data, x, y.',
+      'elements/buildChart/props/data: Chart requires "data", which is missing — give it a value or bind it ' +
+        '({"$state": "/path"}). Chart requires: kind, data, x, y.',
+      'elements/buildChart/props/y: Chart requires "y", which is missing — give it a value or bind it ' +
+        '({"$state": "/path"}). Chart requires: kind, data, x, y.',
+    ]);
+  });
+
+  it("MermaidEditor {code}: the diagram that rendered nothing", () => {
+    // architecture-diagram-parchment-sonnet-rep1, all three reps identical.
+    const { issues } = prepareSpec(
+      spec({
+        root: "editor",
+        elements: {
+          editor: {
+            type: "MermaidEditor",
+            props: { code: "graph LR\n  Client[Client] --> API[API]" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      'elements/editor/props/code: unknown prop "code" for MermaidEditor — the renderer ignores it. ' +
+        "MermaidEditor accepts: title, source, editable, showSource, comments, theme.",
+      'elements/editor/props/source: MermaidEditor requires "source", which is missing — give it a value or ' +
+        'bind it ({"$state": "/path"}). MermaidEditor requires: source.',
+    ]);
+  });
+
+  it("Stack {padding}: a prop that never existed", () => {
+    // Present in 7 of the 24 bench specs; silently dropped every time.
+    const { issues } = prepareSpec(oneElement("Stack", { gap: "lg", padding: 16 }));
+    expect(issues).toEqual([
+      'elements/el/props/padding: unknown prop "padding" for Stack — the renderer ignores it. ' +
+        "Stack accepts: direction, gap, align, justify, className.",
+    ]);
+  });
+
+  it("Steps {steps} and Markdown {text}: near-miss names get a did-you-mean", () => {
+    // incident-report-parchment-sonnet-rep1.
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        elements: {
+          page: { type: "Stack", props: {}, children: ["timeline"] },
+          timeline: {
+            type: "Steps",
+            props: { steps: [{ title: "14:02", description: "Deploy" }] },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues[0]).toContain('unknown prop "steps" for Steps');
+    expect(issues[0]).toContain('Did you mean "items"?');
+    expect(issues[1]).toContain('Steps requires "items"');
+  });
+
+  it("Callout {variant, text}: two unknown props, two missing required ones", () => {
+    // incident-report-parchment-sonnet-rep2.
+    const { issues } = prepareSpec(
+      oneElement("Callout", { variant: "critical", title: "Verdict", text: "Checkout API returned 500s." }),
+    );
+    expect(issues).toHaveLength(4);
+    expect(issues[0]).toContain('unknown prop "variant" for Callout');
+    expect(issues[1]).toContain('unknown prop "text" for Callout');
+    expect(issues[2]).toContain('Callout requires "tone"');
+    expect(issues[3]).toContain('Callout requires "body"');
+  });
+
+  it("a misspelled prop gets the nearest known name", () => {
+    const { issues } = prepareSpec(oneElement("DataTable", { colums: [], rows: [] }));
+    expect(issues[0]).toContain('unknown prop "colums" for DataTable');
+    expect(issues[0]).toContain('Did you mean "columns"?');
+  });
+});
+
+describe("prepareSpec — required props are presence-checked, expressions satisfy them", () => {
+  it("DataTable with columns but no rows: the table that rendered empty", () => {
+    // csv-data-table-parchment-sonnet-rep1: rows were parked in `watch`, which
+    // feeds nothing. Passed validation, rendered a header row and no data.
+    const { issues } = prepareSpec(
+      spec({
+        root: "table",
+        state: { rows: [{ name: "Ada Lovelace", role: "Engineer" }] },
+        elements: {
+          table: {
+            type: "DataTable",
+            props: { columns: [{ key: "name", header: "Name" }] },
+            watch: { rows: "rows" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      'elements/table/props/rows: DataTable requires "rows", which is missing — give it a value or bind it ' +
+        '({"$state": "/path"}). DataTable requires: columns, rows.',
+      'elements/table/watch/rows: "rows" is not a JSON Pointer state path. watch keys are pointers ("/series") ' +
+        "whose value changes fire the bound actions — it does not feed props. To feed a prop from state, bind " +
+        'the prop: "props": {"<prop>": {"$state": "/rows"}}.',
+    ]);
+  });
+
+  it("the same DataTable, bound the way it should be, validates clean", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "table",
+        state: { rows: [{ name: "Ada Lovelace", role: "Engineer" }] },
+        elements: {
+          table: {
+            type: "DataTable",
+            props: { columns: [{ key: "name", header: "Name" }], rows: { $state: "/rows" } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("an expression satisfies required-ness for every expression form", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        state: { series: [], latest: 0, kind: "line", label: "p99" },
+        elements: {
+          page: { type: "Stack", props: {}, children: ["m", "c", "h"] },
+          m: {
+            type: "Metric",
+            props: { label: { $state: "/label" }, value: { $template: "${/latest} ms" } },
+            children: [],
+          },
+          c: {
+            type: "Chart",
+            props: { kind: { $state: "/kind" }, data: { $state: "/series" }, x: "t", y: "ms" },
+            children: [],
+          },
+          h: {
+            type: "Heading",
+            props: { text: { $cond: { path: "/latest", gt: 0 }, $then: "Live", $else: "Idle" } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
+describe("prepareSpec — events, actions and bindings must exist", () => {
+  it("Button on.click: the submit button that did nothing", () => {
+    // validated-form-parchment-sonnet-rep1/2/3 and both opus reps — every
+    // single form in the corpus bound the event the renderer does not emit.
+    const { issues } = prepareSpec(
+      spec({
+        root: "submitBtn",
+        elements: {
+          submitBtn: {
+            type: "Button",
+            props: { label: "Sign up" },
+            on: { click: { action: "canvas.submit", params: { id: "signup" } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      'elements/submitBtn/on/click: Button does not emit "click", so this binding never fires. ' +
+        'Button emits: press. Rebind it under "press".',
+    ]);
+  });
+
+  it("an on binding on a component that emits nothing", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "card",
+        elements: {
+          card: {
+            type: "Card",
+            props: { title: "Deploy" },
+            on: { press: { action: "canvas.submit", params: { id: "deploy" } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      "elements/card/on/press: Card emits no events, so this binding never fires. " +
+        'Move it to a component that does (a Button emits "press").',
+    ]);
+  });
+
+  it("an action no handler is registered for", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "btn",
+        elements: {
+          btn: {
+            type: "Button",
+            props: { label: "Save" },
+            on: { press: { action: "submitForm", params: { id: "save" } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('unknown action "submitForm" — no handler is registered');
+    expect(issues[0]).toContain("Known actions: canvas.commentMermaid, canvas.flushPending, canvas.submit, canvas.intent, setState, pushState, removeState, validateForm, push, pop.");
+  });
+
+  it("a near-miss action name gets a did-you-mean", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "btn",
+        elements: {
+          btn: {
+            type: "Button",
+            props: { label: "Save" },
+            on: { press: { action: "setSate", params: { statePath: "/x", value: 1 } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues[0]).toContain('Did you mean "setState"?');
+  });
+
+  it("$bindState hoisted to the element: the input that never bound", () => {
+    // validated-form-parchment-sonnet-rep1 — "$bindState": {"value": "form.name"}
+    // sat beside `type` and `props`, where the renderer never looks.
+    const { issues } = prepareSpec(
+      spec({
+        root: "nameInput",
+        state: { form: { name: "" } },
+        elements: {
+          nameInput: {
+            type: "Input",
+            props: { label: "Name", name: "name" },
+            children: [],
+            ...{ $bindState: { value: "form.name" } },
+          },
+        },
+      }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('unknown element field "$bindState"');
+    expect(issues[0]).toContain("An element carries only: type, props, children, on, visible, repeat, watch.");
+  });
+
+  it("$bindState on a prop that never writes back", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "page",
+        state: { latest: 0, form: { name: "" } },
+        elements: {
+          page: { type: "Stack", props: {}, children: ["m", "i"] },
+          m: {
+            type: "Metric",
+            props: { label: "p99", value: { $bindState: "/latest" } },
+            children: [],
+          },
+          i: {
+            type: "Input",
+            props: { label: "Name", name: { $bindState: "/form/name" }, value: "" },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      "elements/m/props/value: $bindState on Metric.value never writes back. Metric is read-only — use " +
+        '{"$state": "/path"} to read a value. $bindState belongs on a form component\'s value prop ' +
+        "(Input/Textarea/Select/Checkbox/Switch/Slider/...).",
+      "elements/i/props/name: $bindState on Input.name never writes back. Input writes back only through " +
+        '"value" — move the binding to props/value, or use {"$state": "/path"} for a read-only value.',
+    ]);
+  });
+});
+
+describe("prepareSpec — form checks must be real and reachable", () => {
+  it("an unknown check type", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "email",
+        state: { form: { email: "" } },
+        elements: {
+          email: {
+            type: "Input",
+            props: {
+              label: "Email",
+              name: "email",
+              value: { $bindState: "/form/email" },
+              checks: [
+                { type: "required", message: "Required" },
+                { type: "isEmail", message: "Enter a valid email" },
+              ],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('elements/email/props/checks/1/type: unknown check "isEmail".');
+    expect(issues[0]).toContain('Did you mean "email"?');
+  });
+
+  it("checks on a field that is not bound never run", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "email",
+        elements: {
+          email: {
+            type: "Input",
+            props: {
+              label: "Email",
+              name: "email",
+              checks: [{ type: "required", message: "Required" }],
+            },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([
+      "elements/email/props/checks: checks only run on a $bindState-bound field, and Input.value is not bound — " +
+        'nothing validates. Bind it: "value": {"$bindState": "/form/email"}.',
+    ]);
+  });
+
+  it("a correctly bound, correctly checked form validates clean", () => {
+    const { issues } = prepareSpec(
+      spec({
+        root: "card",
+        state: { form: { email: "" } },
+        elements: {
+          card: { type: "Card", props: { title: "Sign up" }, children: ["email", "submit"] },
+          email: {
+            type: "Input",
+            props: {
+              label: "Email",
+              name: "email",
+              type: "email",
+              value: { $bindState: "/form/email" },
+              checks: [
+                { type: "required", message: "Email is required" },
+                { type: "email", message: "Enter a valid email" },
+              ],
+              validateOn: "blur",
+            },
+            children: [],
+          },
+          submit: {
+            type: "Button",
+            props: { label: "Sign up" },
+            on: { press: { action: "canvas.submit", params: { id: "signup", payload: { $state: "/form" } } } },
+            children: [],
+          },
+        },
+      }),
+    );
+    expect(issues).toEqual([]);
   });
 });
