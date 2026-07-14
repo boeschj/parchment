@@ -13,6 +13,7 @@ import { startClaudeSessionsSource } from "./claude-sessions.ts";
 import { startCommandPoll } from "./command-poll.ts";
 import { startFileTail } from "./file-tail.ts";
 import { startHttpPoll } from "./http-poll.ts";
+import { startReferenceRefresh } from "./reference-refresh.ts";
 import { createSlotStatePump, type SlotStatePump } from "./pump.ts";
 import { LiveSourceKind, type LiveSourceConfig } from "./types.ts";
 
@@ -54,6 +55,29 @@ export function setSlotLiveSources(
   persistSessionLiveState(sessionId);
 }
 
+// Push-time swap of a slot's reference-refresh watchers (from {watch:true}
+// $file/$diff refs), preserving any canvas_live sources on the same slot. A
+// re-push that no longer watches anything drops the old watchers; a plain
+// re-push with neither watchers nor pre-existing ones is left untouched so it
+// never disturbs a live dashboard.
+export function setSlotReferenceRefreshSources(
+  sessionId: string,
+  slotId: string,
+  refreshConfigs: LiveSourceConfig[],
+): void {
+  const current = currentSlotConfigs(sessionId, slotId);
+  const preserved = current.filter((config) => config.kind !== LiveSourceKind.ReferenceRefresh);
+  const hadRefresh = current.length !== preserved.length;
+  if (refreshConfigs.length === 0 && !hadRefresh) return;
+  setSlotLiveSources(sessionId, slotId, [...preserved, ...refreshConfigs]);
+}
+
+function currentSlotConfigs(sessionId: string, slotId: string): LiveSourceConfig[] {
+  const slot = runningSlots.get(slotKey(sessionId, slotId));
+  if (!slot) return [];
+  return Array.from(slot.sources.values()).map((source) => source.config);
+}
+
 function startSlotSources(sessionId: string, slotId: string, configs: LiveSourceConfig[]): void {
   stopSlotSources(sessionId, slotId);
   if (configs.length === 0) return;
@@ -91,6 +115,9 @@ function startSource(config: LiveSourceConfig, pump: SlotStatePump): RunningSour
       break;
     case LiveSourceKind.ClaudeSessions:
       running.stop = startClaudeSessionsSource(config, pump);
+      break;
+    case LiveSourceKind.ReferenceRefresh:
+      running.stop = startReferenceRefresh(config, pump, reportError);
       break;
   }
   return running;
