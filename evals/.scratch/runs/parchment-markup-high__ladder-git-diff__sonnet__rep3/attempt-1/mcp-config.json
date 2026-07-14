@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "bun",
+      "args": [
+        "run",
+        "/Users/boeschj/Documents/GitHub/parchment/src/daemon/mcp-stdio.ts"
+      ],
+      "env": {
+        "HOME": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/home",
+        "CANVAS_SESSION_ID": "008c1d57-e548-4598-a221-28d637811ad6"
+      }
+    }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "name": "agent-fleet-snapshot",
+  "savedAt": 1784005153116,
+  "title": "Agent fleet snapshot",
+  "kind": "dashboard",
+  "spec": {
+    "root": "page",
+    "elements": {
+      "page": {
+        "type": "Stack",
+        "props": {
+          "gap": "lg"
+        },
+        "children": [
+          "title",
+          "kpis",
+          "sessions",
+          "chart",
+          "note"
+        ]
+      },
+      "title": {
+        "type": "Heading",
+        "props": {
+          "text": "Agent fleet — live snapshot",
+          "level": "h1"
+        },
+        "children": []
+      },
+      "kpis": {
+        "type": "Grid",
+        "props": {
+          "columns": 4,
+          "gap": "md"
+        },
+        "children": [
+          "m-active",
+          "m-tokens",
+          "m-avg-cost",
+          "m-longest"
+        ]
+      },
+      "m-active": {
+        "type": "Metric",
+        "props": {
+          "label": "Active sessions",
+          "value": "5",
+          "detail": "3 working, 2 idle"
+        },
+        "children": []
+      },
+      "m-tokens": {
+        "type": "Metric",
+        "props": {
+          "label": "Tokens today",
+          "value": "2.4M",
+          "delta": "+340K",
+          "trend": "up"
+        },
+        "children": []
+      },
+      "m-avg-cost": {
+        "type": "Metric",
+        "props": {
+          "label": "Avg session cost",
+          "value": "$1.86",
+          "detail": "across today's sessions"
+        },
+        "children": []
+      },
+      "m-longest": {
+        "type": "Metric",
+        "props": {
+          "label": "Longest running",
+          "value": "2h 14m",
+          "detail": "trace-explorer rearchitecture"
+        },
+        "children": []
+      },
+      "sessions": {
+        "type": "DataTable",
+        "props": {
+          "caption": "Sessions",
+          "columns": [
+            {
+              "key": "session",
+              "header": "Session"
+            },
+            {
+              "key": "status",
+              "header": "Status"
+            },
+            {
+              "key": "cwd",
+              "header": "Working dir"
+            },
+            {
+              "key": "tokens",
+              "header": "Tokens",
+              "type": "number",
+              "align": "right"
+            },
+            {
+              "key": "cost",
+              "header": "Cost",
+              "align": "right"
+            }
+          ],
+          "rows": [
+            {
+              "session": "a2d20b9",
+              "status": "working",
+              "cwd": "~/code/parchment",
+              "tokens": 812000,
+              "cost": "$0.94"
+            },
+            {
+              "session": "f61c8e2",
+              "status": "working",
+              "cwd": "~/code/trace-explorer",
+              "tokens": 1240000,
+              "cost": "$2.31"
+            },
+            {
+              "session": "9b3a041",
+              "status": "working",
+              "cwd": "~/code/api-gateway",
+              "tokens": 340000,
+              "cost": "$0.41"
+            },
+            {
+              "session": "d70e5c8",
+              "status": "complete",
+              "cwd": "~/code/parchment",
+              "tokens": 210000,
+              "cost": "$0.28"
+            },
+            {
+              "session": "1c4f9a6",
+              "status": "blocked",
+              "cwd": "~/code/docs-site",
+              "tokens": 96000,
+              "cost": "$0.11"
+            }
+          ]
+        },
+        "children": []
+      },
+      "chart": {
+        "type": "Chart",
+        "props": {
+          "kind": "area",
+          "title": "Token usage — last 6 hours",
+          "x": "time",
+          "y": [
+            "input",
+            "output"
+          ],
+          "height": 280,
+          "data": [
+            {
+              "time": "09:00",
+              "input": 120000,
+              "output": 40000
+            },
+            {
+              "time": "10:00",
+              "input": 180000,
+              "output": 62000
+            },
+            {
+              "time": "11:00",
+              "input": 260000,
+              "output": 88000
+            },
+            {
+              "time": "12:00",
+              "input": 210000,
+              "output": 74000
+            },
+            {
+              "time": "13:00",
+              "input": 340000,
+              "output": 121000
+            },
+            {
+              "time": "14:00",
+              "input": 410000,
+              "output": 148000
+            }
+          ]
+        },
+        "children": []
+      },
+      "note": {
+        "type": "Callout",
+        "props": {
+          "tone": "info",
+          "title": "Fleet note",
+          "body": "docs-site has been blocked for 40 minutes waiting on a permission prompt — worth a nudge if nobody's watching that terminal."
+        },
+        "children": []
+      }
+    }
+  }
+}

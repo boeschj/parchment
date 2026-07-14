@@ -1,0 +1,3 @@
+# The root .gitignore excludes *.log to keep stray runtime logs out of the repo.
+# app.log is not a runtime log: it is a committed eval fixture, so re-include it.
+!app.log

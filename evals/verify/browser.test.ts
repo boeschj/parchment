@@ -136,6 +136,74 @@ describe("checkAcceptance", () => {
   );
 });
 
+describe("form validation, observed as behaviour", () => {
+  test(
+    "passes a form that really refuses the nonsense we type into it",
+    async () => {
+      const artifact = writeHtmlArtifact("strict-form.html", STRICT_FORM_HTML);
+
+      const result = await checkAcceptance(artifact, signupSpec(), { screenshotDir });
+
+      expect(result.reasons).toEqual([]);
+      expect(result.passed).toBe(true);
+
+      const fields = result.domFacts.formValidation?.fields ?? [];
+      expect(fields.map((field) => field.label)).toEqual(["Email", "Password"]);
+      expect(fields.every((field) => field.found && field.nativeInvalid)).toBe(true);
+    },
+    BROWSER_TEST_TIMEOUT_MS,
+  );
+
+  // The heart of the per-field rule. This page has type="email", so the browser
+  // refuses "not-an-email" for free — a page-wide "did anything get refused?"
+  // test would pass it while it silently accepted a 3-character password.
+  test(
+    "fails a form that refuses the email for free but silently accepts a 3-character password",
+    async () => {
+      const artifact = writeHtmlArtifact("sloppy-form.html", SLOPPY_FORM_HTML);
+
+      const result = await checkAcceptance(artifact, signupSpec(), { screenshotDir });
+
+      expect(result.passed).toBe(false);
+      const validationReason = result.reasons.find((reason) => reason.startsWith("form-validation"));
+      expect(validationReason).toContain("silently ACCEPTED invalid input");
+      expect(validationReason).toContain('["Password"]');
+      expect(validationReason).not.toContain('"Email"');
+
+      const emailField = result.domFacts.formValidation?.fields.find((field) => field.label === "Email");
+      expect(emailField?.nativeInvalid).toBe(true);
+    },
+    BROWSER_TEST_TIMEOUT_MS,
+  );
+});
+
+function signupSpec(): AcceptanceSpec {
+  return {
+    scenarioId: "signup-form",
+    title: "Signup form",
+    assertions: [
+      {
+        kind: AssertionKind.FormInputs,
+        description: "signup fields",
+        requiredInputs: [
+          { label: "Email", type: "email" },
+          { label: "Password", type: "password" },
+        ],
+        submitButtonText: "Create account",
+      },
+      {
+        kind: AssertionKind.FormValidation,
+        description: "signup form refuses bad input",
+        invalidFills: [
+          { label: "Email", value: "not-an-email" },
+          { label: "Password", value: "abc" },
+        ],
+        submitButtonText: "Create account",
+      },
+    ],
+  };
+}
+
 function dashboardSpec(): AcceptanceSpec {
   return {
     scenarioId: "q3-dashboard",
@@ -169,7 +237,9 @@ function dashboardSpec(): AcceptanceSpec {
   };
 }
 
-function writeHtmlArtifact(fileName: string, html: string): Artifact {
+type HtmlFileArtifact = Extract<Artifact, { kind: typeof ArtifactKind.HtmlFile }>;
+
+function writeHtmlArtifact(fileName: string, html: string): HtmlFileArtifact {
   const filePath = join(runDir, fileName);
   writeFileSync(filePath, html);
   return { kind: ArtifactKind.HtmlFile, filePath };
@@ -229,6 +299,39 @@ const EMPTY_CHART_HTML = `<!doctype html>
     <text x="55" y="205" font-size="10">Jan</text>
     <text x="10" y="100" font-size="10">Revenue</text>
   </svg>
+</body>`;
+
+// Refuses bad input through native constraints: type="email" rejects
+// "not-an-email", minlength=8 rejects "abc".
+const STRICT_FORM_HTML = `<!doctype html>
+<meta charset="utf-8">
+<title>Sign up</title>
+<body style="font-family: sans-serif; padding: 24px;">
+  <h1>Create your account</h1>
+  <form>
+    <p><label for="email">Email address</label>
+    <input id="email" name="email" type="email" required></p>
+    <p><label for="password">Password</label>
+    <input id="password" name="password" type="password" required minlength="8"></p>
+    <button type="submit">Create account</button>
+  </form>
+</body>`;
+
+// The same fields, the same labels, the same submit button — and no validation
+// whatsoever. A markup-shaped rubric that only asked "is there an email input?"
+// would pass this page.
+const SLOPPY_FORM_HTML = `<!doctype html>
+<meta charset="utf-8">
+<title>Sign up</title>
+<body style="font-family: sans-serif; padding: 24px;">
+  <h1>Create your account</h1>
+  <div>
+    <p><label for="email">Email address</label>
+    <input id="email" name="email" type="email"></p>
+    <p><label for="password">Password</label>
+    <input id="password" name="password" type="password"></p>
+    <button type="button">Create account</button>
+  </div>
 </body>`;
 
 const CRASHING_HTML = `<!doctype html>

@@ -1,0 +1,100 @@
+2026-05-11T09:00:04.182Z INFO  [server] server_listening port=8080 timeout_ms=15000
+2026-05-11T09:00:04.196Z INFO  [store] inventory_snapshot_loaded items=1284 duration_ms=312
+2026-05-11T09:00:05.044Z INFO  [pricing] upstream_connected host=pricing.internal pool=8
+2026-05-11T09:01:12.663Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=3
+2026-05-11T09:01:47.028Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=142 cache=miss
+2026-05-11T09:02:19.517Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=11 cache=hit
+2026-05-11T09:03:02.884Z INFO  [http] request_completed method=POST path=/catalog status=201 duration_ms=204 sku=KTL-4417
+2026-05-11T09:03:41.330Z INFO  [cache] catalog_cache_invalidated reason=item_created keys=6
+2026-05-11T09:04:15.902Z INFO  [http] request_completed method=GET path=/catalog/8f21 status=200 duration_ms=37
+2026-05-11T09:05:00.118Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:05:38.771Z WARN  [pricing] upstream_latency_elevated p95_ms=812 threshold_ms=750
+2026-05-11T09:06:22.409Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=168 cache=miss
+2026-05-11T09:07:09.256Z INFO  [http] request_completed method=POST path=/catalog/8f21/reserve status=201 duration_ms=96
+2026-05-11T09:07:55.640Z INFO  [store] reservation_committed item_id=8f21 quantity=12
+2026-05-11T09:08:31.077Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=9 cache=hit
+2026-05-11T09:09:04.512Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:09:48.923Z INFO  [pricing] price_refresh_completed items=1284 duration_ms=1440
+2026-05-11T09:10:16.338Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=151 cache=miss
+2026-05-11T09:10:59.804Z WARN  [pricing] upstream_latency_elevated p95_ms=934 threshold_ms=750
+2026-05-11T09:11:33.271Z INFO  [http] request_completed method=GET path=/catalog/3c07 status=200 duration_ms=44
+2026-05-11T09:12:05.619Z INFO  [http] request_completed method=POST path=/catalog status=201 duration_ms=231 sku=BRM-2098
+2026-05-11T09:12:44.087Z INFO  [cache] catalog_cache_invalidated reason=item_created keys=7
+2026-05-11T09:13:20.455Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=3
+2026-05-11T09:14:02.913Z ERROR [pricing] upstream_request_failed reason=socket_hang_up attempt=1 sku=BRM-2098
+2026-05-11T09:14:03.281Z INFO  [pricing] upstream_retry_succeeded attempt=2 duration_ms=487
+2026-05-11T09:15:11.746Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=12 cache=hit
+2026-05-11T09:15:58.192Z WARN  [store] slow_query collection=items duration_ms=1120
+2026-05-11T09:16:37.660Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=173 cache=miss
+2026-05-11T09:17:14.028Z INFO  [http] request_completed method=POST path=/catalog/3c07/reserve status=201 duration_ms=104
+2026-05-11T09:18:00.495Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:18:46.913Z WARN  [pricing] upstream_latency_elevated p95_ms=1188 threshold_ms=750
+2026-05-11T09:19:22.371Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=190 cache=miss
+2026-05-11T09:19:57.804Z WARN  [pricing] connection_pool_saturated in_use=8 size=8
+2026-05-11T09:20:31.226Z ERROR [pricing] upstream_request_failed reason=etimedout attempt=1 sku=KTL-4417
+2026-05-11T09:20:31.688Z WARN  [pricing] upstream_retry_scheduled attempt=2 backoff_ms=250
+2026-05-11T09:21:08.140Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=1244 cache=miss
+2026-05-11T09:21:53.617Z ERROR [http] request_completed method=GET path=/catalog status=504 duration_ms=15002
+2026-05-11T09:22:29.075Z WARN  [pricing] upstream_latency_elevated p95_ms=2410 threshold_ms=750
+2026-05-11T09:23:04.532Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=4
+2026-05-11T09:23:48.990Z ERROR [pricing] upstream_request_failed reason=etimedout attempt=1 sku=BRM-2098
+2026-05-11T09:24:27.446Z ERROR [pricing] upstream_retry_exhausted attempts=3 sku=BRM-2098
+2026-05-11T09:24:58.903Z WARN  [cache] serving_stale_prices age_ms=61000 reason=upstream_unavailable
+2026-05-11T09:25:36.361Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=17 cache=hit
+2026-05-11T09:26:12.818Z ERROR [http] request_completed method=GET path=/catalog status=504 duration_ms=15001
+2026-05-11T09:26:59.274Z WARN  [store] slow_query collection=items duration_ms=2038
+2026-05-11T09:27:41.732Z INFO  [http] request_completed method=POST path=/catalog status=201 duration_ms=388 sku=VNT-7731
+2026-05-11T09:28:19.189Z WARN  [pricing] connection_pool_saturated in_use=8 size=8
+2026-05-11T09:28:57.645Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=5
+2026-05-11T09:29:33.102Z WARN  [pricing] upstream_latency_elevated p95_ms=3877 threshold_ms=750
+2026-05-11T09:29:59.560Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=21 cache=hit
+2026-05-11T09:30:14.018Z ERROR [pricing] upstream_request_failed reason=econnrefused attempt=1 sku=VNT-7731
+2026-05-11T09:30:41.476Z ERROR [pricing] upstream_request_failed reason=econnrefused attempt=2 sku=VNT-7731
+2026-05-11T09:31:07.933Z ERROR [pricing] upstream_retry_exhausted attempts=3 sku=VNT-7731
+2026-05-11T09:31:44.390Z ERROR [http] request_completed method=GET path=/catalog status=500 duration_ms=764
+2026-05-11T09:32:20.848Z WARN  [breaker] circuit_half_open name=pricing failures=5 window_ms=60000
+2026-05-11T09:32:56.305Z ERROR [pricing] upstream_request_failed reason=econnrefused attempt=1 sku=KTL-4417
+2026-05-11T09:33:33.762Z ERROR [breaker] circuit_opened name=pricing failures=6 threshold=6
+2026-05-11T09:34:10.220Z ERROR [http] request_completed method=GET path=/catalog status=503 duration_ms=8
+2026-05-11T09:34:47.677Z ERROR [http] request_completed method=GET path=/catalog status=503 duration_ms=6
+2026-05-11T09:35:24.135Z ERROR [http] request_completed method=POST path=/catalog status=503 duration_ms=7
+2026-05-11T09:36:00.592Z WARN  [cache] serving_stale_prices age_ms=372000 reason=circuit_open
+2026-05-11T09:36:38.049Z ERROR [http] request_completed method=GET path=/catalog/3c07 status=503 duration_ms=5
+2026-05-11T09:37:15.507Z ERROR [pricing] health_probe_failed reason=econnrefused consecutive=4
+2026-05-11T09:37:52.964Z WARN  [breaker] circuit_probe_scheduled name=pricing in_ms=30000
+2026-05-11T09:38:29.422Z INFO  [http] request_completed method=GET path=/healthz status=503 duration_ms=3
+2026-05-11T09:38:59.879Z INFO  [store] inventory_snapshot_refreshed items=1286 duration_ms=402
+2026-05-11T09:39:36.337Z WARN  [breaker] circuit_half_open name=pricing probe=1
+2026-05-11T09:39:58.794Z INFO  [pricing] health_probe_succeeded duration_ms=612
+2026-05-11T09:40:22.251Z INFO  [breaker] circuit_closed name=pricing probe_successes=3
+2026-05-11T09:40:58.709Z INFO  [pricing] upstream_connected host=pricing.internal pool=8
+2026-05-11T09:41:35.166Z ERROR [pricing] upstream_request_failed reason=etimedout attempt=1 sku=KTL-4417
+2026-05-11T09:41:35.640Z INFO  [pricing] upstream_retry_succeeded attempt=2 duration_ms=903
+2026-05-11T09:42:11.098Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=411 cache=miss
+2026-05-11T09:43:47.556Z WARN  [pricing] upstream_latency_elevated p95_ms=1502 threshold_ms=750
+2026-05-11T09:44:24.013Z ERROR [http] request_completed method=GET path=/catalog status=500 duration_ms=622
+2026-05-11T09:45:00.471Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=4
+2026-05-11T09:45:36.928Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=203 cache=miss
+2026-05-11T09:46:13.386Z ERROR [pricing] upstream_request_failed reason=socket_hang_up attempt=1 sku=VNT-7731
+2026-05-11T09:46:50.843Z INFO  [pricing] upstream_retry_succeeded attempt=2 duration_ms=548
+2026-05-11T09:47:27.301Z WARN  [store] slow_query collection=items duration_ms=1077
+2026-05-11T09:48:03.758Z ERROR [http] request_completed method=POST path=/catalog status=500 duration_ms=497
+2026-05-11T09:48:40.216Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=15 cache=hit
+2026-05-11T09:49:16.673Z INFO  [pricing] price_refresh_completed items=1286 duration_ms=1863
+2026-05-11T09:49:53.131Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=3
+2026-05-11T09:50:29.588Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=137 cache=miss
+2026-05-11T09:51:06.046Z INFO  [http] request_completed method=POST path=/catalog/8f21/reserve status=201 duration_ms=88
+2026-05-11T09:51:42.503Z INFO  [store] reservation_committed item_id=8f21 quantity=4
+2026-05-11T09:52:18.961Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=10 cache=hit
+2026-05-11T09:52:55.418Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:53:31.876Z WARN  [pricing] upstream_latency_elevated p95_ms=798 threshold_ms=750
+2026-05-11T09:54:08.333Z INFO  [http] request_completed method=GET path=/catalog/3c07 status=200 duration_ms=41
+2026-05-11T09:54:44.791Z ERROR [pricing] upstream_request_failed reason=etimedout attempt=1 sku=BRM-2098
+2026-05-11T09:55:21.248Z INFO  [pricing] upstream_retry_succeeded attempt=2 duration_ms=402
+2026-05-11T09:55:57.706Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=126 cache=miss
+2026-05-11T09:56:34.163Z INFO  [cache] catalog_cache_invalidated reason=price_refresh keys=9
+2026-05-11T09:57:10.621Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:57:47.078Z INFO  [http] request_completed method=GET path=/catalog status=200 duration_ms=13 cache=hit
+2026-05-11T09:58:23.536Z INFO  [store] inventory_snapshot_refreshed items=1291 duration_ms=377
+2026-05-11T09:58:59.993Z INFO  [http] request_completed method=GET path=/healthz status=200 duration_ms=2
+2026-05-11T09:59:41.204Z INFO  [server] hourly_summary requests=1042 errors=22 error_rate=0.021

@@ -308,7 +308,7 @@ describe("diagram-svg", () => {
 describe("form-inputs", () => {
   test("fails when a required field was never rendered, and quotes the labels that were", () => {
     const missingEmailField = buildDomFacts({
-      inputs: [buildInput({ labelText: "Full name", type: "text", required: true })],
+      inputs: [buildInput({ labelText: "Full name", type: "text" })],
       buttonTexts: ["Create account"],
     });
 
@@ -375,13 +375,13 @@ describe("form-validation", () => {
     const permissiveForm = buildDomFacts({
       inputs: buildValidFormInputs(),
       buttonTexts: ["Create account"],
-      formValidation: buildFormValidation({
+      formValidation: {
         fields: [
-          buildFieldRejection({ label: "Email", refusedBy: "nothing" }),
-          buildFieldRejection({ label: "Password", refusedBy: "nothing" }),
+          buildFieldRejection({ label: "Email", refusedBy: REFUSAL_MODE.Nothing }),
+          buildFieldRejection({ label: "Password", refusedBy: REFUSAL_MODE.Nothing }),
         ],
         errorMessages: [],
-      }),
+      },
     });
 
     const reasons = evaluateAssertions(permissiveForm, [formValidationAssertion()]);
@@ -393,13 +393,13 @@ describe("form-validation", () => {
 
   test("fails when only SOME of the corrupted fields were refused", () => {
     const halfValidatingForm = buildDomFacts({
-      formValidation: buildFormValidation({
+      formValidation: {
         fields: [
-          buildFieldRejection({ label: "Email", refusedBy: "native" }),
-          buildFieldRejection({ label: "Password", refusedBy: "nothing" }),
+          buildFieldRejection({ label: "Email", refusedBy: REFUSAL_MODE.Native }),
+          buildFieldRejection({ label: "Password", refusedBy: REFUSAL_MODE.Nothing }),
         ],
         errorMessages: ["Please enter a valid email"],
-      }),
+      },
     });
 
     const reasons = evaluateAssertions(halfValidatingForm, [formValidationAssertion()]);
@@ -411,14 +411,14 @@ describe("form-validation", () => {
 
   test("accepts ANY legible refusal — native, aria-invalid, or a message", () => {
     const eachArmRefusesDifferently = buildDomFacts({
-      formValidation: buildFormValidation({
+      formValidation: {
         fields: [
-          buildFieldRejection({ label: "Email", refusedBy: "native" }),
-          buildFieldRejection({ label: "Password", refusedBy: "aria" }),
-          buildFieldRejection({ label: "Name", refusedBy: "message" }),
+          buildFieldRejection({ label: "Email", refusedBy: REFUSAL_MODE.Native }),
+          buildFieldRejection({ label: "Password", refusedBy: REFUSAL_MODE.Aria }),
+          buildFieldRejection({ label: "Name", refusedBy: REFUSAL_MODE.Message }),
         ],
         errorMessages: ["Name is required"],
-      }),
+      },
     });
 
     const reasons = evaluateAssertions(eachArmRefusesDifferently, [formValidationAssertion()]);
@@ -428,10 +428,13 @@ describe("form-validation", () => {
 
   test("fails, rather than passes, when a named field was never found to type into", () => {
     const missingField = buildDomFacts({
-      formValidation: buildFormValidation({
-        fields: [{ label: "Password", found: false, nativeInvalid: false, ariaInvalid: false, messaged: false }],
+      formValidation: {
+        fields: [
+          buildFieldRejection({ label: "Email", refusedBy: REFUSAL_MODE.Native }),
+          { label: "Password", found: false, nativeInvalid: false, ariaInvalid: false, messaged: false },
+        ],
         errorMessages: [],
-      }),
+      },
     });
 
     const reasons = evaluateAssertions(missingField, [formValidationAssertion()]);
@@ -475,11 +478,13 @@ describe("a correct dashboard", () => {
       chartsAssertion({ requiredAxisLabels: ["Month", "Revenue"] }),
       diagramSvgAssertion({ minConnectorMarks: 3 }),
       formInputsAssertion(),
+      formValidationAssertion(),
     ];
 
     const result = evaluateAssertions(buildCorrectDashboard(), wholeRubric);
 
     expect(result).toEqual([]);
+    expect(wholeRubric).toHaveLength(Object.keys(AssertionKind).length);
   });
 
   test("reports one reason per failed assertion, not one per problem", () => {
@@ -593,6 +598,13 @@ function buildCorrectDashboard(): DomFacts {
     ],
     inputs: buildValidFormInputs(),
     buttonTexts: ["Cancel", "Create account"],
+    formValidation: {
+      fields: [
+        buildFieldRejection({ label: "Email", refusedBy: REFUSAL_MODE.Native }),
+        buildFieldRejection({ label: "Password", refusedBy: REFUSAL_MODE.Message }),
+      ],
+      errorMessages: ["Password must be at least 8 characters"],
+    },
   });
 }
 
