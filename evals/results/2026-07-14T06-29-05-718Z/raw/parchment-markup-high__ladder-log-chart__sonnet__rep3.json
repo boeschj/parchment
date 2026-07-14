@@ -1,0 +1,37 @@
+{
+  "runId": "parchment-markup-high__ladder-log-chart__sonnet__rep3",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1944,
+      "authoredOutputTokens": 1670,
+      "authoredArtifactBytes": 870,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 57033,
+      "cacheCreationTokens": 17606,
+      "assistantTurnCount": 3,
+      "wallClockMs": 21179,
+      "reportedCostUsd": 0.1526979,
+      "artifact": {
+        "source": "<section>\n<h2>ERROR rate over time — logs/app.log</h2>\n<p>ERROR-level log lines counted in 10-minute buckets across the one-hour window (09:00–10:00). Errors spike sharply from 09:20 through 09:40, coinciding with a pricing-service outage and circuit breaker trip, then recover.</p>\n<Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"info\" title=\"22 total errors, matches log's own hourly_summary line\">Peak bucket is 09:30–09:40 (11 errors), driven by repeated `pricing` upstream failures (econnrefused/etimedout) that tripped the circuit breaker (`circuit_opened`) and caused a run of 503s.</Callout>\n</section>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<section>\n<h2>ERROR rate over time — logs/app.log</h2>\n<p>ERROR-level log lines counted in 10-minute buckets across the one-hour window (09:00–10:00). Errors spike sharply from 09:20 through 09:40, coinciding with a pricing-service outage and circuit breaker trip, then recover.</p>\n<Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"info\" title=\"22 total errors, matches log's own hourly_summary line\">Peak bucket is 09:30–09:40 (11 errors), driven by repeated `pricing` upstream failures (econnrefused/etimedout) that tripped the circuit breaker (`circuit_opened`) and caused a run of 503s.</Callout>\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4325,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-log-chart__sonnet__rep3"
+}

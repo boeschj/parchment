@@ -1,0 +1,37 @@
+{
+  "runId": "parchment-markup-low__ladder-log-chart__sonnet__rep4",
+  "armId": "parchment-markup-low",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 4,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1315,
+      "authoredOutputTokens": 1069,
+      "authoredArtifactBytes": 746,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 55816,
+      "cacheCreationTokens": 16393,
+      "assistantTurnCount": 3,
+      "wallClockMs": 15617,
+      "reportedCostUsd": 0.1356148,
+      "artifact": {
+        "source": "<section>\n<h1>Error rate over time</h1>\n<p>ERROR lines from logs/app.log, bucketed into ten-minute windows (2026-05-11, 09:00–10:00 UTC). 22 ERROR lines total out of 100 log lines.</p>\n<Chart kind=\"bar\" title=\"ERROR count per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"warning\" title=\"Spike at 09:30\">The 09:30 bucket accounts for 11 of 22 errors (50%), driven by a pricing upstream outage (`econnrefused`) that tripped the circuit breaker at 09:33:33 and produced a run of `503` responses through 09:36.</Callout>\n</section>\n",
+        "toolInput": {
+          "title": "Error rate over time",
+          "markup": "<section>\n<h1>Error rate over time</h1>\n<p>ERROR lines from logs/app.log, bucketed into ten-minute windows (2026-05-11, 09:00–10:00 UTC). 22 ERROR lines total out of 100 log lines.</p>\n<Chart kind=\"bar\" title=\"ERROR count per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"warning\" title=\"Spike at 09:30\">The 09:30 bucket accounts for 11 of 22 errors (50%), driven by a pricing upstream outage (`econnrefused`) that tripped the circuit breaker at 09:33:33 and produced a run of `503` responses through 09:36.</Callout>\n</section>\n"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 3731,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-low__ladder-log-chart__sonnet__rep4"
+}

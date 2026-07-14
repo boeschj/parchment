@@ -21,6 +21,11 @@ errors — a rubric that never imports parchment's own validator.
 **51x fewer authored tokens than pasting the same content through the same
 runtime. 88x fewer than hand-written HTML. 11.6x cheaper per run.**
 
+This is parchment's **best** scenario, not its typical one. Across all three ladder
+scenarios the gap is **1.2x–51x** and it collapses entirely when the reference
+component cannot express the task — read the failure section above before quoting
+any of these numbers.
+
 The entire artifact the high-fidelity arm authored, in five out of five runs:
 
 ```
@@ -28,6 +33,43 @@ The entire artifact the high-fidelity arm authored, in five out of five runs:
 ```
 
 51 bytes. The daemon fetches the bytes at push time.
+
+## WHERE IT FAILS: the ladder does not always pay
+
+Run on three ladder scenarios, the win is **not** universal. On one of them it
+collapses to nothing:
+
+| Scenario | high | low (pastes) | raw-html | Climbed | Gap (high vs low) |
+|---|---:|---:|---:|---:|---:|
+| git-diff (250-line change) | **176** | 8,995 | 15,509 | 5/5 | **51x** |
+| csv-table (50 rows) | **161** | 4,531 | 4,730 | 5/5 | **28x** |
+| **log-chart (100 lines)** | **1,108** | 1,354 | 3,577 | **0/5** | **1.2x — no win** |
+
+On the log scenario the model **never once** used the reference component. It was
+right not to. `LogStream` accepts `groupBy="hour|day|week"`; the task asks for
+**ten-minute** buckets. **The reference grammar cannot express the question**, so
+the model read the log, did the aggregation itself, and emitted six data points
+inline — which is the correct engineering call, and it cost 1,108 tokens.
+
+Two things follow, and neither is comfortable:
+
+1. **The ladder's payoff is a function of payload size × reference
+   expressiveness — not a property of the ladder itself.** A reference is worth
+   51x when it replaces a 250-line diff, 28x when it replaces 50 CSV rows, and
+   **nothing** when the answer is six numbers the model had to compute anyway.
+   Quoting "51x" as parchment's number would be dishonest; the honest range is
+   **1.2x–51x, and it depends entirely on the task.**
+2. **Models rationally bypass a reference component that can't express their
+   task.** That is a product gap, not a model failure. An aggregating `LogStream`
+   (`groupBy="10m"`) would close it — but we have *not* built that, so we do not
+   get to claim it.
+
+Disclosure, because it matters: the ten-minute bucketing was fixed in the scenario
+(commit `19181ec`) to make the rubric's ground truth deterministic — **before** the
+`LogStream` grammar existed (`43e3ed2`). We did not tune the task to fail. But we
+also did not tune it to succeed, and it found a real hole.
+
+**Aggregate ladder-climb rate across all three scenarios: 10/15 (67%).**
 
 ## The half of the thesis that DIED
 
@@ -67,10 +109,13 @@ and then it is left alone. If it ignored that and pasted the file anyway, the
 honest headline would have been *"parchment could be 51x cheaper, and the model
 doesn't do it."*
 
-It climbed, **5/5 (100%, Wilson 95% CI 57–100%)**. The interval clears half, so
-the win is the ladder's and not merely the notation's. But N=5 on one scenario is
-a narrow interval to hang a claim on — the CI's lower bound is 57%, and that is
-the number to quote, not the 100%.
+On the two scenarios where the reference **could express the task**, it climbed
+**10/10**. On the one where it could not, it climbed **0/5** — see the failure
+section above. Overall **10/15 (67%)**.
+
+So the model does reach for the reference, unprompted and reliably, *whenever the
+reference actually answers the question*. That is the real finding, and it is
+narrower than the one we set out to prove.
 
 ## Authored tokens, not session tokens
 
@@ -87,8 +132,8 @@ just aren't a property of the format.
 
 ## Where this is weak — read before quoting
 
-- **One scenario, one model, N=5.** The CSV and log ladder scenarios, the six
-  ported scenarios, opus, and haiku have **not run**. This is a pilot.
+- **Three ladder scenarios, one model (sonnet), N=5 each.** The six ported
+  scenarios, opus, and haiku have **not run**. This is a pilot.
 - **The ablation ran at N=5, one scenario.** Its CI (0.98x–1.26x) is wide enough
   that a small real effect could hide inside it. What it rules out is a LARGE
   familiarity effect — which is exactly what we had claimed.

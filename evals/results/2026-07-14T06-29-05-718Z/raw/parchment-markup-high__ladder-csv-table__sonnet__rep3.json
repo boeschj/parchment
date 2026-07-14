@@ -1,0 +1,39 @@
+{
+  "runId": "parchment-markup-high__ladder-csv-table__sonnet__rep3",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-csv-table",
+  "model": "sonnet",
+  "replicate": 3,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 353,
+      "authoredOutputTokens": 177,
+      "authoredArtifactBytes": 164,
+      "renderCallCount": 1,
+      "usedReference": true,
+      "referenceKindsUsed": [
+        "DataTable"
+      ],
+      "inputTokens": 6,
+      "cacheReadTokens": 51758,
+      "cacheCreationTokens": 10908,
+      "assistantTurnCount": 3,
+      "wallClockMs": 8109,
+      "reportedCostUsd": 0.0870144,
+      "artifact": {
+        "source": "<Card title=\"Benchmark Results\" description=\"50 runs across scenarios, models, and arms\">\n  <DataTable caption=\"Benchmark results\" src=\"data/results.csv\" />\n</Card>",
+        "toolInput": {
+          "title": "Benchmark Results",
+          "markup": "<Card title=\"Benchmark Results\" description=\"50 runs across scenarios, models, and arms\">\n  <DataTable caption=\"Benchmark results\" src=\"data/results.csv\" />\n</Card>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4325,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-csv-table__sonnet__rep3"
+}

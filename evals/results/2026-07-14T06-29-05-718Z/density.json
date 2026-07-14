@@ -1,0 +1,50 @@
+[
+  {
+    "armId": "parchment-markup-high",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 74,
+    "approximateTokens": 30,
+    "approximateTokensByBytesRule": 19
+  },
+  {
+    "armId": "parchment-markup-high",
+    "scenarioId": "ladder-log-chart",
+    "origin": "accepted-run",
+    "bytes": 652,
+    "approximateTokens": 307,
+    "approximateTokensByBytesRule": 163
+  },
+  {
+    "armId": "parchment-markup-low",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 8574,
+    "approximateTokens": 4396,
+    "approximateTokensByBytesRule": 2144
+  },
+  {
+    "armId": "parchment-markup-low",
+    "scenarioId": "ladder-log-chart",
+    "origin": "accepted-run",
+    "bytes": 746,
+    "approximateTokens": 348,
+    "approximateTokensByBytesRule": 187
+  },
+  {
+    "armId": "raw-html",
+    "scenarioId": "ladder-csv-table",
+    "origin": "accepted-run",
+    "bytes": 7853,
+    "approximateTokens": 3479,
+    "approximateTokensByBytesRule": 1964
+  },
+  {
+    "armId": "raw-html",
+    "scenarioId": "ladder-log-chart",
+    "origin": "accepted-run",
+    "bytes": 4949,
+    "approximateTokens": 2235,
+    "approximateTokensByBytesRule": 1238
+  }
+]

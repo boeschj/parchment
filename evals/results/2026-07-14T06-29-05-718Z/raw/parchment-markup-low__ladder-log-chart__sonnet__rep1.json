@@ -1,0 +1,37 @@
+{
+  "runId": "parchment-markup-low__ladder-log-chart__sonnet__rep1",
+  "armId": "parchment-markup-low",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 1,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1683,
+      "authoredOutputTokens": 1444,
+      "authoredArtifactBytes": 1215,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 55816,
+      "cacheCreationTokens": 16767,
+      "assistantTurnCount": 3,
+      "wallClockMs": 21176,
+      "reportedCostUsd": 0.1433788,
+      "artifact": {
+        "source": "<section>\n<h1>Error rate over time — app.log</h1>\n<p>Application log spans 2026-05-11 09:00–10:00 UTC (100 lines, 22 ERROR lines). Counts below are ERROR lines bucketed into ten-minute windows by timestamp.</p>\n<Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"warning\" title=\"Cluster around 09:30–09:40\">11 of the 22 ERROR lines (50%) fall in the 09:30 bucket, driven by a `pricing` upstream outage (`econnrefused`, retries exhausted) that trips the `breaker` circuit and produces cascading `503`s from `/catalog` until the circuit closes again around 09:40.</Callout>\n<DataTable caption=\"Bucketed ERROR counts\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\",\"type\":\"string\"},{\"key\":\"errors\",\"header\":\"ERROR lines\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n</section>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<section>\n<h1>Error rate over time — app.log</h1>\n<p>Application log spans 2026-05-11 09:00–10:00 UTC (100 lines, 22 ERROR lines). Counts below are ERROR lines bucketed into ten-minute windows by timestamp.</p>\n<Chart kind=\"bar\" title=\"ERROR lines per 10-minute bucket\" x=\"bucket\" y=\"errors\" height=\"360\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Callout tone=\"warning\" title=\"Cluster around 09:30–09:40\">11 of the 22 ERROR lines (50%) fall in the 09:30 bucket, driven by a `pricing` upstream outage (`econnrefused`, retries exhausted) that trips the `breaker` circuit and produces cascading `503`s from `/catalog` until the circuit closes again around 09:40.</Callout>\n<DataTable caption=\"Bucketed ERROR counts\" columns='[{\"key\":\"bucket\",\"header\":\"Bucket start\",\"type\":\"string\"},{\"key\":\"errors\",\"header\":\"ERROR lines\",\"type\":\"number\",\"align\":\"right\"}]' rows='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 3731,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-low__ladder-log-chart__sonnet__rep1"
+}

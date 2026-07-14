@@ -1,0 +1,37 @@
+{
+  "runId": "parchment-markup-high__ladder-log-chart__sonnet__rep1",
+  "armId": "parchment-markup-high",
+  "scenarioId": "ladder-log-chart",
+  "model": "sonnet",
+  "replicate": 1,
+  "attempts": [
+    {
+      "attemptIndex": 0,
+      "outputTokens": 1278,
+      "authoredOutputTokens": 1016,
+      "authoredArtifactBytes": 652,
+      "renderCallCount": 1,
+      "usedReference": false,
+      "referenceKindsUsed": [],
+      "inputTokens": 6,
+      "cacheReadTokens": 57039,
+      "cacheCreationTokens": 16959,
+      "assistantTurnCount": 3,
+      "wallClockMs": 20728,
+      "reportedCostUsd": 0.13882769999999997,
+      "artifact": {
+        "source": "<section>\n<h1>Error Rate Over Time</h1>\n<p>ERROR-level log lines from logs/app.log, bucketed into 10-minute windows (2026-05-11 09:00–10:00 UTC).</p>\n<Chart kind=\"bar\" title=\"ERROR count per 10-minute bucket\" x=\"bucket\" y=\"errors\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Text variant=\"muted\">22 ERROR lines total, matching the hourly_summary line at the end of the log (errors=22). The spike in the 09:30 bucket corresponds to a pricing upstream outage and circuit breaker trip.</Text>\n</section>",
+        "toolInput": {
+          "title": "Chart the error rate over time from a log file on disk",
+          "markup": "<section>\n<h1>Error Rate Over Time</h1>\n<p>ERROR-level log lines from logs/app.log, bucketed into 10-minute windows (2026-05-11 09:00–10:00 UTC).</p>\n<Chart kind=\"bar\" title=\"ERROR count per 10-minute bucket\" x=\"bucket\" y=\"errors\" data='[{\"bucket\":\"09:00\",\"errors\":0},{\"bucket\":\"09:10\",\"errors\":1},{\"bucket\":\"09:20\",\"errors\":5},{\"bucket\":\"09:30\",\"errors\":11},{\"bucket\":\"09:40\",\"errors\":4},{\"bucket\":\"09:50\",\"errors\":1}]' />\n<Text variant=\"muted\">22 ERROR lines total, matching the hourly_summary line at the end of the log (errors=22). The spike in the 09:30 bucket corresponds to a pricing upstream outage and circuit breaker trip.</Text>\n</section>"
+        }
+      },
+      "accepted": true,
+      "failureReasons": []
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "systemPromptTokens": 4325,
+  "archivePath": "/Users/boeschj/Documents/GitHub/parchment/evals/.scratch/runs/parchment-markup-high__ladder-log-chart__sonnet__rep1"
+}
