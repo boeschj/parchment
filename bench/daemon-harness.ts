@@ -1,14 +1,24 @@
 // Boots an isolated parchment daemon for the benchmark run and tears it down
 // afterward. Isolation matters: a developer's real parchment daemon may
-// already be running with live sessions (this one is — see bench/README.md),
-// and the daemon's state directory (~/.parchment: port/token/pid files,
-// session slots) is NOT configurable via an environment variable in the
-// current daemon code. `HOME` is the only lever: Node/Bun's `os.homedir()`
-// resolves from `$HOME`, and the daemon derives its entire state directory
-// from `homedir()`. Overriding `HOME` just for the spawned daemon process
-// (never for the outer `claude -p` process, which still needs the real HOME
-// for auth) gives the harness a fully separate ~/.parchment with zero risk
-// of clobbering a developer's live daemon.
+// already be running with live sessions (this one is — see bench/README.md).
+//
+// The daemon derives its state directory (port/token/pid files, session slots)
+// from PARCHMENT_STATE_DIR if set, and otherwise from `homedir()/.parchment`
+// (src/daemon/state.ts). We pin BOTH, for different reasons:
+//
+//   PARCHMENT_STATE_DIR — the explicit, supported lever. Pinning it is not
+//     optional: `bunfig.toml`'s [test].preload sets this variable in any
+//     `bun test` process, and Bun.spawn inherits the parent's environment — so
+//     a bench daemon spawned from inside a test would silently write its token
+//     and sessions into the TEST's temp dir, and the harness would then fail to
+//     find server.token in the HOME it just created. (That is exactly what
+//     happened; this line is the fix.)
+//   HOME — belt and braces, so that anything in the daemon (or its deps) that
+//     still reaches for `homedir()` lands in the throwaway directory too, never
+//     in a developer's real ~/.parchment.
+//
+// The outer `claude -p` / SDK process keeps the REAL HOME — it needs it for
+// auth. Only the spawned daemon is relocated.
 
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,7 +53,12 @@ export async function startBenchDaemon({ port, homeDir }: StartBenchDaemonOption
 
   const daemonProcess = Bun.spawn({
     cmd: ["bun", "run", DAEMON_ENTRY],
-    env: { ...process.env, HOME: resolvedHomeDir, CANVAS_PORT: String(port) },
+    env: {
+      ...process.env,
+      HOME: resolvedHomeDir,
+      PARCHMENT_STATE_DIR: parchmentStateDir,
+      CANVAS_PORT: String(port),
+    },
     stdout: "ignore",
     stderr: "ignore",
   });

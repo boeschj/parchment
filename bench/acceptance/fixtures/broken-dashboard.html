@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>CI status dashboard</title></head>
+<body style="font: 14px system-ui; margin: 24px;">
+  <!-- The loud failure: the render threw, an error surface is on the page, and
+       the charts never painted. -->
+  <h1>CI status dashboard</h1>
+  <div id="root">
+    <p>Something went wrong while rendering the dashboard.</p>
+  </div>
+  <script>
+    // A page whose chart code blew up: the console carries the evidence even
+    // though the layout still looks vaguely like a dashboard.
+    console.error("TypeError: Cannot read properties of undefined (reading 'map')");
+    throw new Error("chart bootstrap failed");
+  </script>
+</body>
+</html>
