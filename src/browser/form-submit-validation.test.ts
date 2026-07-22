@@ -1,6 +1,5 @@
-// BROWSER-REAL. The regression test for the submit bug, judged the way the
-// acceptance harness judges the benchmark: a real daemon, the real built bundle,
-// a real Chromium, a real click.
+// BROWSER-REAL. The regression test for the submit bug uses a real daemon, the
+// real built bundle, a real Chromium, and a real click.
 //
 // A unit test could not have caught this bug and cannot guard it. The failure
 // was not in a function — every function did what it said. It was in the WIRING:
@@ -236,7 +235,7 @@ async function isHealthy(baseUrl: string): Promise<boolean> {
   }
 }
 
-// Sibling harnesses (bench/) boot their own daemons; never fight them for a port.
+// Other browser tests may boot their own daemons; never fight them for a port.
 async function findFreePort(firstPort: number): Promise<number> {
   for (let port = firstPort; port < firstPort + 40; port += 1) {
     if (await isPortFree(port)) return port;

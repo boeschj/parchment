@@ -2,15 +2,14 @@
 // groupBy="10m"/>` — twelve tokens, for a log the model has never opened —
 // paints a chart whose buckets and counts are the file's real contents.
 //
-// This is the scenario a benchmark ran five times and the model bypassed every
-// single time, correctly: the old grammar took groupBy="hour|day|week" and the
-// question was asked in TEN-MINUTE buckets, so the model read the log itself,
-// aggregated in its head, and pasted six data points. A reference only pays when
+// The old grammar took groupBy="hour|day|week", so a ten-minute question could
+// not use the reference path and had to paste six aggregated data points. A
+// reference only pays when
 // it can express the question. So the assertions below are not "a chart
 // rendered" — they are the file's ground truth, counted independently from the
 // bytes on disk and then read back out of the painted DOM:
 //
-//   100 lines, one hour, 22 ERROR lines, six ten-minute buckets, peak 11 at 09:30.
+//   Six ten-minute buckets, 9 ERROR lines, and a peak of 3 at 09:30.
 //
 // If the daemon's aggregation drifts, these numbers stop matching the file and
 // this test fails. Note it drives dist/browser — the bundle the daemon serves.
@@ -29,7 +28,7 @@ const PREFERRED_PORT = 7828;
 const TOKEN_HEADER = "x-canvas-token";
 const DAEMON_ENTRY = join(import.meta.dir, "..", "daemon", "server.ts");
 const BROWSER_BUNDLE = join(import.meta.dir, "..", "..", "dist", "browser", "index.html");
-const FIXTURE_LOG = join(import.meta.dir, "..", "..", "evals", "fixtures", "logs", "app.log");
+const FIXTURE_LOG = join(import.meta.dir, "fixtures", "app.log");
 const LOG_NAME = "app.log";
 const BUCKET_MINUTES = 10;
 const HEALTH_POLL_ATTEMPTS = 60;
@@ -67,8 +66,7 @@ afterAll(async () => {
 describe("<LogStream groupBy=…/> in a real browser", () => {
   test("paints one bar per ten-minute bucket, carrying the log's real ERROR counts", async () => {
     const truth = countErrorsPerBucket(readFileSync(FIXTURE_LOG, "utf8"));
-    // The fixture, as the benchmark's ground truth records it. If either side of
-    // this drifts, the test is lying and says so.
+    // Pin the fixture's ground truth so either side drifting fails loudly.
     expect(truth.map((bucket) => bucket.label)).toEqual([
       "09:00",
       "09:10",
@@ -77,7 +75,7 @@ describe("<LogStream groupBy=…/> in a real browser", () => {
       "09:40",
       "09:50",
     ]);
-    expect(truth.map((bucket) => bucket.errors)).toEqual([0, 1, 5, 11, 4, 1]);
+    expect(truth.map((bucket) => bucket.errors)).toEqual([0, 1, 2, 3, 2, 1]);
 
     const page = await renderAndOpen("log-reference", ERROR_CHART_MARKUP);
 
@@ -85,11 +83,11 @@ describe("<LogStream groupBy=…/> in a real browser", () => {
     // including 09:00, where there is traffic but no error at all.
     expect(await axisTickLabels(page)).toEqual(truth.map((bucket) => bucket.label));
 
-    // And the bars carry the file's real counts — the peak of 11 at 09:30
-    // included, and 22 errors across the hour.
+    // And the bars carry the file's real counts—the peak of 3 at 09:30
+    // included, and 9 errors across the hour.
     const plotted = await barValueLabels(page);
     expect(plotted).toEqual(truth.map((bucket) => String(bucket.errors)));
-    expect(sum(plotted.map(Number))).toBe(22);
+    expect(sum(plotted.map(Number))).toBe(9);
 
     await page.close();
   }, DRIVE_TIMEOUT_MS);
@@ -104,9 +102,9 @@ describe("<LogStream groupBy=…/> in a real browser", () => {
     expect(await legendLabels(page)).toEqual(["ERROR", "WARN"]);
 
     // Two series interleaved per bucket: ERROR then WARN, bucket by bucket.
-    // 22 ERROR and 18 WARN lines, which is exactly what the fixture holds.
+    // 9 ERROR and 6 WARN lines, which is exactly what the fixture holds.
     const plotted = (await barValueLabels(page)).map(Number);
-    expect(sum(plotted)).toBe(22 + 18);
+    expect(sum(plotted)).toBe(9 + 6);
 
     await page.close();
   }, DRIVE_TIMEOUT_MS);
@@ -272,8 +270,7 @@ async function isHealthy(baseUrl: string): Promise<boolean> {
   }
 }
 
-// Sibling harnesses (bench/, the CSV browser test) boot their own daemons; never
-// fight them for a port.
+// Other browser tests may boot their own daemons; never fight them for a port.
 async function findFreePort(firstPort: number): Promise<number> {
   for (let port = firstPort; port < firstPort + 40; port += 1) {
     if (await isPortFree(port)) return port;

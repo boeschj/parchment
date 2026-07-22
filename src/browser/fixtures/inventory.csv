@@ -1,0 +1,7 @@
+sku,item,category,quantity,unit_price,in_stock
+KTL-4417,Travel Kettle,Appliances,24,39.95,true
+BRM-2098,Ceramic Mug,Kitchen,120,12.50,true
+VNT-7731,Desk Fan,Office,9,64.00,true
+LMP-1180,Reading Lamp,Office,37,48.75,true
+BLN-5521,Wool Blanket,Home,16,89.00,false
+NBK-3304,Grid Notebook,Stationery,84,8.25,true

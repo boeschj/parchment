@@ -14,8 +14,12 @@
     ],
     "UserPromptSubmit": [
       {
-        "matcher": "*",
         "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/route.sh user-prompt",
+            "timeout": 3
+          },
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh",
@@ -30,6 +34,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/route.sh post-tool",
+            "timeout": 3
+          },
+          {
+            "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.sh",
             "timeout": 5
           }
@@ -38,8 +47,12 @@
     ],
     "Stop": [
       {
-        "matcher": "*",
         "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/route.sh stop",
+            "timeout": 3
+          },
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh",

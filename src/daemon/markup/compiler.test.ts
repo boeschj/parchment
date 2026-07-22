@@ -529,8 +529,8 @@ describe("fidelity ladder: reference attributes", () => {
     expect(terminal.watch).toBeUndefined();
   });
 
-  // The gap the log-chart benchmark scenario found: with a bucket, <LogStream>
-  // is a QUESTION, and it compiles to a Chart whose data the daemon aggregates.
+  // With a bucket, <LogStream> is a question, and it compiles to a Chart whose
+  // data the daemon aggregates.
   // `x` and `y` are deliberately absent — they are facts about the file, and the
   // hydrator supplies them.
   test("<LogStream groupBy> is a Chart the daemon aggregates", () => {

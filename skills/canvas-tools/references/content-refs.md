@@ -57,7 +57,7 @@ order, typing and right-aligning the ones whose cells are numbers. You have not
 read the file; it has.
 
 ```json
-{"type": "DataTable", "props": {"rows": {"$csv": "bench/results.csv"}}}
+{"type": "DataTable", "props": {"rows": {"$csv": "data/metrics.csv"}}}
 ```
 
 Author `columns` only to OVERRIDE that: to show a subset, reorder, rename a
@@ -66,7 +66,7 @@ only when it is absent.
 
 ```json
 {"type": "DataTable", "props": {
-  "rows": {"$csv": "bench/results.csv"},
+  "rows": {"$csv": "data/metrics.csv"},
   "columns": [{"key": "name", "header": "Case"},
               {"key": "ms", "header": "p99 (ms)", "type": "number", "align": "right"}]}}
 ```

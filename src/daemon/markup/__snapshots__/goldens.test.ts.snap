@@ -483,7 +483,7 @@ exports[`golden: reference-review compiles to the expected spec 1`] = `
       "children": [],
       "props": {
         "data": {
-          "$csv": "bench/results.csv",
+          "$csv": "data/metrics.csv",
         },
         "height": 260,
         "kind": "line",
@@ -509,7 +509,7 @@ exports[`golden: reference-review compiles to the expected spec 1`] = `
       "children": [],
       "props": {
         "rows": {
-          "$csv": "bench/results.csv",
+          "$csv": "data/metrics.csv",
         },
       },
       "type": "DataTable",
@@ -542,7 +542,7 @@ exports[`golden: reference-review compiles to the expected spec 1`] = `
       "children": [],
       "props": {
         "level": "h2",
-        "text": "Benchmark",
+        "text": "Metrics",
       },
       "type": "Heading",
     },

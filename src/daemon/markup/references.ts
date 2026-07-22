@@ -145,8 +145,8 @@ function optionalEntry(name: string, value: string | null): Record<string, strin
 // ONE TABLE, TWO READERS. The compiler validates <GitDiff>/<LogStream> against
 // it and rejects anything else; every tool that DESCRIBES the dialect to a model
 // renders the attribute list from it. A grammar a model is TOLD and a grammar a
-// compiler ENFORCES that are two hand-kept lists is how a benchmark ends up
-// measuring a reference the model was never given the words to reach for.
+// compiler ENFORCES that are two hand-kept lists will drift and make advertised
+// reference forms unreachable.
 
 // The reference options are markup ATTRIBUTES, not catalog props, so no schema
 // carries their type. This is that type, for anything that has to print one.

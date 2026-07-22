@@ -1,10 +1,11 @@
 # Efficiency
 
-Parchment optimizes for two costs that a coding agent actually pays: the number
-of model passes it takes to land a correct render, and the number of tokens spent
-after the first render to keep it useful. It does not optimize for spec size — a
-terse DSL wins that microbenchmark and it doesn't matter. What matters is that the
-model composes a view once and the daemon keeps it alive.
+Parchment optimizes for the total cost of producing a high-fidelity, useful UI:
+the authored representation, the context needed to choose and use it, the number
+of model passes required to land a correct render, and the tokens spent after the
+first render to keep it useful. Authoring density matters, but it is only a win
+when the resulting interface is at least as correct, polished, and usable as the
+alternatives.
 
 Four mechanisms do the work.
 
@@ -54,16 +55,3 @@ advantage is not in that one case. It compounds when the render is iterated on
 (patch vs re-emit), when it carries live data (stream vs regenerate), or when the
 first attempt is wrong (fix-hinted retry vs blind retries). The more a view lives,
 the further ahead compose-once gets.
-
-## Methodology
-
-The claims above are measured, not asserted. The `bench/` harness runs fixed
-tasks through a headless `claude -p` on both a parchment arm and a single-file
-HTML arm, and extracts three metrics from each run's own session transcript:
-
-- **passes to a correct render** — model turns until the artifact validates,
-- **tokens to first paint** — tokens spent before the user sees anything,
-- **tokens per update** — cost of keeping a live view current over N updates
-  (≈ 0 for parchment after setup).
-
-See `bench/README.md` for how to run it and how the arms are isolated.

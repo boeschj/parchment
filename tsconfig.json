@@ -25,9 +25,5 @@
       "@browser/*": ["./src/browser/*"]
     }
   },
-  "include": ["src/**/*", "vite.config.ts", "bench/**/*", "evals/**/*"],
-  // evals/fixtures/repo is a fixture git repository, not our source: it exists to
-  // be diffed and pasted by the model, so its imports resolve against its own
-  // (uninstalled) dependencies and it must never be typechecked as project code.
-  "exclude": ["evals/fixtures/repo/**"]
+  "include": ["src/**/*", "vite.config.ts"]
 }

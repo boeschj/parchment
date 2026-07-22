@@ -419,10 +419,9 @@ describe("prepareSpec — enum synonym auto-repair", () => {
   });
 });
 
-describe("prepareSpec — observed bench failures now render on the first pass", () => {
-  // Each spec below is the exact shape a sonnet run pushed and had REJECTED in
-  // bench/results/2026-07-12T15-07-38-053Z. After the auto-repair they must
-  // validate with zero issues — the whole point of the coercion layer.
+describe("prepareSpec — observed model dialects render on the first pass", () => {
+  // Each spec below is a shape a model produced and had rejected. After
+  // auto-repair it must validate with zero issues.
 
   it("live-log-dashboard: gap 16 + level 1 + xScale 'linear' all repair", () => {
     const { issues } = prepareSpec(
@@ -502,10 +501,8 @@ describe("prepareSpec — observed bench failures now render on the first pass",
   });
 });
 
-// Round-two dialect failures, observed verbatim in the post-redesign bench runs
-// (bench/results/2026-07-12T19-52-*): the enum synonyms died and expressive
-// models surfaced a NEW class — plausible dialect. Each case below is the real
-// spec shape a model emitted; the assertion is that it renders first-pass.
+// Plausible model-authored dialects observed in practice. Each case below is a
+// real emitted spec shape; the assertion is that it renders first-pass.
 
 describe("prepareSpec — observed dialect failures repair first-pass", () => {
   it("opus status-dashboard: gap 'xs' repairs to sm", () => {
@@ -659,11 +656,9 @@ describe("prepareSpec — observed dialect failures repair first-pass", () => {
   });
 });
 
-// Every spec below is verbatim from bench/results/2026-07-12T22-28-37-337Z (the
-// run whose results were invalidated) or its opus companion
-// bench/results/2026-07-12T22-32-01-708Z. ALL 24 of those specs passed
-// validation and 23 of them rendered something broken — an empty chart, a blank
-// diagram, a dead button — because the validator applied .partial() to every
+// Every spec below is a real model-emitted shape that previously passed
+// validation but rendered something broken—an empty chart, a blank diagram, or
+// a dead button—because the validator applied .partial() to every
 // component schema and stripped expression props before parsing, so a prop the
 // renderer never reads was indistinguishable from a prop it does. Each test
 // below is one of those specs and the exact message the model now gets back.
@@ -875,19 +870,19 @@ describe("prepareSpec — a reference supplies the props derivable from the file
   }
 
   it("a $csv in rows satisfies columns — the daemon derives it from the header", () => {
-    const { issues } = prepareSpec(dataTable({ rows: { $csv: "bench/results.csv" } }));
+    const { issues } = prepareSpec(dataTable({ rows: { $csv: "data/metrics.csv" } }));
     expect(issues).toEqual([]);
   });
 
   it("the bare-string shorthand is the same reference and satisfies it too", () => {
-    const { issues } = prepareSpec(dataTable({ rows: "$csv:bench/results.csv" }));
+    const { issues } = prepareSpec(dataTable({ rows: "$csv:data/metrics.csv" }));
     expect(issues).toEqual([]);
   });
 
   it("an authored columns array is left exactly as written", () => {
     const columns = [{ key: "run", header: "Run" }];
     const { spec: prepared, issues } = prepareSpec(
-      dataTable({ rows: { $csv: "bench/results.csv" }, columns }),
+      dataTable({ rows: { $csv: "data/metrics.csv" }, columns }),
     );
     expect(issues).toEqual([]);
     expect(prepared.elements.t!.props.columns).toEqual(columns);
@@ -909,7 +904,7 @@ describe("prepareSpec — a reference supplies the props derivable from the file
   it("supplies nothing to a Chart: kind, x and y remain the model's to choose", () => {
     const { issues } = prepareSpec({
       root: "c",
-      elements: { c: { type: "Chart", props: { data: { $csv: "bench/results.csv" } }, children: [] } },
+      elements: { c: { type: "Chart", props: { data: { $csv: "data/metrics.csv" } }, children: [] } },
     });
     expect(issues).toHaveLength(3);
     expect(issues.join("\n")).toContain('Chart requires "kind"');

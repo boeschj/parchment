@@ -62,11 +62,9 @@ export const SIGNUP_FORM_MARKUP = `<state>{"form": {"name": "", "email": "", "pa
   <button submit="signup" variant="primary">Sign up</button>
 </form>`;
 
-// The ladder's whole argument in one document. Every heavy element here NAMES a
-// file instead of pasting it: the diff, the excerpt, the benchmark table, the
-// chart, and the log tail together cost a few dozen output tokens, where pasting
-// their contents would cost tens of thousands. This is the shape the dialect
-// exists to make reachable.
+// Every heavy element here names a file instead of pasting it: the diff, the
+// excerpt, the metrics table, the chart, and the log tail. This is the compact,
+// data-backed authoring shape the dialect exists to make reachable.
 export const REFERENCE_REVIEW_MARKUP = `<section>
   <h1>Cache fix — review</h1>
 
@@ -78,11 +76,11 @@ export const REFERENCE_REVIEW_MARKUP = `<section>
 
   <CodeBlock file="src/api/cache.ts" lines="40-80"/>
 
-  <h2>Benchmark</h2>
+  <h2>Metrics</h2>
 
-  <DataTable src="bench/results.csv"/>
+  <DataTable src="data/metrics.csv"/>
 
-  <Chart src="bench/results.csv" kind="line" x="run" y="p99_ms" title="p99 across runs" height="260"/>
+  <Chart src="data/metrics.csv" kind="line" x="run" y="p99_ms" title="p99 across runs" height="260"/>
 
   <h2>Live</h2>
 

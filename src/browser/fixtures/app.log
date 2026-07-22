@@ -1,0 +1,16 @@
+2026-05-11T09:00:04.182Z INFO  [server] server_listening port=8080
+2026-05-11T09:01:12.663Z WARN  [pricing] upstream_latency_elevated p95_ms=812
+2026-05-11T09:10:16.338Z ERROR [pricing] upstream_request_failed attempt=1
+2026-05-11T09:11:33.271Z WARN  [cache] serving_stale_prices age_ms=61000
+2026-05-11T09:20:31.226Z ERROR [pricing] upstream_request_failed attempt=1
+2026-05-11T09:21:08.140Z ERROR [http] request_completed status=504
+2026-05-11T09:22:29.075Z WARN  [pricing] upstream_latency_elevated p95_ms=2410
+2026-05-11T09:30:14.018Z ERROR [pricing] upstream_request_failed attempt=1
+2026-05-11T09:31:07.933Z ERROR [pricing] upstream_retry_exhausted attempts=3
+2026-05-11T09:33:33.762Z ERROR [breaker] circuit_opened failures=6
+2026-05-11T09:34:10.220Z WARN  [cache] serving_stale_prices age_ms=372000
+2026-05-11T09:40:22.251Z ERROR [pricing] upstream_request_failed attempt=1
+2026-05-11T09:41:35.166Z ERROR [http] request_completed status=500
+2026-05-11T09:43:47.556Z WARN  [pricing] upstream_latency_elevated p95_ms=1502
+2026-05-11T09:50:29.588Z ERROR [http] request_completed status=503
+2026-05-11T09:52:18.961Z WARN  [store] slow_query duration_ms=1077

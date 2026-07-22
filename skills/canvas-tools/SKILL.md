@@ -1,6 +1,6 @@
 ---
 name: canvas-tools
-description: Compose generative UI on the parchment browser canvas via canvas_* MCP tools. Use whenever presenting anything richer than a one-liner — explanations, investigations, PR walkthroughs, benchmarks, log analysis, dashboards, comparisons, prototypes, or interactive forms. Turns walls of terminal text into visuals the user understands in under 3 minutes.
+description: Execute a Parchment visual route after the deterministic <parchment-route> classifier selects one, or when the user explicitly asks for the canvas. Never select this skill from response length alone; ordinary coding work and short answers stay in the transcript.
 ---
 
 # Canvas composition — the playbook
@@ -19,7 +19,10 @@ one only when the task calls for it.
 
 | Situation | Tool |
 |---|---|
-| Rich content — anything past a paragraph of terminal text (DEFAULT) | `canvas_render` |
+| The route selects `component` | `canvas_render` |
+| The route selects `markdown` | `canvas_render` with one `Markdown` document; preserve the authored structure |
+| The route selects `mermaid` | `canvas_render` with `MermaidEditor`; author only Mermaid source |
+| The route selects `file` | `canvas_render` with a path reference; never paste the file |
 | A dashboard that should keep updating after your turn ends | `canvas_render` + `canvas_live` |
 | A SMALL change to a slot already on the canvas | `canvas_patch` (never a full re-render) |
 | Host a third-party MCP app's UI in a slot | `canvas_app` |
@@ -32,7 +35,11 @@ one only when the task calls for it.
 
 Refinements ALWAYS reuse the same `slotId` — never stack near-duplicate slots.
 
-## Score every render before you send it
+## Score every `component` render before you send it
+
+This rubric applies only when the deterministic route selected `component`.
+A `markdown`, `mermaid`, `file`, or `mcp-app` route is already choosing reuse
+over composition and must not be inflated merely to satisfy this rubric.
 
 - **10/10** — Answer visible in 2 seconds (Metric row or Callout verdict at top), a
   visual carrying the core mechanism (diagram, Steps, Chart, DiffViewer), evidence
@@ -40,8 +47,9 @@ Refinements ALWAYS reuse the same `slotId` — never stack near-duplicate slots.
   component types, real data from THIS conversation.
 - **5/10** — Correct structure but text-first: paragraphs in cards, tables of
   sentences, stats as prose. The user still has to *read* everything.
-- **0/10** — One PlanFile/Markdown blob, or Cards containing nothing but Text. That
-  is markdown with extra steps. Never ship it.
+- **0/10** — On a `component` route, one PlanFile/Markdown blob or Cards containing
+  nothing but Text. That is markdown with extra steps. A direct `markdown` route is
+  intentionally one preserved document and is not scored here.
 
 ## Transform rules (prose → component)
 
@@ -114,7 +122,8 @@ first time:
 
 ## Hard negatives (each of these has burned a real render)
 
-- ❌ A slot whose components are only Card/Text/Heading — that's a document, score 0.
+- ❌ On a `component` route, a slot whose components are only Card/Text/Heading —
+  that's a document, score 0. Preserve a direct `markdown` route as Markdown.
 - ❌ Sentences as table cells. Tables hold values; prose goes in Markdown/Callout.
 - ❌ Card+Text posing as a KPI — use Metric.
 - ❌ `Text` variant `code` for a snippet — that's for inline identifiers; snippets use CodeBlock.
@@ -122,9 +131,8 @@ first time:
 - ❌ Inventing Terminal output, test counts, or benchmark numbers. If you didn't run it, don't render it.
 - ❌ Mermaid: `\n` inside a node label (use `<br/>`), or fencing the source in ```` ```mermaid ````.
 - ❌ Charts of arrays you never sorted/aggregated — do the math before the spec.
-- ❌ Mirroring every reply to the canvas. Terminal stays the chat; the canvas gets the
-  moments where visual structure beats prose. When in doubt for long technical
-  answers: render.
+- ❌ Mirroring every reply to the canvas. Terminal stays the chat. Follow the
+  deterministic route; response length alone never creates a visual slot.
 
 ## Deeper references (pull on demand)
 

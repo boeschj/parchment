@@ -47,10 +47,9 @@ export type RepoResolution = { ok: true; context: RepoContext } | { ok: false; e
 // failure as "the file did not exist at this revision", and the DiffViewer
 // renders with an EMPTY before side: a one-sided diff, silently, with no error.
 //
-// The benchmark caught exactly this — a <GitDiff> over a git repo nested inside
-// the run directory came back with before="" and after=<the whole file> — and the
-// model, seeing half a diff, pasted the file by hand instead. Searching from the
-// file's own directory finds the innermost repo that actually contains it, which
+// A <GitDiff> over a nested repository exposed this: it came back with before=""
+// and after=<the whole file>. Searching from the file's own directory finds the
+// innermost repository that actually contains it, which
 // is the only repo whose revisions can answer for it. For the common case (the
 // file is in cwd's own repo) this resolves to the same root, so nothing changes.
 async function resolveRepoContext(absPath: string): Promise<RepoResolution> {

@@ -248,15 +248,14 @@ describe("resolveDiffSides", () => {
   });
 
   // THE ONE-SIDED DIFF. The repo used to be resolved from the session's cwd, so a
-  // file living in a repo BELOW cwd — a submodule, a vendored checkout, the
-  // benchmark's own fixture repo — was looked up in the OUTER repo, where its path
+  // file living in a repo BELOW cwd—a submodule or vendored checkout—was looked
+  // up in the OUTER repo, where its path
   // does not exist at any revision. `git show` failed, the failure was read as
   // "the file is new, so it has no before", and the DiffViewer rendered with a
   // BLANK before side. No error, half a diff.
   //
-  // The benchmark caught it: the model asked for <GitDiff/>, got a one-sided
-  // render, and pasted the whole file by hand instead — turning a 176-token
-  // artifact into a 9,000-token one.
+  // A model seeing the one-sided render reasonably abandoned the reference and
+  // pasted the whole file, making the failure both incorrect and expensive.
   it("resolves the repo from the FILE, so a nested repo below cwd still diffs both sides", async () => {
     const outer = tmpDir("hydrate-outer-");
     const outerRun = (args: string[]): Promise<void> =>

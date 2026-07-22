@@ -96,8 +96,8 @@ describe("golden: signup-form", () => {
   });
 });
 
-// The ladder's payoff, asserted end to end: not one byte of the diff, the source
-// excerpt, the benchmark rows, or the log tail appears in the authored document.
+// Reference-backed authoring asserted end to end: not one byte of the diff, the
+// source excerpt, the metrics rows, or the log tail appears in the document.
 describe("golden: reference-review", () => {
   const spec = prepareSpec(compileMarkup(REFERENCE_REVIEW_MARKUP).spec).spec;
 
@@ -107,8 +107,8 @@ describe("golden: reference-review", () => {
       $file: "src/api/cache.ts",
       lines: "40-80",
     });
-    expect(spec.elements["datatable-6"]?.props.rows).toEqual({ $csv: "bench/results.csv" });
-    expect(spec.elements["chart-7"]?.props.data).toEqual({ $csv: "bench/results.csv" });
+    expect(spec.elements["datatable-6"]?.props.rows).toEqual({ $csv: "data/metrics.csv" });
+    expect(spec.elements["chart-7"]?.props.data).toEqual({ $csv: "data/metrics.csv" });
     expect(spec.elements["terminal-9"]?.props.output).toEqual({ $file: "logs/app.log", watch: true });
   });
 

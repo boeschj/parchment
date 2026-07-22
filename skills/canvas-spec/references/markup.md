@@ -42,7 +42,7 @@ disguise. Ask the daemon the question instead.
 
 ```html
 <GitDiff file="src/daemon/server.ts" base="HEAD~1"/>   <!-- the whole diff -->
-<DataTable src="bench/results.csv"/>                   <!-- the whole table -->
+<DataTable src="data/metrics.csv"/>                   <!-- the whole table -->
 <LogStream file="logs/app.log" watch/>                 <!-- a live tail -->
 <LogStream file="logs/app.log" match="ERROR" groupBy="10m"/>  <!-- errors/10min -->
 ```
@@ -183,7 +183,7 @@ across re-pushes.
 
 ## Worked example — review dashboard (all high-rung)
 
-Not one byte of the diff, the source, the benchmark rows, or the log is emitted:
+Not one byte of the diff, the source, the metrics rows, or the log is emitted:
 
 ```html
 <section>
@@ -195,9 +195,9 @@ Not one byte of the diff, the source, the benchmark rows, or the log is emitted:
   <h2>The hot path it touches</h2>
   <CodeBlock file="src/api/cache.ts" lines="40-80"/>
 
-  <h2>Benchmark</h2>
-  <DataTable src="bench/results.csv"/>
-  <Chart src="bench/results.csv" kind="line" x="run" y="p99_ms" title="p99 across runs"/>
+  <h2>Metrics</h2>
+  <DataTable src="data/metrics.csv"/>
+  <Chart src="data/metrics.csv" kind="line" x="run" y="p99_ms" title="p99 across runs"/>
 
   <h2>Live</h2>
   <LogStream file="logs/app.log" watch/>

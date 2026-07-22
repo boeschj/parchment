@@ -6,8 +6,8 @@
 // that a header derived by the daemon, bound through the "/hydrated" namespace,
 // and resolved by json-render in the browser, arrives in the <th> cells with the
 // file's real rows underneath. Only a rendered page shows that, and this is the
-// flagship form of the fidelity ladder: if it renders empty, the reference is
-// worthless and the model has to paste 50 rows of CSV instead.
+// core reference-backed authoring path: if it renders empty, the reference is
+// worthless and the model has to paste the CSV instead.
 //
 // Note this drives dist/browser — the bundle the daemon actually serves. Run
 // `pnpm build:browser` after touching src/browser or this test judges stale code.
@@ -26,16 +26,16 @@ const PREFERRED_PORT = 7827;
 const TOKEN_HEADER = "x-canvas-token";
 const DAEMON_ENTRY = join(import.meta.dir, "..", "daemon", "server.ts");
 const BROWSER_BUNDLE = join(import.meta.dir, "..", "..", "dist", "browser", "index.html");
-const FIXTURE_CSV = join(import.meta.dir, "..", "..", "evals", "fixtures", "data", "results.csv");
-const CSV_NAME = "results.csv";
+const FIXTURE_CSV = join(import.meta.dir, "fixtures", "inventory.csv");
+const CSV_NAME = "inventory.csv";
 const HEALTH_POLL_ATTEMPTS = 60;
 const HEALTH_POLL_INTERVAL_MS = 100;
 const BOOT_TIMEOUT_MS = 60_000;
 const DRIVE_TIMEOUT_MS = 60_000;
 
 // What a model writes: the file's name, and nothing about its shape. There is no
-// `columns` here and there cannot be one — the model has not read results.csv.
-const TABLE_MARKUP = `<DataTable src="${CSV_NAME}" caption="Benchmark runs"/>`;
+// `columns` here and there cannot be one — the model has not read inventory.csv.
+const TABLE_MARKUP = `<DataTable src="${CSV_NAME}" caption="Inventory"/>`;
 
 type Daemon = { baseUrl: string; token: string; cwd: string; stop: () => Promise<void> };
 
@@ -77,13 +77,13 @@ describe("<DataTable src=…csv/> in a real browser", () => {
 
   // The derived columns are not just names: a column whose cells parsed as
   // numbers is typed and right-aligned, which is the difference between a table
-  // that sorts 1187 before 742 and one that does not.
+  // that sorts 120 before 9 and one that does not.
   test("right-aligns the columns the daemon typed as numbers", async () => {
     const sessionId = "csv-reference-align";
     await renderMarkup(sessionId, TABLE_MARKUP);
     const page = await openCanvas(sessionId);
 
-    expect(await rightAlignedHeaders(page)).toEqual(["tokens_in", "tokens_out", "latency_ms"]);
+    expect(await rightAlignedHeaders(page)).toEqual(["quantity", "unit_price"]);
 
     await page.close();
   }, DRIVE_TIMEOUT_MS);
@@ -102,7 +102,7 @@ async function renderMarkup(sessionId: string, markup: string): Promise<void> {
   const response = await fetch(`${daemon.baseUrl}/api/sessions/${sessionId}/slots`, {
     method: "POST",
     headers: { "content-type": "application/json", [TOKEN_HEADER]: daemon.token },
-    body: JSON.stringify({ kind: "render", title: "Benchmark runs", spec, cwd: daemon.cwd }),
+    body: JSON.stringify({ kind: "render", title: "Inventory", spec, cwd: daemon.cwd }),
   });
   if (!response.ok) throw new Error(`POST /slots failed: ${response.status} ${await response.text()}`);
 }
@@ -203,7 +203,7 @@ async function isHealthy(baseUrl: string): Promise<boolean> {
   }
 }
 
-// Sibling harnesses (bench/) boot their own daemons; never fight them for a port.
+// Other browser tests may boot their own daemons; never fight them for a port.
 async function findFreePort(firstPort: number): Promise<number> {
   for (let port = firstPort; port < firstPort + 40; port += 1) {
     if (await isPortFree(port)) return port;
